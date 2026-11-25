@@ -1560,6 +1560,47 @@
         "title": "ChatMessage",
         "type": "object"
       },
+      "ChildTraceSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Answer"
+          },
+          "childRunId": {
+            "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
+            "title": "Childrunid",
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/RunExecutionNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "seq": {
+            "pattern": "^[0-9]+-[0-9]+$",
+            "title": "Seq",
+            "type": "string"
+          }
+        },
+        "required": [
+          "childRunId",
+          "seq",
+          "nodes"
+        ],
+        "title": "ChildTraceSnapshot",
+        "type": "object"
+      },
       "CitationAnchor": {
         "additionalProperties": false,
         "properties": {
@@ -2881,11 +2922,40 @@
             ],
             "title": "Childrunid"
           },
+          "deliveryStatus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "completed",
+                  "partial",
+                  "blocked",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverystatus"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "taskName": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskname"
           }
         },
         "required": [
@@ -3534,6 +3604,326 @@
           "limit_sources"
         ],
         "title": "GenerationProfileView",
+        "type": "object"
+      },
+      "GoalAcceptance": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^a[0-9]{1,2}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "GoalAcceptance",
+        "type": "object"
+      },
+      "GoalAction": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "pause",
+              "resume",
+              "cancel",
+              "interrupt"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "minimum": 1,
+            "title": "Expectedrevision",
+            "type": "integer"
+          },
+          "requestId": {
+            "format": "uuid",
+            "title": "Requestid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "expectedRevision",
+          "requestId"
+        ],
+        "title": "GoalAction",
+        "type": "object"
+      },
+      "GoalBudget": {
+        "additionalProperties": false,
+        "properties": {
+          "costMicrousd": {
+            "default": 20000000,
+            "maximum": 20000000,
+            "minimum": 1,
+            "title": "Costmicrousd",
+            "type": "integer"
+          },
+          "maxRounds": {
+            "default": 12,
+            "maximum": 32,
+            "minimum": 1,
+            "title": "Maxrounds",
+            "type": "integer"
+          },
+          "tokens": {
+            "default": 2000000,
+            "maximum": 10000000,
+            "minimum": 10000,
+            "title": "Tokens",
+            "type": "integer"
+          }
+        },
+        "title": "GoalBudget",
+        "type": "object"
+      },
+      "GoalContract": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance": {
+            "items": {
+              "$ref": "#/components/schemas/GoalAcceptance"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Acceptance",
+            "type": "array"
+          },
+          "constraints": {
+            "items": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Constraints",
+            "type": "array"
+          },
+          "objective": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Objective",
+            "type": "string"
+          }
+        },
+        "required": [
+          "objective",
+          "acceptance"
+        ],
+        "title": "GoalContract",
+        "type": "object"
+      },
+      "GoalCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "conflicts": {
+            "minimum": 0,
+            "title": "Conflicts",
+            "type": "integer"
+          },
+          "openTodos": {
+            "minimum": 0,
+            "title": "Opentodos",
+            "type": "integer"
+          },
+          "reusedCalls": {
+            "minimum": 0,
+            "title": "Reusedcalls",
+            "type": "integer"
+          },
+          "stale": {
+            "minimum": 0,
+            "title": "Stale",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "openTodos",
+          "conflicts",
+          "stale",
+          "reusedCalls"
+        ],
+        "title": "GoalCounts",
+        "type": "object"
+      },
+      "GoalProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/GoalBudget"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/GoalContract"
+          },
+          "expectedRevision": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expectedrevision"
+          },
+          "goalId": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Goalid"
+          }
+        },
+        "required": [
+          "contract"
+        ],
+        "title": "GoalProposal",
+        "type": "object"
+      },
+      "GoalUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "costMicrousd": {
+            "minimum": 0,
+            "title": "Costmicrousd",
+            "type": "integer"
+          },
+          "costPct": {
+            "minimum": 0,
+            "title": "Costpct",
+            "type": "number"
+          },
+          "overrun": {
+            "title": "Overrun",
+            "type": "boolean"
+          },
+          "rounds": {
+            "minimum": 0,
+            "title": "Rounds",
+            "type": "integer"
+          },
+          "tokens": {
+            "minimum": 0,
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "tokensPct": {
+            "minimum": 0,
+            "title": "Tokenspct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rounds",
+          "tokens",
+          "costMicrousd",
+          "tokensPct",
+          "costPct",
+          "overrun"
+        ],
+        "title": "GoalUsage",
+        "type": "object"
+      },
+      "GoalView": {
+        "additionalProperties": false,
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/GoalBudget"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/GoalContract"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/GoalCounts"
+          },
+          "goalId": {
+            "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
+            "title": "Goalid",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reasoncode"
+          },
+          "revision": {
+            "minimum": 1,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "satisfied": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Satisfied",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "blocked",
+              "budget_limited",
+              "completed",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/GoalUsage"
+          }
+        },
+        "required": [
+          "goalId",
+          "revision",
+          "status",
+          "contract",
+          "budget",
+          "usage",
+          "counts"
+        ],
+        "title": "GoalView",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -6668,6 +7058,17 @@
               }
             ],
             "title": "Expiresat"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "kind": {
             "enum": [
@@ -10230,6 +10631,39 @@
         "title": "SessionDeleted",
         "type": "object"
       },
+      "SessionGoal": {
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runid"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "SessionGoal",
+        "type": "object"
+      },
       "SessionList": {
         "additionalProperties": false,
         "properties": {
@@ -11330,6 +11764,17 @@
             "default": null,
             "title": "Connectionrevision"
           },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "proposalId": {
             "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
             "title": "Proposalid",
@@ -11858,7 +12303,7 @@
             "title": "Resultpreview"
           },
           "rowCount": {
-            "maximum": 200,
+            "maximum": 9007199254740991,
             "minimum": 1,
             "title": "Rowcount",
             "type": "integer"
@@ -12403,6 +12848,17 @@
             ],
             "default": null,
             "title": "Fields"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "kind": {
             "enum": [
@@ -13612,6 +14068,91 @@
         "summary": "Cancel Run",
         "tags": [
           "analysis"
+        ]
+      }
+    },
+    "/v1/analysis/runs/{run_id}/children/{child_id}": {
+      "get": {
+        "operationId": "child_trace_v1_analysis_runs__run_id__children__child_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "child_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Child Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-compass-context",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Compass-Context"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChildTraceSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Child Trace",
+        "tags": [
+          "goals"
         ]
       }
     },
@@ -15804,6 +16345,166 @@
         "summary": "Reset",
         "tags": [
           "sessions"
+        ]
+      }
+    },
+    "/v1/analysis/sessions/{session_id}/goal": {
+      "get": {
+        "operationId": "read_goal_v1_analysis_sessions__session_id__goal_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-compass-context",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Compass-Context"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionGoal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Goal",
+        "tags": [
+          "goals"
+        ]
+      }
+    },
+    "/v1/analysis/sessions/{session_id}/goal/actions": {
+      "post": {
+        "operationId": "goal_action_v1_analysis_sessions__session_id__goal_actions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-compass-context",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Compass-Context"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionGoal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Goal Action",
+        "tags": [
+          "goals"
         ]
       }
     },

@@ -71,7 +71,7 @@ docker compose -f deploy/compose/compose.yaml --profile web run --rm web-migrate
 
 ## 模型 Runtime 配置
 
-Agent 迁移容器先供应独立 `compass_agent` 库，再迁移至 `0018` 并写入幂等工程样本；运行容器仅持有 `compass_agent_runtime` 凭据。既有旧版 `compass` 演示库保留，接管步骤见 [agent/main](../apps/agent/db/main/README.md)。自定义已存在角色时可通过 `COMPASS_AGENT_RUNTIME_URL` / `COMPASS_AGENT_MIGRATOR_URL` 提供原凭据，供应不会覆盖密码。
+Agent 迁移容器先供应独立 `compass_agent` 库，再迁移至 `0019` 并写入幂等工程样本；运行容器仅持有 `compass_agent_runtime` 凭据。既有旧版 `compass` 演示库保留，接管步骤见 [agent/main](../apps/agent/db/main/README.md)。自定义已存在角色时可通过 `COMPASS_AGENT_RUNTIME_URL` / `COMPASS_AGENT_MIGRATOR_URL` 提供原凭据，供应不会覆盖密码。
 
 `pnpm run deploy` 不读取根 `.env`。启用模型能力时从受控进程环境传入 `COMPASS_AGENT_SERVICE_TOKEN`、`COMPASS_MODEL_ENCRYPTION_KEY`、`COMPASS_MODEL_ALLOWED_ORIGINS`；前两项默认空，模型入口会明确不可用。模型 Key 经平台页面录入；数据库备份与加密密钥分别保存。完整接入见 [Agent 说明](../apps/agent/README.md#模型接入)。
 
@@ -120,3 +120,7 @@ Web 数据库迁移到 0010_knowledge_library 后可从管理页导入文件。�
 Agent 的 `context-results` 私有卷挂载到 `/var/lib/compass/tool-results`，所有 Worker 与同镜像 Scheduler 使用一致配置。复制 Agent 实例时共享该目录，保证已保存 ref 可在接管实例读取；禁止挂载到 Web 静态目录。保留结果卷与 Agent Journal 一起恢复，使用 `pnpm deploy:down` 停服务时保留卷。
 
 新 Run 默认启用 `COMPASS_CONTEXT_OPTIMIZATION_ENABLED`。JEV 使用已配置的 decision Provider 及 `COMPASS_AUTONOMY_MODEL_PROFILES` 预算档案；未配置时保留历史并按容量进入摘要。发布前通过 PromptOps 发布新增选择、摘要及回读工具资产。该功能新增 0 张表，修改 0 张表。
+
+### 长任务目标升级
+
+第 25 课使用 Agent 0019 与现有 Web schema。先备份 Agent 与私有状态密钥、停止旧 Agent / Scheduler，再执行 Agent 迁移；发布 Goal 和委派提示词后启动新版消费者。旧进程须全部退出后按运行说明更新共享策略指纹。Goal 循环独立于运行 Worker 的健康检查，验收需观察目标实际提交下一轮、消费者领取、子任务交付和预算结算。[数据库顺序与恢复](../apps/agent/db/main/README.md#0019-目标与进度账本)

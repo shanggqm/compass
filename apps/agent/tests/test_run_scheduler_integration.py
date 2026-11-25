@@ -101,6 +101,7 @@ def engine(targets):
 
 @asynccontextmanager
 async def runtime_service(engine, **settings):
+    distributed = settings.pop("distributed", False)
     small = {
         "compass_runtime_max_active": 2,
         "compass_runtime_tenant_active": 1,
@@ -112,6 +113,7 @@ async def runtime_service(engine, **settings):
         Settings().model_copy(update={**small, **settings}),
         RunRegistry(),
         schedule_jobs=True,
+        distributed=distributed,
     )
 
     async def allowed(context, **kwargs):
@@ -362,7 +364,7 @@ def test_parked_task_keeps_backlog_and_resume_reuses_reserved_position(engine):
 
 def test_resume_reuses_original_constraints_and_remaining_active_time(engine):
     async def scenario():
-        async with runtime_service(engine) as runtime:
+        async with runtime_service(engine, compass_context_runtime_enabled=False) as runtime:
             constraints = {
                 "plan": "required",
                 "maxSteps": 2,
@@ -592,6 +594,53 @@ def test_advance_polling_and_old_committed_receipt_do_not_repeat_an_attempt(engi
                 ).all()
                 assert len(attempts) == 1 and attempts[0].status == "completed"
                 assert attempts[0].execution_epoch == grant.epoch
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("distributed", [False, True])
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "workflow_replay_mismatch",
+        "checkpoint_invalid",
+        "checkpoint_corrupt",
+        "runtime_state_invalid",
+        "budget_policy_mismatch",
+    ],
+)
+def test_deterministic_recovery_failure_parks_without_reclaim_loop(engine, reason, distributed):
+    async def scenario():
+        async with runtime_service(
+            engine, distributed=distributed, compass_context_runtime_enabled=False
+        ) as runtime:
+            run_id = await submit(runtime)
+            worker = ConsumerSlot("deterministic-failure", uuid4())
+            grant = await claim(runtime, worker, run_id)
+            scheduler(runtime).prepare_advance(
+                worker, AdvanceCommand(grant=grant, expectedCheckpoint=0)
+            )
+            await checkpoint(runtime, run_id, grant.epoch)
+            await runtime.pause_interrupted(run_id, grant.epoch, reason)
+            for _ in range(3):
+                await runtime.recover()
+                await runtime.publisher.flush(run_id)
+                assert scheduler(runtime).claim(worker) is None
+                run = runtime.store.read_run(run_id)
+                assert (run.status, run.recovery_status, run.reason_code) == (
+                    "paused",
+                    "blocked",
+                    reason,
+                )
+                assert job(engine, run_id).status == "parked"
+                assert job(engine, run_id).claim_count == 1
+            # Parking the failed Run releases the slot for unrelated work.
+            other = await submit(runtime, TENANT_B)
+            await claim(runtime, worker, other)
+            # The user can still cancel a parked Run.
+            control(runtime.store, run_id, "cancel", control_command(runtime, run_id), owner())
+            await runtime.recover()
+            assert runtime.store.read_run(run_id).status == "canceled"
 
     asyncio.run(scenario())
 
@@ -1281,7 +1330,9 @@ def test_workflow_tool_finishes_across_worker_boundaries(engine, monkeypatch):
     monkeypatch.setattr(script.shutil, "which", which)
 
     async def scenario():
-        async with runtime_service(engine, compass_runtime_lease_seconds=60) as runtime:
+        async with runtime_service(
+            engine, compass_runtime_lease_seconds=60, compass_context_runtime_enabled=False
+        ) as runtime:
             run_id = await submit(runtime)
             worker = ConsumerSlot("worker-workflow", uuid4())
             grant = await claim(runtime, worker, run_id)
@@ -1746,7 +1797,7 @@ def test_0009_upgrade_preserves_completed_runtime_records_and_runtime_permission
 
 def test_old_epoch_boundary_cannot_adopt_a_new_worker_grant(engine):
     async def scenario():
-        async with runtime_service(engine) as runtime:
+        async with runtime_service(engine, compass_context_runtime_enabled=False) as runtime:
             run_id = await submit(runtime)
             previous_worker = ConsumerSlot("previous-worker", uuid4())
             previous = await claim(runtime, previous_worker, run_id)
@@ -1874,6 +1925,12 @@ def test_due_triggers_keep_published_context_through_worker_takeover(engine, mon
                 assert receipt.run_id is not None
                 assert await admission.submit(delivery.trigger_id, delivery.token) == receipt
                 assert await admission.reconcile(delivery.trigger_id, delivery.token) == receipt
+                # This controlled publication fixture models a persisted v1 answer Run.
+                # Keep its real published Context pin while bypassing the separate v2 review loop.
+                with runtime.store.transaction() as tx:
+                    _, run = runtime.store.lock(tx, receipt.run_id)
+                    binding = {**run.config_snapshot["contextRuntime"], "answerProtocol": 1}
+                    run.config_snapshot = {**run.config_snapshot, "contextRuntime": binding}
                 await runtime.publisher.flush(receipt.run_id)
                 return receipt.run_id
 

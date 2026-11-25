@@ -62,8 +62,10 @@ REVISIONS = {
     "0016": "0016_prompt_context.py",
     "0017": "0017_semantic_runtime.py",
     "0018": "0018_semantic_cleanup.py",
+    "0019": "0019_goal_ledger.py",
 }
-TARGET = "0018"
+TARGET = "0019"
+GOAL_TABLES = {"agent_goal", "agent_goal_entry"}
 SEMANTIC_TABLES = {
     semantic_entities.SemanticMetricOffer.__tablename__,
 }
@@ -182,6 +184,8 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
         expected |= SEMANTIC_TABLES
     if revision >= "0016":
         expected |= PROMPT_TABLES
+    if revision >= "0019":
+        expected |= GOAL_TABLES
     views = inspect(connection).get_view_names(schema="public")
     if views != ([SUMMARY_VIEW] if revision >= "0015" else []):
         raise DatabaseError("Agent view drift at current revision")
@@ -242,6 +246,8 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
                 if revision < "0015" and table.name in PLAN_TABLES:
                     continue
                 if revision < "0017" and table.name in SEMANTIC_TABLES:
+                    continue
+                if revision < "0019" and table.name in GOAL_TABLES:
                     continue
                 if revision < "0016" and table.name in PROMPT_TABLES:
                     continue
@@ -431,6 +437,8 @@ GRANT USAGE ON SEQUENCE prompt_generation_id_seq TO {RUNTIME};"""
         )
         grants += f"\nGRANT SELECT, INSERT ON {tables} TO {RUNTIME};"
         grants += f"\nGRANT UPDATE(status,private_payload) ON semantic_metric_offer TO {RUNTIME};"
+    if target >= "0019":
+        grants += f"\nGRANT SELECT, INSERT, UPDATE ON agent_goal, agent_goal_entry TO {RUNTIME};"
     return grants
 
 
@@ -462,6 +470,7 @@ def sql_delivery(start: str, target: str = TARGET) -> str:
         "0016": "975",
         "0017": "974",
         "0018": "974",
+        "0019": "983",
     }[target]
     change = "transactional Retail copy" if target == "0006" else "additive schema"
     if target == "0018":
@@ -491,14 +500,26 @@ def write_sql(*, check: bool = False) -> None:
         files[f"upgrades/{start}__0005.sql"] = sql_delivery(start, "0005")
     for start in ("0001", "0002", "0003", "0004", "0005"):
         files[f"upgrades/{start}__0006.sql"] = sql_delivery(start, "0006")
-    for target in ("0007", "0008", "0010", "0011", "0012", "0013", "0014", "0015", "0017", TARGET):
+    for target in (
+        "0007",
+        "0008",
+        "0010",
+        "0011",
+        "0012",
+        "0013",
+        "0014",
+        "0015",
+        "0017",
+        "0018",
+        TARGET,
+    ):
         for start in REVISIONS:
             if start < target:
                 files[f"upgrades/{start}__{target}.sql"] = sql_delivery(start, target)
     manifest = {
         "owner": "agent",
         "databaseKey": "main",
-        "feature": "974",
+        "feature": "983",
         "from": "empty",
         "to": TARGET,
         "engine": "PostgreSQL 17",

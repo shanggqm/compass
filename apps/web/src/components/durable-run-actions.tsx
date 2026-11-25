@@ -2,7 +2,15 @@
 import Image from "next/image";
 import { SemanticChoiceCard } from "@/features/semantic/choice-card";
 import { SemanticResultActions } from "@/features/semantic/result-actions";
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
+import { readChildTrace } from "@/client/child-trace";
 import { ApiError } from "@/client/request-scope";
 import type { RunView } from "@/contracts/agent-response";
 import { requestDurableControl } from "@/client/durable-analysis";
@@ -44,6 +52,7 @@ export function DurableRunActions({
   reload,
   timeline,
   children,
+  editGoal,
 }: {
   run: RunView;
   sessionId: string;
@@ -51,6 +60,7 @@ export function DurableRunActions({
   reload: () => void;
   timeline: ComponentProps<typeof UiExecutionTimeline>;
   children: ReactNode;
+  editGoal?: (objective: string) => void;
 }) {
   const api = useDocumentSession(),
     pending = useRef<{ kind: string; body: Record<string, unknown> } | null>(null);
@@ -73,6 +83,17 @@ export function DurableRunActions({
   const [waitRefresh, setWaitRefresh] = useState(0);
   const waitId = approval?.waitId;
   const scopeQuery = new URLSearchParams(scope).toString();
+  const loadChild = useCallback(
+    (id: string, signal: AbortSignal) =>
+      readChildTrace(
+        api,
+        run.runId,
+        { tenantId: scope.tenantId, workspaceId: scope.workspaceId },
+        id,
+        signal,
+      ),
+    [api, run.runId, scope.tenantId, scope.workspaceId],
+  );
   useEffect(() => {
     if (!waitId) return;
     const controller = new AbortController();
@@ -126,6 +147,7 @@ export function DurableRunActions({
       if (kind === "decisions" && waitId) setResolvedWait(waitId);
       pending.current = null;
       reload();
+      return true;
     } catch (failure) {
       if (failure instanceof ApiError && [409, 410].includes(failure.status)) {
         pending.current = null;
@@ -164,7 +186,7 @@ export function DurableRunActions({
 
   return (
     <>
-      <UiExecutionTimeline {...timeline} action={action} />
+      <UiExecutionTimeline loadChild={loadChild} {...timeline} action={action} />
       {reason && <p className="analysis-run-control-note">{reason}</p>}
       {value?.status === "paused" && value.reasonCode && value.reasonCode !== "queued" && (
         <details className="analysis-run-control-note">
@@ -219,7 +241,24 @@ export function DurableRunActions({
           />
         ) : (
           <section className="durable-approval" aria-label="执行确认">
-            <strong>等待你的决定</strong>
+            <strong>{approval.goal ? "确认长任务目标" : "等待你的决定"}</strong>
+            {approval.goal && (
+              <div className="analysis-goal-proposal">
+                <ul>
+                  {approval.goal.contract.acceptance.map((item) => (
+                    <li key={item.id}>{item.text}</li>
+                  ))}
+                </ul>
+                {!!approval.goal.contract.constraints?.length && (
+                  <p>约束：{approval.goal.contract.constraints.join("；")}</p>
+                )}
+                <p>
+                  最多 {approval.goal.budget?.maxRounds ?? 12} 轮 ·{" "}
+                  {(approval.goal.budget?.tokens ?? 2000000).toLocaleString()} Token · $
+                  {((approval.goal.budget?.costMicrousd ?? 20000000) / 1000000).toFixed(2)}
+                </p>
+              </div>
+            )}
             {scheduleDetail ? (
               <>
                 <p className="durable-approval-summary">{scheduleDetail[1].trim()}</p>
@@ -358,11 +397,13 @@ export function DurableRunActions({
                       })
                     }
                   >
-                    {wait.semanticKind === "draft"
-                      ? "确认保存草稿"
-                      : wait.semanticKind === "revision"
-                        ? "确认保存修订"
-                        : "批准执行"}
+                    {approval.goal
+                      ? "确认并开始"
+                      : wait.semanticKind === "draft"
+                        ? "确认保存草稿"
+                        : wait.semanticKind === "revision"
+                          ? "确认保存修订"
+                          : "批准执行"}
                   </button>
                 )}
                 {wait.allowedActions.includes("reject") && (
@@ -385,6 +426,25 @@ export function DurableRunActions({
                       : wait.semanticKind === "revision"
                         ? "取消修订"
                         : "拒绝执行"}
+                  </button>
+                )}
+                {approval.goal && editGoal && wait.allowedActions.includes("reject") && (
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={async () => {
+                      const accepted = await command("decisions", {
+                        waitId: approval.waitId,
+                        proposalId: approval.proposalId,
+                        proposalRevision: approval.proposalRevision,
+                        proposalDigest: approval.proposalDigest,
+                        decisionId: crypto.randomUUID(),
+                        decision: "reject",
+                      });
+                      if (accepted) editGoal(approval.goal!.contract.objective);
+                    }}
+                  >
+                    修改目标
                   </button>
                 )}
                 {wait.allowedActions.includes("reconcile") && (

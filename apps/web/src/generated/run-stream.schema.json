@@ -451,11 +451,40 @@
           ],
           "title": "Childrunid"
         },
+        "deliveryStatus": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "partial",
+                "blocked",
+                "failed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deliverystatus"
+        },
         "name": {
           "maxLength": 120,
           "minLength": 1,
           "title": "Name",
           "type": "string"
+        },
+        "taskName": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Taskname"
         }
       },
       "required": [
@@ -517,6 +546,134 @@
         "mode"
       ],
       "title": "ExecutionWorkflow",
+      "type": "object"
+    },
+    "GoalAcceptance": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^a[0-9]{1,2}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "GoalAcceptance",
+      "type": "object"
+    },
+    "GoalBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "costMicrousd": {
+          "default": 20000000,
+          "maximum": 20000000,
+          "minimum": 1,
+          "title": "Costmicrousd",
+          "type": "integer"
+        },
+        "maxRounds": {
+          "default": 12,
+          "maximum": 32,
+          "minimum": 1,
+          "title": "Maxrounds",
+          "type": "integer"
+        },
+        "tokens": {
+          "default": 2000000,
+          "maximum": 10000000,
+          "minimum": 10000,
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "title": "GoalBudget",
+      "type": "object"
+    },
+    "GoalContract": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "items": {
+            "$ref": "#/$defs/GoalAcceptance"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Acceptance",
+          "type": "array"
+        },
+        "constraints": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Constraints",
+          "type": "array"
+        },
+        "objective": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        }
+      },
+      "required": [
+        "objective",
+        "acceptance"
+      ],
+      "title": "GoalContract",
+      "type": "object"
+    },
+    "GoalProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/GoalBudget"
+        },
+        "contract": {
+          "$ref": "#/$defs/GoalContract"
+        },
+        "expectedRevision": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expectedrevision"
+        },
+        "goalId": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Goalid"
+        }
+      },
+      "required": [
+        "contract"
+      ],
+      "title": "GoalProposal",
       "type": "object"
     },
     "JsonValue": {},
@@ -2069,6 +2226,17 @@
           "default": null,
           "title": "Connectionrevision"
         },
+        "goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalProposal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "proposalId": {
           "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
           "title": "Proposalid",
@@ -2382,7 +2550,7 @@
           "title": "Resultpreview"
         },
         "rowCount": {
-          "maximum": 200,
+          "maximum": 9007199254740991,
           "minimum": 1,
           "title": "Rowcount",
           "type": "integer"

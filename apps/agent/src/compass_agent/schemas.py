@@ -676,7 +676,9 @@ class ToolFinishedKey(ToolEventKey):
 
 class ToolSucceededPayload(ToolFinishedKey):
     status: Literal["ok"]
-    row_count: RunRowCount = Field(alias="rowCount")
+    # This counts all returned rows, including a separately retained full result.
+    # Inline previews and downloadable demo files keep their own smaller bounds.
+    row_count: int = Field(alias="rowCount", ge=1, le=9_007_199_254_740_991)
 
 
 class ToolEmptyPayload(ToolFinishedKey):
@@ -770,7 +772,80 @@ class BudgetProposal(RunContractModel):
     evidence_refs: list[RunUUID] = Field(alias="evidenceRefs", min_length=1, max_length=2)
 
 
+class GoalAcceptance(RunContractModel):
+    id: str = Field(pattern=r"^a[0-9]{1,2}$")
+    text: str = Field(min_length=1, max_length=300)
+
+
+class GoalContract(RunContractModel):
+    objective: str = Field(min_length=1, max_length=2000)
+    acceptance: list[GoalAcceptance] = Field(min_length=1, max_length=10)
+    constraints: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(
+        default_factory=list, max_length=10
+    )
+
+    @model_validator(mode="after")
+    def unique_acceptance(self):
+        if len({item.id for item in self.acceptance}) != len(self.acceptance):
+            raise ValueError("acceptance IDs must be unique")
+        return self
+
+
+class GoalBudget(RunContractModel):
+    max_rounds: int = Field(default=12, alias="maxRounds", ge=1, le=32)
+    tokens: int = Field(default=2_000_000, ge=10_000, le=10_000_000)
+    cost_microusd: int = Field(default=20_000_000, alias="costMicrousd", ge=1, le=20_000_000)
+
+
+class GoalProposal(RunContractModel):
+    goal_id: RunUUID | None = Field(default=None, alias="goalId")
+    expected_revision: int | None = Field(default=None, alias="expectedRevision", ge=1)
+    contract: GoalContract
+    budget: GoalBudget = Field(default_factory=GoalBudget)
+
+
+class GoalUsage(RunContractModel):
+    rounds: int = Field(ge=0)
+    tokens: int = Field(ge=0)
+    cost_microusd: int = Field(alias="costMicrousd", ge=0)
+    tokens_pct: float = Field(alias="tokensPct", ge=0)
+    cost_pct: float = Field(alias="costPct", ge=0)
+    overrun: bool
+
+
+class GoalCounts(RunContractModel):
+    open_todos: int = Field(alias="openTodos", ge=0)
+    conflicts: int = Field(ge=0)
+    stale: int = Field(ge=0)
+    reused_calls: int = Field(alias="reusedCalls", ge=0)
+
+
+class GoalView(RunContractModel):
+    goal_id: RunUUID = Field(alias="goalId")
+    revision: int = Field(ge=1)
+    status: Literal["active", "paused", "blocked", "budget_limited", "completed", "canceled"]
+    reason_code: str | None = Field(default=None, alias="reasonCode", max_length=80)
+    reason: str | None = Field(default=None, max_length=60)
+    contract: GoalContract
+    satisfied: list[str] = Field(default_factory=list)
+    budget: GoalBudget
+    usage: GoalUsage
+    counts: GoalCounts
+
+
+class SessionGoal(RunContractModel):
+    goal: GoalView | None
+    run_id: RunUUID | None = Field(default=None, alias="runId")
+
+
+class GoalAction(RunContractModel):
+    action: Literal["pause", "resume", "cancel", "interrupt"]
+    expected_revision: int = Field(alias="expectedRevision", ge=1)
+    request_id: UUID = Field(alias="requestId", strict=False)
+
+
 class ToolApprovalProposal(RunContractModel):
+    goal: GoalProposal | None = None
     proposal_id: RunUUID = Field(alias="proposalId")
     tool_name: str = Field(alias="toolName", min_length=1, max_length=128)
     tool_call_id: RunToolId = Field(alias="toolCallId")
@@ -947,6 +1022,10 @@ class ExecutionSkill(RunContractModel):
 
 
 class ExecutionSubAgent(RunContractModel):
+    task_name: str | None = Field(default_factory=lambda: None, alias="taskName", max_length=40)
+    delivery_status: Literal["completed", "partial", "blocked", "failed"] | None = Field(
+        default_factory=lambda: None, alias="deliveryStatus"
+    )
     name: str = Field(min_length=1, max_length=120)
     child_run_id: RunUUID | None = Field(default_factory=lambda: None, alias="childRunId")
 
@@ -1709,6 +1788,7 @@ class RunUpsert(RunContractModel):
 
 
 class PublicApproval(RunContractModel):
+    goal: GoalProposal | None = None
     wait_id: RunUUID = Field(alias="waitId")
     proposal_id: RunUUID = Field(alias="proposalId")
     proposal_revision: int = Field(alias="proposalRevision", ge=1)
@@ -2414,3 +2494,10 @@ class KnowledgeEmbeddingBatch(StrictModel):
 
 class KnowledgeEmbeddings(StrictModel):
     vectors: list[list[float]]
+
+
+class ChildTraceSnapshot(RunContractModel):
+    child_run_id: RunUUID = Field(alias="childRunId")
+    seq: str = Field(pattern=r"^[0-9]+-[0-9]+$")
+    nodes: list[RunExecutionNode]
+    answer: str | None = None

@@ -229,6 +229,17 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             await asyncio.to_thread(service.record_page, seen)
         return permitted, registry_context
 
+    from compass_agent.goal.anchor import anchor
+
+    goal_anchor = (
+        None
+        if child
+        else await finish_context_read(asyncio.to_thread(anchor, journal, trusted, budget))
+    )
+    if goal_anchor and draft.continuation_token:
+        draft = draft.model_copy(
+            update={"continuation_token": None, "thinking": False, "reasoning_effort": None}
+        )
     inputs = await finish_context_read(read_inputs())
     previous = journal.context_receipts.get(path)
     frame = {}
@@ -330,6 +341,8 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
                     binding["scopeProfile"],
                 ),
                 "tool_limit": str(RUN_STREAM_LIMITS["toolsPerStep"]),
+                "max_tasks": "4",
+                "max_parallel": "2",
             },
             as_of=journal.context_date,
             continuation_extra=budget_extra,
@@ -338,6 +351,7 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             question=journal.context_questions.get(path),
             support_paths=support,
             fit_budget=optimizer is None,
+            goal_anchor=goal_anchor,
         )
         data = value.request.model_dump(mode="json", exclude={"continuation_token"})
         return {

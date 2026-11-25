@@ -64,3 +64,38 @@ async def full_result(cursor, query, binding, control, journal, projection, call
             source_ref=ref,
             context_result=manifest,
         )
+
+
+async def result_fingerprint(cursor, query, control):
+    """Recheck every row using the original JSONL encoding, without creating an artifact."""
+    import hashlib
+
+    from compass_agent.tools.builtin.database_query import DatabaseResult, JsonPairs, _json_value
+    from compass_agent.tools.contracts import json_bytes
+
+    checksum = hashlib.sha256()
+    columns = ()
+    count = 0
+    async with cursor.connection.cursor(name="verify_" + uuid4().hex) as stream:
+        await stream.execute(
+            f"SELECT pg_catalog.row_to_json(result)::text FROM ({query}) AS result"
+        )
+        while rows := await stream.fetchmany(256):
+            control.require_running()
+            for (raw,) in rows:
+                decoded = json.loads(raw, object_pairs_hook=JsonPairs, parse_float=str)
+                if not count:
+                    columns = tuple(name for name, _ in decoded)
+                    checksum.update(json_bytes({"columns": list(columns)}) + b"\n")
+                row = tuple(_json_value(value) for _, value in decoded)
+                checksum.update(json_bytes(row) + b"\n")
+                count += 1
+    if not count:
+        checksum.update(json_bytes({"columns": []}) + b"\n")
+    return DatabaseResult(
+        str(uuid4()),
+        columns,
+        (),
+        False,
+        context_result={"sha256": checksum.hexdigest(), "returnedCount": count, "complete": True},
+    )

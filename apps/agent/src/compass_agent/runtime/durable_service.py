@@ -227,6 +227,7 @@ class DurableRuntime:
         self.consumers: list[asyncio.Task] = []
         self.ticker = None
         self.progress_ticker = None
+        self.goal_ticker = None
         self.owner_healthy = False
         self.fault: Callable[[str, UUID], Awaitable[None]] | None = None
         self.recovered = False
@@ -366,6 +367,9 @@ class DurableRuntime:
             logger.warning("runtime.readiness_unavailable reason=%s", code)
         self.ticker = asyncio.create_task(self.maintain())
         self.progress_ticker = asyncio.create_task(self.publish_progress())
+        from compass_agent.goal.loop import goal_loop
+
+        self.goal_ticker = asyncio.create_task(goal_loop(self))
 
     async def publish_progress(self):
         while not self.closing:
@@ -807,7 +811,7 @@ class DurableRuntime:
             await asyncio.gather(*self.consumers, return_exceptions=True)
         self.closing = True
         self.store.ready = False
-        tickers = [task for task in (self.ticker, self.progress_ticker) if task]
+        tickers = [task for task in (self.ticker, self.progress_ticker, self.goal_ticker) if task]
         for task in tickers:
             task.cancel()
         await asyncio.gather(*tickers, return_exceptions=True)

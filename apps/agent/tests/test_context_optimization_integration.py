@@ -308,7 +308,11 @@ def test_expired_sources_keep_action_status_and_generic_files_remain_scoped(data
         )
         certified = await journal.context_results.govern(
             ExecutionReceipt(
-                "metadata", "ok", "confirmed", {"text": "y" * (INLINE_TOKENS + 1)}, source_deps=(durable,)
+                "metadata",
+                "ok",
+                "confirmed",
+                {"text": "y" * (INLINE_TOKENS + 1)},
+                source_deps=(durable,),
             ),
             replace(ctx, call_id="metadata"),
         )

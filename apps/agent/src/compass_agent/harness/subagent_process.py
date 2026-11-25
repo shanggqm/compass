@@ -102,7 +102,9 @@ async def run(initial):
             )
         if len(result.tool_calls) > RUN_STREAM_LIMITS["toolsPerStep"]:
             raise RunFailure("model_incomplete")
-        if step.index >= MAX_STEPS:
+        if step.index >= initial.get("maxSteps", MAX_STEPS) and not all(
+            call.function.name == "report_to_parent" for call in result.tool_calls
+        ):
             raise RunFailure("step_limit")
         return None
 

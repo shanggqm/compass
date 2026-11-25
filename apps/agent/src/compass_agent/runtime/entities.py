@@ -687,3 +687,73 @@ RUNTIME_TABLES = frozenset(
 )
 
 from compass_agent.workflows.assets import WorkflowAsset  # noqa: E402,F401
+
+OPEN_GOAL = "status IN ('active','paused','blocked','budget_limited')"
+
+
+class AgentGoal(Base):
+    __tablename__ = "agent_goal"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active','paused','blocked','budget_limited','completed','canceled')",
+            name="ck_agent_goal_status",
+        ),
+        CheckConstraint(
+            "revision > 0 AND rounds_started >= 0 AND tokens_used >= 0 "
+            "AND cost_used_microusd >= 0 AND ledger_revision >= 0 AND last_settled_ordinal >= 0",
+            name="ck_agent_goal_counts",
+        ),
+        Index(
+            "uq_agent_goal_open",
+            "session_id",
+            unique=True,
+            postgresql_where=text(
+                "status::text = ANY (ARRAY['active','paused','blocked','budget_limited']::text[])"
+            ),
+            sqlite_where=text(OPEN_GOAL),
+        ),
+        Index(
+            "ix_agent_goal_open_status",
+            "status",
+            postgresql_where=text(
+                "status::text = ANY (ARRAY['active','paused','blocked','budget_limited']::text[])"
+            ),
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("agent_session.id"))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    reason_code: Mapped[str | None] = mapped_column(String(80))
+    contract: Mapped[dict] = mapped_column(DOCUMENT)
+    budget: Mapped[dict] = mapped_column(DOCUMENT)
+    runtime_state: Mapped[dict] = mapped_column(DOCUMENT, default=dict)
+    rounds_started: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_used: Mapped[int] = mapped_column(BigInteger, default=0)
+    cost_used_microusd: Mapped[int] = mapped_column(BigInteger, default=0)
+    ledger_revision: Mapped[int] = mapped_column(Integer, default=0)
+    last_settled_ordinal: Mapped[int] = mapped_column(Integer, default=0)
+    retry_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentGoalEntry(Base):
+    __tablename__ = "agent_goal_entry"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('query','effect','conclusion','todo','failure','delivery')",
+            name="ck_agent_goal_entry_kind",
+        ),
+        CheckConstraint(
+            "status IN ('done','open','stale','conflict','dropped')",
+            name="ck_agent_goal_entry_status",
+        ),
+    )
+    goal_id: Mapped[UUID] = mapped_column(ForeignKey("agent_goal.id"), primary_key=True)
+    entry_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16))
+    private_body: Mapped[bytes] = mapped_column(LargeBinary)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

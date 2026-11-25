@@ -22,6 +22,8 @@ import type { PagePayload } from "@/contracts/page";
 import { RUN_STREAM_LIMITS } from "@/generated/run-stream-limits";
 import type { AvailableModels } from "@/features/models/types";
 import { AnalysisAttachments, type ComposerAttachment } from "./analysis-attachments";
+import { useAnalysisGoal } from "@/client/analysis-goal";
+import { AnalysisGoalPanel } from "./analysis-goal-panel";
 import { AnalysisRunTurn } from "./analysis-run-turn";
 import { AnalysisTodoPanel, planResolved } from "./analysis-todo-panel";
 import { useDocumentSession } from "./shell/session-boundary";
@@ -63,12 +65,21 @@ export function AnalysisComposer({
   const composerDock = useRef<HTMLDivElement>(null);
   const followOutput = useRef(true);
   const pendingSubmit = useRef<Record<string, unknown> | null>(null);
+  const pendingGoalFocus = useRef(false);
   const [accepting, setAccepting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [question, setQuestion] = useState("");
+  const editGoal = useCallback(
+    (objective: string) => {
+      setQuestion(objective ? `修改目标：${objective}\n修改要求：` : "修改目标：");
+      api.setDirty(true);
+      pendingGoalFocus.current = true;
+    },
+    [api],
+  );
   const workflowPrefilled = useRef(false);
   const workflowName = workflow?.name;
   const prefillWorkflow = useCallback(
@@ -101,12 +112,29 @@ export function AnalysisComposer({
   const workflowScope = tenantId && workspaceId ? { tenantId, workspaceId } : undefined;
   const sessionId = new URL(payload.viewKey, "https://compass.local").searchParams.get("session");
   const conversation = useDurableConversation(api, sessionId, workflowScope);
+  const goalControl = useAnalysisGoal(
+    api,
+    sessionId,
+    workflowScope,
+    conversation.runs.at(-1)?.runId,
+    conversation.reload,
+  );
+  const canInterrupt =
+    ["active", "paused"].includes(goalControl.goal?.status ?? "") &&
+    !!conversation.active &&
+    /^继续推进目标 · 第 [0-9]+ 轮$/.test(conversation.turns.at(-1)?.question ?? "");
   const notification =
     formError ||
     attachmentError ||
     (conversation.missing ? "原会话已找不到，发送消息将开启新会话。" : conversation.error);
   const { turns } = conversation;
   const busy = accepting || navigating || conversation.loading || Boolean(conversation.active);
+  useEffect(() => {
+    if (pendingGoalFocus.current && (!busy || canInterrupt)) {
+      pendingGoalFocus.current = false;
+      input.current?.focus();
+    }
+  }, [busy, canInterrupt, question]);
   const workflowPluginHref = payload.session.navigation.find(
     (item) => item.id === "plugins-workflows",
   )?.href;
@@ -114,7 +142,11 @@ export function AnalysisComposer({
   const selected = models?.items.find((model) => model.id === providerId);
   const canSelectModel = allowed && !busy && Boolean(models?.items.length);
   const canSend =
-    canSelectModel &&
+    allowed &&
+    (!busy || canInterrupt) &&
+    !accepting &&
+    !goalControl.busy &&
+    Boolean(models?.items.length) &&
     (automatic || Boolean(selected)) &&
     Boolean(question.trim()) &&
     !entry.workflowAssetRef;
@@ -265,6 +297,7 @@ export function AnalysisComposer({
     setAccepting(true);
     setFormError("");
     try {
+      if (canInterrupt) await goalControl.interrupt();
       if (!automatic) {
         const current = await api.request<AvailableModels>(
           `models/available?${new URLSearchParams({ ...payload.session.scope, view: "chat" })}`,
@@ -378,6 +411,15 @@ export function AnalysisComposer({
           <p>从一个问题开始，发现经营改善的方向。</p>
         </div>
       )}
+      {goalControl.goal && (
+        <AnalysisGoalPanel
+          goal={goalControl.goal}
+          busy={goalControl.busy}
+          error={goalControl.error}
+          action={goalControl.act}
+          edit={() => editGoal("")}
+        />
+      )}
       {started && (
         <>
           <div className="model-chat-heading">
@@ -423,7 +465,9 @@ export function AnalysisComposer({
                   pluginHref={workflowPluginHref}
                   saved
                   durable={
-                    run && sessionId ? { run, sessionId, reload: conversation.reload } : undefined
+                    run && sessionId
+                      ? { run, sessionId, reload: conversation.reload, editGoal }
+                      : undefined
                   }
                   partialText={
                     Object.values(run?.messages ?? {}).find((m) => m.role === "assistant")?.content
@@ -509,7 +553,13 @@ export function AnalysisComposer({
             aria-label="分析问题"
             aria-keyshortcuts="Enter"
             aria-describedby={attachments.length ? "analysis-attachment-notice" : undefined}
-            placeholder={busy ? "Compass 正在分析…" : "给 Compass 发送消息"}
+            placeholder={
+              canInterrupt
+                ? "发送消息会先停下当前这一轮"
+                : busy
+                  ? "Compass 正在分析…"
+                  : "给 Compass 发送消息"
+            }
             value={question}
             onChange={(event) => {
               setQuestion(event.target.value);
@@ -527,7 +577,7 @@ export function AnalysisComposer({
               }
             }}
             maxLength={8000}
-            disabled={busy}
+            disabled={busy && !canInterrupt}
           />
           <div className="composer-toolbar">
             <label className="composer-model-picker">
@@ -558,7 +608,7 @@ export function AnalysisComposer({
               >
                 <Paperclip size={21} aria-hidden="true" />
               </button>
-              {busy ? (
+              {busy && !canInterrupt ? (
                 <button
                   ref={stopButton}
                   type="button"

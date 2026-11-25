@@ -151,6 +151,7 @@ def member_usages(version=None):
                 "workflow",
             ),
         ),
+        ("shared/fragments", "长任务", ("long-task", "delegation")),
         ("support/context", "上下文优化", ("selection", "compaction")),
         ("shared/fragments", "上下文优化", ("context-results",)),
         ("support/diagnostics", "运行诊断", ("reliability-request",)),
@@ -168,6 +169,9 @@ def member_usages(version=None):
         allowed.setdefault(path, set())
     for path in ("shared/fragments/tool-limit.md", "shared/fragments/workflow.md"):
         allowed[path] = {"tool_limit"}
+    refs["support/subagent/report-to-parent.json"] = {"子任务汇报"}
+    allowed["support/subagent/report-to-parent.json"] = set()
+    allowed["shared/fragments/delegation.md"] = {"max_tasks", "max_parallel"}
     allowed[PREFIX + SAVED_WORKFLOW] = {"workflow_name"}
     return refs, allowed
 

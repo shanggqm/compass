@@ -216,7 +216,9 @@ def test_m6_model_timeout_retains_unknown_usage_without_retry_and_releases_clean
     async def scenario():
         context = owner()
         assert isinstance(context.scope, TenantScope)
-        async with runtime_service(engine, compass_runtime_max_active=1) as runtime:
+        async with runtime_service(
+            engine, compass_runtime_max_active=1, compass_context_runtime_enabled=False
+        ) as runtime:
             run_id = UUID(runtime.store.submit(command(), context)["runId"])
             await runtime.publisher.flush(run_id)
             worker = ConsumerSlot("timeout-worker", uuid4())

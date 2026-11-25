@@ -1,0 +1,2382 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="从固定 Run 来源，到核验比较表中的每个数值" />
+    <title>检索循环与代码实现 · Compass</title>
+    <!-- prettier-ignore -->
+    <style>/* Adapted from the approved lesson 13 reading edition; no product-app dependency. */
+:root {
+  color-scheme: light;
+  --paper: #f9faf7;
+  --surface: #fff;
+  --ink: #172c25;
+  --muted: #5d6b64;
+  --green: #245847;
+  --soft: #edf2eb;
+  --line: #dce4db;
+  --lime: #d7edb4;
+  --mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-padding-top: 96px;
+}
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font: 14px/1.9 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input {
+  font: inherit;
+}
+button,
+summary {
+  cursor: pointer;
+}
+button {
+  touch-action: manipulation;
+}
+a {
+  color: var(--green);
+  text-underline-offset: 4px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #598547;
+  outline-offset: 4px;
+}
+svg {
+  display: block;
+}
+.icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+.skip {
+  position: fixed;
+  z-index: 100;
+  top: -80px;
+  left: 20px;
+  padding: 12px 20px;
+  background: var(--green);
+  color: white;
+}
+.skip:focus {
+  top: 10px;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: 72px;
+  background: rgba(249, 250, 247, 0.97);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  max-width: 1440px;
+  height: 100%;
+  margin: auto;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.brand span {
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+  color: var(--muted);
+  font: 10px/1.3 var(--mono);
+}
+.top-links {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 13px;
+}
+.top-links a {
+  text-decoration: none;
+  color: var(--muted);
+}
+.search-trigger,
+.plain-button,
+.close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  font-size: 12px;
+}
+.close-button {
+  min-width: 44px;
+  font-size: 24px;
+}
+kbd {
+  padding: 4px;
+  border-radius: 3px;
+  background: var(--soft);
+  color: var(--muted);
+  font: 11px var(--mono);
+}
+.reading-progress {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  width: 100%;
+  background: var(--green);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.hero {
+  max-width: 1200px;
+  margin: auto;
+  padding: 70px 40px 0;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 30px;
+  color: var(--green);
+  font: 11px/1.5 var(--mono);
+  letter-spacing: 0.06em;
+}
+.dash {
+  width: 25px;
+  height: 2px;
+  background: var(--green);
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 52px;
+  align-items: center;
+}
+.hero-grid--solo {
+  grid-template-columns: 1fr;
+}
+h1 {
+  margin: 0 0 26px;
+  font-size: clamp(32px, 3.4vw, 50px);
+  line-height: 1.25;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+h1 > span {
+  display: block;
+  margin-top: 18px;
+  font-size: clamp(22px, 2.4vw, 32px);
+  font-weight: 450;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  color: var(--green);
+}
+h1 > span:empty {
+  display: none;
+}
+.hero-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.hero-topics:empty {
+  display: none;
+}
+.hero-topics span {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: white;
+  padding: 5px 11px;
+  color: var(--green);
+  font: 12px/1.6 var(--mono);
+}
+.primary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 18px;
+  border-radius: 5px;
+  background: var(--green);
+  color: white;
+  text-decoration: none;
+  font-size: 13px;
+}
+.hero-note {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #67885b;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-top: 48px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.metric {
+  padding: 0 24px;
+  border-left: 1px solid var(--line);
+}
+.metric:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.metric strong {
+  font-size: 31px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin-right: 8px;
+}
+.metric small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.metric p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.doc-layout {
+  max-width: 1200px;
+  margin: auto;
+  padding: 0 40px;
+}
+.document {
+  min-width: 0;
+  padding-top: 20px;
+}
+.document h2 {
+  margin: 64px 0 24px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+  font-size: 30px;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.document h3 {
+  margin: 40px 0 20px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.document h4 {
+  margin: 32px 0 18px;
+  font-size: 19px;
+  font-weight: 600;
+}
+.document p {
+  margin: 16px 0;
+}
+.document strong {
+  font-weight: 650;
+}
+.document :not(pre) > code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--green);
+  background: var(--soft);
+  font: 13px/1.7 var(--mono);
+  overflow-wrap: anywhere;
+}
+.table-wrap {
+  overflow-x: auto;
+  margin: 24px 0 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+}
+th,
+td {
+  min-width: 130px;
+  padding: 14px 16px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+th {
+  background: var(--soft);
+  color: #355442;
+  font-weight: 600;
+}
+td:first-child {
+  color: #305344;
+  font-weight: 500;
+}
+tr:last-child td {
+  border-bottom: 0;
+}
+.diagram {
+  overflow: hidden;
+  margin: 28px 0 40px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+}
+.hero .diagram {
+  margin: 0;
+}
+.figure-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #f3f6ef;
+}
+.figure-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.figure-label small {
+  margin-right: 13px;
+  color: var(--muted);
+  font: 10px var(--mono);
+}
+.figure-bar button {
+  flex: none;
+}
+.diagram-stage {
+  padding: 22px;
+  overflow: auto;
+  background-image: radial-gradient(#dce6d8 0.7px, transparent 0.7px);
+  background-size: 16px 16px;
+}
+.diagram-stage > svg {
+  display: block;
+  margin-inline: auto;
+  max-height: none;
+}
+.source-details {
+  border-top: 1px solid var(--line);
+}
+.source-details summary {
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.source-details .code-block {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.code-block {
+  overflow: hidden;
+  margin: 24px 0 36px;
+  border: 1px solid #2d493d;
+  border-radius: 9px;
+  background: #182d25;
+  color: #e1eada;
+}
+.code-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 49px;
+  padding: 8px 16px;
+  background: #213a2e;
+  border-bottom: 1px solid #365141;
+}
+.code-bar > span {
+  font: 11px/1.6 var(--mono);
+  color: #bad1af;
+  overflow-wrap: anywhere;
+}
+.code-tools {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.code-tools button {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid #54725a;
+  border-radius: 5px;
+  color: #d4e1ca;
+  background: transparent;
+  font-size: 12px;
+}
+.code-block pre {
+  overflow: auto;
+  max-height: 480px;
+  margin: 0;
+  padding: 20px 0;
+  font: 14px/1.85 var(--mono);
+  tab-size: 4;
+}
+.code-block.expanded pre {
+  max-height: none;
+}
+.code-block pre > code {
+  display: block;
+  min-width: max-content;
+}
+.code-line {
+  display: block;
+  padding-right: 24px;
+}
+.line-num {
+  display: inline-block;
+  width: 4ch;
+  margin: 0 20px 0 12px;
+  color: #819582;
+  text-align: right;
+  user-select: none;
+}
+.line-content {
+  white-space: pre;
+}
+.hljs-keyword,
+.hljs-meta {
+  color: #d8bded;
+}
+.hljs-string,
+.hljs-regexp {
+  color: #c9dfaa;
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_ {
+  color: #bce3dd;
+}
+.hljs-number,
+.hljs-literal {
+  color: #efcb91;
+}
+.hljs-comment {
+  color: #9daf9b;
+  font-style: italic;
+}
+.hljs-built_in,
+.hljs-type {
+  color: #b3d9e7;
+}
+.hljs-attr,
+.hljs-params,
+.hljs-property {
+  color: #e1eada;
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1120px;
+  margin: 72px auto 0;
+  padding: 24px 0 36px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.footer a {
+  margin-left: 18px;
+}
+dialog {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 20px 80px #102c2533;
+}
+dialog::backdrop {
+  background: #12261f77;
+  backdrop-filter: blur(3px);
+}
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+#search-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: 85dvh;
+}
+.search-field {
+  padding: 18px 20px;
+}
+.search-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: white;
+}
+#search-results {
+  max-height: 50dvh;
+  overflow: auto;
+  padding: 0 20px;
+}
+.search-result {
+  display: block;
+  padding: 12px;
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  text-decoration: none;
+}
+.search-result:hover,
+.search-result:focus {
+  background: var(--soft);
+}
+.search-result strong {
+  font-size: 14px;
+}
+.search-result p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.search-meta {
+  padding: 0 20px 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+#diagram-dialog {
+  width: calc(100vw - 40px);
+  height: calc(100dvh - 40px);
+  max-width: 1600px;
+  max-height: none;
+}
+.zoom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+#zoom-level {
+  min-width: 48px;
+  text-align: center;
+  font: 12px var(--mono);
+}
+.zoom-hint {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+#zoom-viewport {
+  overflow: auto;
+  height: calc(100% - 160px);
+  padding: 24px;
+  background: white;
+}
+#zoom-content {
+  margin: auto;
+}
+#zoom-content svg {
+  max-width: none !important;
+}
+.toast {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 7px;
+  background: var(--green);
+  color: white;
+  font-size: 13px;
+}
+.toast:empty {
+  display: none;
+}
+.document [id]:target {
+  scroll-margin-top: 96px;
+}
+@media (max-width: 1000px) {
+  .top-links .desktop-link {
+    display: none;
+  }
+  .hero-grid {
+    gap: 28px;
+  }
+  .footer {
+    margin-inline: 40px;
+  }
+}
+@media (max-width: 760px) {
+  .topbar {
+    height: 64px;
+  }
+  .topbar-inner {
+    padding-inline: 20px;
+    gap: 10px;
+  }
+  .brand {
+    font-size: 18px;
+    gap: 9px;
+  }
+  .brand span {
+    padding-left: 9px;
+    font-size: 8px;
+  }
+  .search-trigger span,
+  .search-trigger kbd {
+    display: none;
+  }
+  .hero {
+    padding: 40px 20px 0;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  .metrics {
+    grid-template-columns: 1fr 1fr;
+    padding-block: 0;
+  }
+  .metric,
+  .metric:first-child {
+    padding: 18px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:nth-child(2n) {
+    border-left: 1px solid var(--line);
+  }
+  .doc-layout {
+    padding-inline: 20px;
+  }
+  .document h2 {
+    font-size: 28px;
+  }
+  .document h3 {
+    font-size: 23px;
+  }
+  .diagram-stage {
+    padding: 16px;
+  }
+  .diagram-stage > svg {
+    max-width: none !important;
+  }
+  .figure-bar,
+  .code-bar {
+    flex-wrap: wrap;
+    padding-inline: 12px;
+  }
+  .figure-label small {
+    display: none;
+  }
+  .footer {
+    margin: 48px 20px 0;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #diagram-dialog {
+    width: calc(100vw - 12px);
+    height: calc(100dvh - 12px);
+  }
+  .dialog-header {
+    padding: 10px 12px;
+  }
+  .zoom-toolbar {
+    padding: 8px;
+  }
+  .zoom-hint {
+    display: none;
+  }
+  #zoom-viewport {
+    height: calc(100% - 180px);
+    padding: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media print {
+  body {
+    background: white;
+  }
+  .topbar,
+  .skip,
+  .hero-actions,
+  .source-details,
+  .code-tools,
+  .figure-bar button,
+  dialog,
+  .toast {
+    display: none !important;
+  }
+  .hero {
+    padding-top: 0;
+  }
+  .hero,
+  .doc-layout {
+    max-width: none;
+    padding-inline: 0;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  .table-wrap {
+    overflow: visible;
+  }
+  th,
+  td {
+    min-width: 0;
+  }
+  .code-block pre {
+    max-height: none;
+    overflow: visible;
+  }
+  .code-block {
+    background: #f4f5f2;
+    color: #1d3125;
+    border-color: #ccc;
+  }
+  .code-bar {
+    background: #edf2eb;
+    border-color: #ccc;
+  }
+  .code-bar > span,
+  .line-content span {
+    color: inherit;
+  }
+  .code-block pre > code {
+    min-width: 0;
+  }
+  .code-line,
+  .line-content {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .diagram-stage {
+    overflow: visible;
+  }
+  .diagram-stage > svg {
+    max-width: 100% !important;
+  }
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+  }
+  .footer {
+    margin-top: 24px;
+  }
+}
+</style>
+    <!-- prettier-ignore -->
+    <style id="course-reader">.lesson-heading {
+  width: min(100%, 1200px);
+  margin: auto;
+  padding: 30px 40px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 255px);
+  grid-template-areas: "title cover" "controls cover";
+  align-items: center;
+  gap: 12px 40px;
+}
+.lesson-number {
+  margin: 0 0 6px;
+  color: var(--green);
+  font-weight: 650;
+}
+.lesson-heading h1 {
+  margin: 0;
+  font-size: clamp(31px, 3.5vw, 48px);
+}
+.lesson-question {
+  margin: 8px 0 0;
+  font-size: clamp(16px, 1.6vw, 20px);
+  color: var(--muted);
+}
+.lesson-cover {
+  grid-area: cover;
+  justify-self: end;
+  width: 100%;
+}
+.lesson-cover summary {
+  position: relative;
+  display: block;
+  width: 100%;
+  color: var(--green);
+}
+.lesson-cover summary::-webkit-details-marker {
+  display: none;
+}
+.lesson-cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lesson-cover summary span {
+  display: block;
+  margin-top: 2px;
+  text-align: right;
+  font-size: 12px;
+}
+.lesson-cover .cover-close,
+.lesson-cover[open] .cover-open {
+  display: none;
+}
+.lesson-cover[open] .cover-close {
+  display: block;
+}
+.lesson-heading:has(.lesson-cover[open]) {
+  grid-template-columns: 1fr;
+  grid-template-areas: "title" "controls" "cover";
+}
+.lesson-cover[open] {
+  max-width: 960px;
+  justify-self: start;
+}
+.lesson-controls {
+  grid-area: controls;
+  display: flex;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.lesson-toc {
+  position: relative;
+}
+.lesson-toc summary {
+  padding: 8px 14px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  line-height: 26px;
+}
+.lesson-toc nav {
+  position: absolute;
+  z-index: 4;
+  width: min(350px, 85vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px #172c2521;
+}
+.lesson-toc nav a {
+  display: block;
+  padding: 5px 10px;
+  text-decoration: none;
+}
+.lesson-toc nav a:hover,
+.lesson-toc nav a:focus-visible {
+  background: var(--soft);
+}
+.document {
+  padding-top: 0;
+  font-size: 15px;
+}
+.document > h2:first-child {
+  margin: 0 0 10px;
+  padding-top: 20px;
+}
+.document > h2:first-child + ul {
+  margin: 0;
+  padding-left: 1.5em;
+}
+.document > h2:first-child + ul li {
+  padding: 2px 0;
+}
+.document > h2:first-child + ul li::marker {
+  color: var(--green);
+}
+.document > h2:first-child + ul + h2 {
+  margin-top: 26px;
+  padding-top: 22px;
+}
+.document h2 + .diagram {
+  margin-top: 12px;
+}
+.diagram-stage:focus-visible {
+  outline-offset: -4px;
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #15201b;
+    --surface: #1b2b23;
+    --ink: #e6eee7;
+    --muted: #b0c1b5;
+    --green: #aed3b8;
+    --soft: #263a2f;
+    --line: #3b5042;
+  }
+  .topbar,
+  .search-trigger,
+  .plain-button,
+  .close-button,
+  .search-result,
+  .search-field input,
+  .source-details {
+    background: var(--surface);
+  }
+  .figure-bar {
+    background: var(--soft);
+  }
+  th,
+  td:first-child {
+    color: var(--ink);
+  }
+  .diagram-stage,
+  #zoom-viewport {
+    color-scheme: light;
+    background-color: #f8faf7;
+  }
+  .toast {
+    color: var(--paper);
+  }
+}
+@media (max-width: 760px) {
+  .lesson-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title title" "controls cover";
+    gap: 10px;
+    padding: 20px 20px 16px;
+  }
+  .lesson-heading > div:first-child {
+    grid-area: title;
+  }
+  .lesson-cover:not([open]) img {
+    display: none;
+  }
+  .lesson-cover summary span {
+    margin: 0;
+    padding: 10px 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .lesson-controls {
+    gap: 6px;
+  }
+}
+@media print {
+  .lesson-heading {
+    display: block;
+    padding: 0 0 16px;
+  }
+  .lesson-cover,
+  .lesson-controls {
+    display: none;
+  }
+}
+.document h2 {
+  margin-top: 38px;
+}
+.document h3 {
+  margin: 24px 0 10px;
+  font-size: clamp(18px, 2.1vw, 22px);
+}
+.document .diagram,
+.document .table-wrap,
+.document > .code-block {
+  margin-block: 12px 20px;
+}
+.document .table-wrap td {
+  vertical-align: top;
+}
+.document .table-wrap td:first-child {
+  min-width: 9em;
+}
+
+.lesson-heading:not(:has(.lesson-cover)) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "title" "controls";
+}
+.lesson-toc nav {
+  max-width: calc(100vw - 42px);
+}
+.lesson-controls .plain-button {
+  min-height: 44px;
+}
+.document h2,
+.document h3,
+.lesson-heading {
+  overflow-wrap: anywhere;
+}
+@media print {
+  .document .table-wrap {
+    overflow: visible;
+  }
+}
+</style>
+  </head>
+  <body>
+    <a class="skip" href="#document">跳至设计正文</a>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top"
+          >Compass<span>ENGINEERING<br />DESIGN NOTES</span></a
+        >
+        <nav class="top-links" aria-label="快捷导航">
+          <a class="desktop-link" href="#section-0">1. Loop 与工具注册</a
+          ><a class="desktop-link" href="#section-1">2. 结果适配与知识库</a
+          ><a class="desktop-link" href="#section-2">3. Verify 决策与接入</a
+          ><a class="desktop-link" href="#section-3">4. 候选、审阅与发布边界</a>
+          <button class="search-trigger" type="button" data-search aria-label="检索文档">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 5 5" />
+            </svg>
+            <span>检索文档</span><kbd>⌘ K</kbd>
+          </button>
+        </nav>
+      </div>
+      <div class="reading-progress" aria-hidden="true"></div>
+    </header>
+    <main id="top">
+      <header class="lesson-heading" aria-labelledby="page-title">
+        <div>
+          <p class="lesson-number">第 23 课 · 技术方案</p>
+          <h1 id="page-title">检索循环与代码实现</h1>
+          <p class="lesson-question">从固定 Run 来源，到核验比较表中的每个数值</p>
+        </div>
+        <div class="lesson-controls">
+          <details class="lesson-toc">
+            <summary>章节目录</summary>
+            <nav aria-label="章节目录">
+              <a href="#section-0">1. Loop 与工具注册</a><a href="#section-1">2. 结果适配与知识库</a
+              ><a href="#section-2">3. Verify 决策与接入</a
+              ><a href="#section-3">4. 候选、审阅与发布边界</a><a href="#section-4">5. 权限与兼容</a
+              ><a href="#section-5">6. 验证入口</a>
+            </nav>
+          </details>
+          <button class="plain-button" type="button" data-search>检索文档</button>
+        </div>
+      </header>
+      <div class="doc-layout">
+        <article class="document" id="document">
+          <p>
+            <a href="TECH_DESIGN.html">主方案</a> · <a href="EVIDENCE.html">回答契约</a> ·
+            <a href="VECTOR_SEARCH.html">知识库专题</a> · 离线阅读版
+          </p>
+          <p>
+            <strong>2026-11-22 实现核对版。</strong>
+            下列入口对应本轮实际源码，代码块摘录现有定义。验证结果见 验收记录。
+          </p>
+          <h2 id="section-0">1. Loop 与工具注册</h2>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="设计表格">
+            <table>
+              <thead>
+                <tr>
+                  <th>入口</th>
+                  <th>实际责任</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>harness/executor.py::AgentLoop.execute_tools</td>
+                  <td>共用 prepare、accept、dispatch、RepeatStep；公开响应采用通用回调</td>
+                </tr>
+                <tr>
+                  <td>runtime/turn.py → answer_turn.py</td>
+                  <td>answerProtocol=2 时装配答案协议；仍调用同一个 execute_tools</td>
+                </tr>
+                <tr>
+                  <td>runtime/tool_bindings.py</td>
+                  <td>工具执行后调用 after_tool_batch；完成能力和 status_only 控制公开投影</td>
+                </tr>
+                <tr>
+                  <td>tools/catalog_contracts.py / contracts.py</td>
+                  <td>
+                    可选 evidence_adapter、completion、public_projection 字段；默认值兼容已有工具
+                  </td>
+                </tr>
+                <tr>
+                  <td>tools/builtin/final_answer</td>
+                  <td>静态 SPEC、参数 Schema、私有候选收据；不执行业务操作</td>
+                </tr>
+                <tr>
+                  <td>context_runtime/evidence.py</td>
+                  <td>执行域内证据与批次记录，重放复用已签收结果</td>
+                </tr>
+                <tr>
+                  <td>context_runtime/answer_verification.py</td>
+                  <td>结构、引用、计算和 Review 绑定，返回下一步动作</td>
+                </tr>
+                <tr>
+                  <td>runtime/store.py</td>
+                  <td>校验接受记录与输出摘要；原子保存正文、引用、产物和出箱事件</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            完成能力独占一批调用。混合批次在实际执行与审批之前整体拒绝；完成工具不占业务工具次数。MCP
+            的返回内容无法自授 completion
+            能力。静态与动态工具由同一注册表装配，模型工具目录容量沿统一契约限制为 32。
+          </p>
+          <h2 id="section-1">2. 结果适配与知识库</h2>
+          <p>
+            文档适配器保留段落版本、字符定位及 Web
+            来源句柄；查询适配器保留真实行列、单位、范围和完整状态。Python 结果登记父查询
+            ID，Journal
+            将其关联到本执行域证据。MCP／工作流使用通用产物回执，保留内容摘要和所有者权限句柄，具体业务字段继续作为结果数据。
+          </p>
+          <p>
+            适配器只接收已签收的结果。没有适配器的工具照常执行并记录观察；适配失败返回引用定位反馈。恢复先读已持久化的批次与证据，保持
+            ID、修订和语义一致。
+          </p>
+          <p>
+            知识库默认装配。documents/service.py 首次执行时通过 journal.local_read 固定资料；同 Run
+            的并发首次调用共用锁和持久 pin。空库保留 no_library / no_indexed_documents，跳过
+            Embedding，返回可继续处理的空结果。工具每次读取都使用当前可信身份访问 Web owner。新 Run
+            不读取搜索工作区开关。
+          </p>
+          <h2 id="section-2">3. Verify 决策与接入</h2>
+          <div class="code-block" id="code-0">
+            <div class="code-bar">
+              <span>实际决策定义 · python / 6 LINES</span>
+              <div class="code-tools"><button type="button" data-copy="0">复制代码</button></div>
+            </div>
+            <pre
+              id="code-0-pre"
+              tabindex="0"
+            ><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-meta">@dataclass(<span class="hljs-params">frozen=<span class="hljs-literal">True</span></span>)</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content"><span class="hljs-keyword">class</span> <span class="hljs-title class_">Decision</span>:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">    action: <span class="hljs-type">Literal</span>[<span class="hljs-string">&quot;accept&quot;</span>, <span class="hljs-string">&quot;act&quot;</span>, <span class="hljs-string">&quot;revise&quot;</span>, <span class="hljs-string">&quot;partial&quot;</span>, <span class="hljs-string">&quot;review&quot;</span>]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">    feedback: <span class="hljs-built_in">str</span> = <span class="hljs-string">&quot;&quot;</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">    body: <span class="hljs-built_in">str</span> = <span class="hljs-string">&quot;&quot;</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">    citations: <span class="hljs-built_in">dict</span> | <span class="hljs-literal">None</span> = <span class="hljs-literal">None</span></span></span></code></pre>
+          </div>
+          <p>
+            before_delivery 是纯检查函数。review 动作由 answer_turn 把下一次主模型调用设为
+            purpose=verify，工具列表置空；结果仍经现有持久模型调用、预算和取消机制执行。Review
+            使用原问题、候选和当前证据，声明目标覆盖、模式与每项结论的支持程度；程序复核候选摘要、证据修订和完整
+            ID 集合。
+          </p>
+          <p>
+            当前 plain 和 evidence 都走同主模型审阅。act / revise / partial
+            通过普通反馈回到工作步骤。已经准确说明缺口、满足部分交付条件的候选可以接受。通用终态
+            verify_result(hooks) 继续处理只读一致性，不在 hook 中隐藏第二次模型调度。
+          </p>
+          <div class="code-block" id="code-1">
+            <div class="code-bar">
+              <span>实际交付预算预留 · python / 27 LINES</span>
+              <div class="code-tools">
+                <button type="button" data-expand aria-expanded="false" aria-controls="code-1-pre">
+                  展开代码</button
+                ><button type="button" data-copy="1">复制代码</button>
+              </div>
+            </div>
+            <pre
+              id="code-1-pre"
+              tabindex="0"
+            ><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-keyword">def</span> <span class="hljs-title function_">needs_delivery_reserve</span>(<span class="hljs-params">budget, route, output_tokens</span>):</span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">    <span class="hljs-string">&quot;&quot;&quot;Forecast delivery headroom from settled usage; hard limits stay in the budget.&quot;&quot;&quot;</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">    <span class="hljs-keyword">if</span> budget <span class="hljs-keyword">is</span> <span class="hljs-literal">None</span>:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">        <span class="hljs-keyword">return</span> <span class="hljs-literal">False</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">    <span class="hljs-keyword">if</span> budget.steps &gt;= budget.limits.steps - <span class="hljs-number">3</span>:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">        <span class="hljs-keyword">return</span> <span class="hljs-literal">True</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content">    <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> budget.attempts:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content">        <span class="hljs-keyword">return</span> <span class="hljs-literal">False</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content">    profiles = [</span></span><span class="code-line"><span class="line-num" aria-hidden="true">10</span><span class="line-content">        p</span></span><span class="code-line"><span class="line-num" aria-hidden="true">11</span><span class="line-content">        <span class="hljs-keyword">for</span> p <span class="hljs-keyword">in</span> budget.profiles</span></span><span class="code-line"><span class="line-num" aria-hidden="true">12</span><span class="line-content">        <span class="hljs-keyword">if</span> (p.provider_id, p.binding_version) == (route.provider_id, route.binding_version)</span></span><span class="code-line"><span class="line-num" aria-hidden="true">13</span><span class="line-content">    ]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">14</span><span class="line-content">    <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> profiles:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">15</span><span class="line-content">        <span class="hljs-keyword">return</span> <span class="hljs-literal">False</span>  <span class="hljs-comment"># The budget&#x27;s normal reservation reports unsupported profiles.</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">16</span><span class="line-content">    <span class="hljs-comment"># A profile&#x27;s input bound may span the provider&#x27;s entire context window.</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">17</span><span class="line-content">    <span class="hljs-comment"># Reserving it repeatedly would close tools before even a small task starts.</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">18</span><span class="line-content">    tokens = budget.tokens // budget.attempts + output_tokens</span></span><span class="code-line"><span class="line-num" aria-hidden="true">19</span><span class="line-content">    cost = budget.cost_microusd // budget.attempts + <span class="hljs-built_in">max</span>(</span></span><span class="code-line"><span class="line-num" aria-hidden="true">20</span><span class="line-content">        output_tokens * p.output_microusd <span class="hljs-keyword">for</span> p <span class="hljs-keyword">in</span> profiles</span></span><span class="code-line"><span class="line-num" aria-hidden="true">21</span><span class="line-content">    )</span></span><span class="code-line"><span class="line-num" aria-hidden="true">22</span><span class="line-content">    child_tokens = <span class="hljs-built_in">sum</span>(c.limits.tokens <span class="hljs-keyword">for</span> c <span class="hljs-keyword">in</span> budget.children)</span></span><span class="code-line"><span class="line-num" aria-hidden="true">23</span><span class="line-content">    child_cost = <span class="hljs-built_in">sum</span>(c.limits.cost_microusd <span class="hljs-keyword">for</span> c <span class="hljs-keyword">in</span> budget.children)</span></span><span class="code-line"><span class="line-num" aria-hidden="true">24</span><span class="line-content">    <span class="hljs-keyword">return</span> (</span></span><span class="code-line"><span class="line-num" aria-hidden="true">25</span><span class="line-content">        budget.tokens + child_tokens + <span class="hljs-number">3</span> * tokens &gt; budget.limits.tokens</span></span><span class="code-line"><span class="line-num" aria-hidden="true">26</span><span class="line-content">        <span class="hljs-keyword">or</span> budget.cost_microusd + child_cost + <span class="hljs-number">3</span> * cost &gt; budget.limits.cost_microusd</span></span><span class="code-line"><span class="line-num" aria-hidden="true">27</span><span class="line-content">    )</span></span></code></pre>
+          </div>
+          <p>
+            工作步骤与工具额度临近上限，以及
+            Token／成本的已结算用量估计无法覆盖继续工作、候选和审阅三次调用时，仅保留完成能力。模型及工具批次实际耗时用于估计交付时间。所有实际调用仍按原预算器预留与结算；硬预算不足结束为未完成状态。
+          </p>
+          <h2 id="section-3">4. 候选、审阅与发布边界</h2>
+          <figure class="diagram" id="figure-0" data-title="私有候选与公开正文">
+            <div class="figure-bar">
+              <span class="figure-label"><small>FIG. 01</small>私有候选与公开正文</span
+              ><button class="plain-button" type="button" data-diagram>放大图表 ↗</button>
+            </div>
+            <div class="diagram-stage">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                id="drawing-0-render-0"
+                width="100%"
+                class="flowchart"
+                style="max-width: 100%; width: 1602.66px; height: auto"
+                viewBox="0 0 1602.65625 166"
+                role="img"
+                aria-roledescription="flowchart-v2"
+                aria-label="私有候选与公开正文"
+              >
+                <style>
+                  #drawing-0-render-0 {
+                    font-family:
+                      -apple-system,
+                      BlinkMacSystemFont,
+                      PingFang SC,
+                      Microsoft YaHei,
+                      sans-serif;
+                    font-size: 15px;
+                    fill: #20372a;
+                  }
+                  @keyframes edge-animation-frame {
+                    from {
+                      stroke-dashoffset: 0;
+                    }
+                  }
+                  @keyframes dash {
+                    to {
+                      stroke-dashoffset: 0;
+                    }
+                  }
+                  #drawing-0-render-0 .edge-animation-slow {
+                    stroke-dasharray: 9, 5 !important;
+                    stroke-dashoffset: 900;
+                    animation: dash 50s linear infinite;
+                    stroke-linecap: round;
+                  }
+                  #drawing-0-render-0 .edge-animation-fast {
+                    stroke-dasharray: 9, 5 !important;
+                    stroke-dashoffset: 900;
+                    animation: dash 20s linear infinite;
+                    stroke-linecap: round;
+                  }
+                  #drawing-0-render-0 .error-icon {
+                    fill: #e9eff0;
+                  }
+                  #drawing-0-render-0 .error-text {
+                    fill: #16100f;
+                    stroke: #16100f;
+                  }
+                  #drawing-0-render-0 .edge-thickness-normal {
+                    stroke-width: 1px;
+                  }
+                  #drawing-0-render-0 .edge-thickness-thick {
+                    stroke-width: 3.5px;
+                  }
+                  #drawing-0-render-0 .edge-pattern-solid {
+                    stroke-dasharray: 0;
+                  }
+                  #drawing-0-render-0 .edge-thickness-invisible {
+                    stroke-width: 0;
+                    fill: none;
+                  }
+                  #drawing-0-render-0 .edge-pattern-dashed {
+                    stroke-dasharray: 3;
+                  }
+                  #drawing-0-render-0 .edge-pattern-dotted {
+                    stroke-dasharray: 2;
+                  }
+                  #drawing-0-render-0 .marker {
+                    fill: #6c8265;
+                    stroke: #6c8265;
+                  }
+                  #drawing-0-render-0 .marker.cross {
+                    stroke: #6c8265;
+                  }
+                  #drawing-0-render-0 svg {
+                    font-family:
+                      -apple-system,
+                      BlinkMacSystemFont,
+                      PingFang SC,
+                      Microsoft YaHei,
+                      sans-serif;
+                    font-size: 15px;
+                  }
+                  #drawing-0-render-0 p {
+                    margin: 0;
+                  }
+                  #drawing-0-render-0 .label {
+                    font-family:
+                      -apple-system,
+                      BlinkMacSystemFont,
+                      PingFang SC,
+                      Microsoft YaHei,
+                      sans-serif;
+                    color: #20372a;
+                  }
+                  #drawing-0-render-0 .cluster-label text {
+                    fill: #16100f;
+                  }
+                  #drawing-0-render-0 .cluster-label span {
+                    color: #16100f;
+                  }
+                  #drawing-0-render-0 .cluster-label span p {
+                    background-color: transparent;
+                  }
+                  #drawing-0-render-0 .label text,
+                  #drawing-0-render-0 span {
+                    fill: #20372a;
+                    color: #20372a;
+                  }
+                  #drawing-0-render-0 .node rect,
+                  #drawing-0-render-0 .node circle,
+                  #drawing-0-render-0 .node ellipse,
+                  #drawing-0-render-0 .node polygon,
+                  #drawing-0-render-0 .node path {
+                    fill: #eef4e7;
+                    stroke: #8ba67c;
+                    stroke-width: 1px;
+                  }
+                  #drawing-0-render-0 .rough-node .label text,
+                  #drawing-0-render-0 .node .label text,
+                  #drawing-0-render-0 .image-shape .label,
+                  #drawing-0-render-0 .icon-shape .label {
+                    text-anchor: middle;
+                  }
+                  #drawing-0-render-0 .node .katex path {
+                    fill: #000;
+                    stroke: #000;
+                    stroke-width: 1px;
+                  }
+                  #drawing-0-render-0 .rough-node .label,
+                  #drawing-0-render-0 .node .label,
+                  #drawing-0-render-0 .image-shape .label,
+                  #drawing-0-render-0 .icon-shape .label {
+                    text-align: center;
+                  }
+                  #drawing-0-render-0 .node.clickable {
+                    cursor: pointer;
+                  }
+                  #drawing-0-render-0 .root .anchor path {
+                    fill: #6c8265 !important;
+                    stroke-width: 0;
+                    stroke: #6c8265;
+                  }
+                  #drawing-0-render-0 .arrowheadPath {
+                    fill: #0b0b0b;
+                  }
+                  #drawing-0-render-0 .edgePath .path {
+                    stroke: #6c8265;
+                    stroke-width: 2px;
+                  }
+                  #drawing-0-render-0 .flowchart-link {
+                    stroke: #6c8265;
+                    fill: none;
+                  }
+                  #drawing-0-render-0 .edgeLabel {
+                    background-color: #fff;
+                    text-align: center;
+                  }
+                  #drawing-0-render-0 .edgeLabel p {
+                    background-color: #fff;
+                  }
+                  #drawing-0-render-0 .edgeLabel rect {
+                    opacity: 0.5;
+                    background-color: #fff;
+                    fill: #fff;
+                  }
+                  #drawing-0-render-0 .labelBkg {
+                    background-color: rgba(255, 255, 255, 0.5);
+                  }
+                  #drawing-0-render-0 .cluster rect {
+                    fill: #f6f8f1;
+                    stroke: #b4c6aa;
+                    stroke-width: 1px;
+                  }
+                  #drawing-0-render-0 .cluster text {
+                    fill: #16100f;
+                  }
+                  #drawing-0-render-0 .cluster span {
+                    color: #16100f;
+                  }
+                  #drawing-0-render-0 div.mermaidTooltip {
+                    position: absolute;
+                    text-align: center;
+                    max-width: 200px;
+                    padding: 2px;
+                    font-family:
+                      -apple-system,
+                      BlinkMacSystemFont,
+                      PingFang SC,
+                      Microsoft YaHei,
+                      sans-serif;
+                    font-size: 12px;
+                    background: #e9eff0;
+                    border: 1px solid hsl(188.5714285714, 0%, 82.7450980392%);
+                    border-radius: 2px;
+                    pointer-events: none;
+                    z-index: 100;
+                  }
+                  #drawing-0-render-0 .flowchartTitleText {
+                    text-anchor: middle;
+                    font-size: 18px;
+                    fill: #20372a;
+                  }
+                  #drawing-0-render-0 rect.text {
+                    fill: none;
+                    stroke-width: 0;
+                  }
+                  #drawing-0-render-0 .icon-shape,
+                  #drawing-0-render-0 .image-shape {
+                    background-color: #fff;
+                    text-align: center;
+                  }
+                  #drawing-0-render-0 .icon-shape p,
+                  #drawing-0-render-0 .image-shape p {
+                    background-color: #fff;
+                    padding: 2px;
+                  }
+                  #drawing-0-render-0 .icon-shape rect,
+                  #drawing-0-render-0 .image-shape rect {
+                    opacity: 0.5;
+                    background-color: #fff;
+                    fill: #fff;
+                  }
+                  #drawing-0-render-0 .label-icon {
+                    display: inline-block;
+                    height: 1em;
+                    overflow: visible;
+                    vertical-align: -0.125em;
+                  }
+                  #drawing-0-render-0 .node .label-icon path {
+                    fill: currentColor;
+                    stroke: revert;
+                    stroke-width: revert;
+                  }
+                  #drawing-0-render-0 :root {
+                    --mermaid-font-family:
+                      -apple-system, BlinkMacSystemFont, PingFang SC, Microsoft YaHei, sans-serif;
+                  }
+                </style>
+                <g>
+                  <marker
+                    id="drawing-0-render-0_flowchart-v2-pointEnd"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="5"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="8"
+                    markerHeight="8"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 0 L 10 5 L 0 10 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    />
+                  </marker>
+                  <marker
+                    id="drawing-0-render-0_flowchart-v2-pointStart"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="4.5"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="8"
+                    markerHeight="8"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 0 5 L 10 10 L 10 0 z"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    />
+                  </marker>
+                  <marker
+                    id="drawing-0-render-0_flowchart-v2-circleEnd"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="11"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    />
+                  </marker>
+                  <marker
+                    id="drawing-0-render-0_flowchart-v2-circleStart"
+                    class="marker flowchart-v2"
+                    viewBox="0 0 10 10"
+                    refX="-1"
+                    refY="5"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <circle
+                      cx="5"
+                      cy="5"
+                      r="5"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 1; stroke-dasharray: 1, 0"
+                    />
+                  </marker>
+                  <marker
+                    id="drawing-0-render-0_flowchart-v2-crossEnd"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 11 11"
+                    refX="12"
+                    refY="5.2"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 l 9,9 M 10,1 l -9,9"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2; stroke-dasharray: 1, 0"
+                    />
+                  </marker>
+                  <marker
+                    id="drawing-0-render-0_flowchart-v2-crossStart"
+                    class="marker cross flowchart-v2"
+                    viewBox="0 0 11 11"
+                    refX="-1"
+                    refY="5.2"
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="11"
+                    markerHeight="11"
+                    orient="auto"
+                  >
+                    <path
+                      d="M 1,1 l 9,9 M 10,1 l -9,9"
+                      class="arrowMarkerPath"
+                      style="stroke-width: 2; stroke-dasharray: 1, 0"
+                    />
+                  </marker>
+                  <g class="root">
+                    <g class="clusters" />
+                    <g class="edgePaths">
+                      <path
+                        d="M170.959,108L200.969,117.5L221.969,117.5"
+                        id="drawing-0-L_C_V_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_C_V_0"
+                        data-points="W3sieCI6MTcwLjk1ODU1OTc4MjYwODcsInkiOjEwOH0seyJ4IjoyMDAuOTY4NzUsInkiOjExNy41fSx7IngiOjIyNS45Njg3NSwieSI6MTE3LjV9XQ=="
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                      <path
+                        d="M394.969,117.5L419.969,117.5L440.969,117.5"
+                        id="drawing-0-L_V_R_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_V_R_0"
+                        data-points="W3sieCI6Mzk0Ljk2ODc1LCJ5IjoxMTcuNX0seyJ4Ijo0MTkuOTY4NzUsInkiOjExNy41fSx7IngiOjQ0NC45Njg3NSwieSI6MTE3LjV9XQ=="
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                      <path
+                        d="M641.234,92.5L728.156,67.5L803.742,51.599"
+                        id="drawing-0-L_R_W_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_R_W_0"
+                        data-points="W3sieCI6NjQxLjIzNDM3NSwieSI6OTIuNX0seyJ4Ijo3MjguMTU2MjUsInkiOjY3LjV9LHsieCI6ODA3LjY1NjI1LCJ5Ijo1MC43NzU5MTQ2MzQxNDYzNDZ9XQ=="
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                      <path
+                        d="M807.656,25.014L728.156,17.5L554.313,17.5L419.969,17.5L310.469,17.5L200.969,17.5L137.01,55.939"
+                        id="drawing-0-L_W_C_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_W_C_0"
+                        data-points="W3sieCI6ODA3LjY1NjI1LCJ5IjoyNS4wMTM3MTk1MTIxOTUxMjR9LHsieCI6NzI4LjE1NjI1LCJ5IjoxNy41fSx7IngiOjU1NC4zMTI1LCJ5IjoxNy41fSx7IngiOjQxOS45Njg3NSwieSI6MTcuNX0seyJ4IjozMTAuNDY4NzUsInkiOjE3LjV9LHsieCI6MjAwLjk2ODc1LCJ5IjoxNy41fSx7IngiOjEzMy41ODE0NjQ2OTQ2NTY1LCJ5Ijo1OH1d"
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                      <path
+                        d="M663.656,127.249L728.156,133L788.656,133"
+                        id="drawing-0-L_R_A_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_R_A_0"
+                        data-points="W3sieCI6NjYzLjY1NjI1LCJ5IjoxMjcuMjQ5MTQ2MTQ0MTY2ODJ9LHsieCI6NzI4LjE1NjI1LCJ5IjoxMzN9LHsieCI6NzkyLjY1NjI1LCJ5IjoxMzN9XQ=="
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                      <path
+                        d="M991.656,133L1016.656,133L1037.656,133"
+                        id="drawing-0-L_A_T_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_A_T_0"
+                        data-points="W3sieCI6OTkxLjY1NjI1LCJ5IjoxMzN9LHsieCI6MTAxNi42NTYyNSwieSI6MTMzfSx7IngiOjEwNDEuNjU2MjUsInkiOjEzM31d"
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                      <path
+                        d="M1285.656,133L1310.656,133L1331.656,133"
+                        id="drawing-0-L_T_P_0"
+                        class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                        data-edge="true"
+                        data-et="edge"
+                        data-id="L_T_P_0"
+                        data-points="W3sieCI6MTI4NS42NTYyNSwieSI6MTMzfSx7IngiOjEzMTAuNjU2MjUsInkiOjEzM30seyJ4IjoxMzM1LjY1NjI1LCJ5IjoxMzN9XQ=="
+                        marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"
+                      />
+                    </g>
+                    <g class="edgeLabels">
+                      <g><rect class="background" style="stroke: none" /></g>
+                      <g><rect class="background" style="stroke: none" /></g>
+                      <g><rect class="background" style="stroke: none" /></g>
+                      <g><rect class="background" style="stroke: none" /></g>
+                      <g><rect class="background" style="stroke: none" /></g>
+                      <g><rect class="background" style="stroke: none" /></g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_C_V_0" transform="translate(0, 0)">
+                          <text y="-10.1">
+                            <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em" />
+                          </text>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_V_R_0" transform="translate(0, 0)">
+                          <text y="-10.1">
+                            <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em" />
+                          </text>
+                        </g>
+                      </g>
+                      <g class="edgeLabel" transform="translate(728.15625, 67.5)">
+                        <g class="label" data-id="L_R_W_0" transform="translate(-39.5, -11)">
+                          <g>
+                            <rect class="background" x="-2" y="-2" width="79" height="22" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  补查或修订
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_W_C_0" transform="translate(0, 0)">
+                          <text y="-10.1">
+                            <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em" />
+                          </text>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_R_A_0" transform="translate(0, 0)">
+                          <text y="-10.1">
+                            <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em" />
+                          </text>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_A_T_0" transform="translate(0, 0)">
+                          <text y="-10.1">
+                            <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em" />
+                          </text>
+                        </g>
+                      </g>
+                      <g class="edgeLabel">
+                        <g class="label" data-id="L_T_P_0" transform="translate(0, 0)">
+                          <text y="-10.1">
+                            <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em" />
+                          </text>
+                        </g>
+                      </g>
+                    </g>
+                    <g class="nodes">
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-C-0"
+                        transform="translate(91.984375, 83)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-83.984375"
+                          y="-25"
+                          width="167.96875"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  私有
+                                </tspan>
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  Candidate
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-V-1"
+                        transform="translate(310.46875, 117.5)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-84.5"
+                          y="-25"
+                          width="169"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  结构与引用检查
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-R-3"
+                        transform="translate(554.3125, 117.5)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-109.34375"
+                          y="-25"
+                          width="218.6875"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  同
+                                </tspan>
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  Loop
+                                </tspan>
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  主模型
+                                </tspan>
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  Review
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-W-5"
+                        transform="translate(892.15625, 33)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-84.5"
+                          y="-25"
+                          width="169"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  主循环工作步骤
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-A-9"
+                        transform="translate(892.15625, 133)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-99.5"
+                          y="-25"
+                          width="199"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  绑定摘要的接受记录
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-T-11"
+                        transform="translate(1163.65625, 133)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-122"
+                          y="-25"
+                          width="244"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  租约／来源重验与原子事务
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                      <g
+                        class="node default"
+                        id="drawing-0-flowchart-P-13"
+                        transform="translate(1465.15625, 133)"
+                      >
+                        <rect
+                          class="basic label-container"
+                          x="-129.5"
+                          y="-25"
+                          width="259"
+                          height="50"
+                        />
+                        <g class="label" transform="translate(0, -9)">
+                          <rect />
+                          <g>
+                            <rect class="background" style="stroke: none" />
+                            <text y="-10.1">
+                              <tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em">
+                                <tspan
+                                  font-style="normal"
+                                  class="text-inner-tspan"
+                                  font-weight="normal"
+                                >
+                                  正文＋引用＋附件＋出箱事件
+                                </tspan>
+                              </tspan>
+                            </text>
+                          </g>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </svg>
+            </div>
+            <details class="source-details">
+              <summary>查看 Mermaid 源码</summary>
+              <div class="code-block" id="code-2">
+                <div class="code-bar">
+                  <span>私有候选与公开正文 · 图表源 · text / 8 LINES</span>
+                  <div class="code-tools">
+                    <button type="button" data-copy="2">复制代码</button>
+                  </div>
+                </div>
+                <pre
+                  id="code-2-pre"
+                  tabindex="0"
+                ><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content">flowchart LR</span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content"> C[&quot;私有 Candidate&quot;] --&gt; V[&quot;结构与引用检查&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content"> V --&gt; R[&quot;同 Loop 主模型 Review&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content"> R --&gt;|补查或修订| W[&quot;主循环工作步骤&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content"> W --&gt; C</span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content"> R --&gt; A[&quot;绑定摘要的接受记录&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content"> A --&gt; T[&quot;租约／来源重验与原子事务&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content"> T --&gt; P[&quot;正文＋引用＋附件＋出箱事件&quot;]</span></span></code></pre>
+              </div>
+            </details>
+          </figure>
+          <p>
+            私有记录键：answer/v2/candidate/{id}、answer/v2/evidence/{id}、answer/v2/batch/{path}/{step}、answer/v2/accepted/{id}。身份由
+            Run、执行路径和实际调用派生；候选参数只返回 candidate_received，不公开草稿和 Review
+            文本。
+          </p>
+          <p>
+            接受记录绑定
+            candidateDigest、evidenceRevision、textDigest、citationsDigest、artifactDigest、mode、completion
+            和 executionPath。store.finish
+            要求根执行域的持久接受记录与本次参数、正文、引用及附件完全一致。取消阻止终稿发布；恢复沿既有租约和幂等出箱执行。
+          </p>
+          <p>
+            content.answerMode 与 content.completion
+            仅随被接受的正文发布。旧消息省略这两个字段，新初始空消息保持原投影。前端按显式模式选普通
+            Markdown 或 CitedAnswer；引用目录中的 revision 和 textDigest
+            绑定正文，点击再取详情。旧引用存储键保留，公共读取入口已迁到
+            context_runtime/citations.py。
+          </p>
+          <h2 id="section-4">5. 权限与兼容</h2>
+          <p>
+            新工具调用的拒绝是工具反馈，可以继续使用其他获准工具。已经进入当前模型上下文的来源被撤权时，复用既有来源重验终止该
+            Run，并限制历史、引用和产物读取；后续新问题重新执行。当前上下文没有实现局部清除后继续生成。
+          </p>
+          <p>
+            子 Agent
+            按注册的效果、审批、本地变更、编排与完成元数据继承当前可见的只读能力，模型上下文使用
+            intermediate 角色。返回内部中间结果和证据，需要用户确认的事项交回父级，父 Agent
+            负责最终候选。旧 Run 保留固定的旧协议和搜索快照恢复；新 Run
+            的查询、候选和发布不进入旧搜索专属裁决分支。原零售场景判断留在历史兼容路径，默认协议仅使用通用目标、来源、计算和模型审阅。
+          </p>
+          <h2 id="section-5">6. 验证入口</h2>
+          <ul>
+            <li>
+              test_answer_protocol.py：模式、引用、计算、目标、Review
+              摘要、部分交付、混合批次、预算与旧消息序列化。
+            </li>
+            <li>test_document_tools.py：首次并发 pin、空库跳过 Embedding、来源 owner 重验。</li>
+            <li>
+              test_context_runtime_integration.py：真实 PostgreSQL 上的 plain / evidence / schema
+              fallback、Markdown／CSV／看板、原子发布、拒绝被改写正文、恢复复用。
+            </li>
+            <li>
+              Web
+              知识库集成与真实浏览器：资料来源、正文边界、引用入口、窄屏及键盘操作；具体运行记录见验收文档。
+            </li>
+          </ul>
+          <p>
+            工具观察中的 <code>recordRef</code> 是指向同一回执原始结果的 JSON
+            Pointer，仅合并完全相同的记录。未完全相同的记录仍完整展示，私有证据与摘要保持原样，旧协议观察继续兼容。
+          </p>
+          <p>
+            候选和 Review 的输出额度以模型与预算能力为界，最高 8,192 token；普通问答的历史 2,048
+            token
+            默认值不再限制新协议的结构化候选。截断输出不执行工具，返回缩短重提反馈。父子共享的模型步骤也预留提交与审阅空间。
+          </p>
+          <p>
+            子任务回传证据 ID；父级适配器声明 <code>importEvidenceId</code>，通用
+            <code>after_tool_batch</code> 从当前 Run 私有存储导入原记录并复核来源关系。导入保持原
+            ID、工具与调用关系，模型观察只展示事实定位。Review
+            保留完整事实和证据摘要，权限记录继续在服务端用于恢复、发布与回看重验。
+          </p>
+          <p>
+            Review 的模型回执继续持久提交检查点，当前 worker
+            接着完成接受与发布检查。该边界不主动交还租约，避免发布前再次完整重放历史。进程退出仍从已有模型回执恢复；工作模型步骤保留原调度边界。
+          </p>
+        </article>
+      </div>
+    </main>
+    <footer class="footer">
+      <span>Compass · 第 23 课 · 技术方案</span
+      ><span>单文件 · 离线阅读 <a href="#top">返回顶部 ↑</a></span>
+    </footer>
+    <dialog id="search-dialog" aria-labelledby="search-title">
+      <div class="dialog-header">
+        <h2 id="search-title">检索设计与代码</h2>
+        <button class="close-button" type="button" data-close aria-label="关闭检索">×</button>
+      </div>
+      <div class="search-field">
+        <input
+          id="search-input"
+          aria-label="搜索章节、类型或设计内容"
+          placeholder="输入章节、类型或关键词…"
+          autocomplete="off"
+        />
+      </div>
+      <div id="search-results"></div>
+      <p class="search-meta" id="search-meta" role="status"></p>
+    </dialog>
+    <dialog id="diagram-dialog" aria-labelledby="zoom-title">
+      <div class="dialog-header">
+        <h2 id="zoom-title">设计图</h2>
+        <button class="close-button" type="button" data-close aria-label="关闭图表">×</button>
+      </div>
+      <div class="zoom-toolbar">
+        <button class="plain-button" type="button" data-zoom="out" aria-label="缩小图表">−</button>
+        <output id="zoom-level" aria-label="缩放比例">100%</output>
+        <button class="plain-button" type="button" data-zoom="in" aria-label="放大图表">+</button>
+        <button class="plain-button" type="button" data-zoom="fit">适应窗口</button>
+        <button class="plain-button" type="button" data-zoom="actual">原始尺寸</button>
+        <button class="plain-button" type="button" id="download-svg">下载 SVG</button>
+        <span class="zoom-hint">可横向、纵向滚动 · Esc 关闭</span>
+      </div>
+      <div id="zoom-viewport" tabindex="0" aria-label="图表滚动区域">
+        <div id="zoom-content"></div>
+      </div>
+    </dialog>
+    <div class="toast" role="status" aria-live="polite"></div>
+    <!-- prettier-ignore -->
+    <script type="application/json" id="document-data">{"search":[{"id":"section-0","title":"1. Loop 与工具注册","text":"入口 实际责任 harness/executor.py::AgentLoop.execute_tools 共用 prepare、accept、dispatch、RepeatStep；公开响应采用通用回调 runtime/turn.py → answer_turn.py answerProtocol=2 时装配答案协议；仍调用同一个 execute_tools runtime/tool_bindings.py 工具执行后调用 after_tool_batch；完成能力和 status_only 控制公开投影 tools/catalog_contracts.py / contracts.py 可选 evidence_adapter、completion、public_projection 字段；默认值兼容已有工具 tools/builtin/final_answer 静态 SPEC、参数 Schema、私有候选收据；不执行业务操作 context_runtime/evidence.py 执行域内证据与批次记录，重放复用已签收结果 context_runtime/answer_verification.py 结构、引用、计算和 Review 绑定，返回下一步动作 runtime/store.py 校验接受记录与输出摘要；原子保存正文、引用、产物和出箱事件 完成能力独占一批调用。混合批次在实际执行与审批之前整体拒绝；完成工具不占业务工具次数。MCP 的返回内容无法自授 completion 能力。静态与动态工具由同一注册表装配，模型工具目录容量沿统一契约限制为 32。"},{"id":"section-1","title":"2. 结果适配与知识库","text":"文档适配器保留段落版本、字符定位及 Web 来源句柄；查询适配器保留真实行列、单位、范围和完整状态。Python 结果登记父查询 ID，Journal 将其关联到本执行域证据。MCP／工作流使用通用产物回执，保留内容摘要和所有者权限句柄，具体业务字段继续作为结果数据。 适配器只接收已签收的结果。没有适配器的工具照常执行并记录观察；适配失败返回引用定位反馈。恢复先读已持久化的批次与证据，保持 ID、修订和语义一致。 知识库默认装配。documents/service.py 首次执行时通过 journal.local_read 固定资料；同 Run 的并发首次调用共用锁和持久 pin。空库保留 no_library / no_indexed_documents，跳过 Embedding，返回可继续处理的空结果。工具每次读取都使用当前可信身份访问 Web owner。新 Run 不读取搜索工作区开关。"},{"id":"section-2","title":"3. Verify 决策与接入","text":"@dataclass(frozen=True)\nclass Decision:\n    action: Literal[\"accept\", \"act\", \"revise\", \"partial\", \"review\"]\n    feedback: str = \"\"\n    body: str = \"\"\n    citations: dict | None = None\n before_delivery 是纯检查函数。review 动作由 answer_turn 把下一次主模型调用设为 purpose=verify，工具列表置空；结果仍经现有持久模型调用、预算和取消机制执行。Review 使用原问题、候选和当前证据，声明目标覆盖、模式与每项结论的支持程度；程序复核候选摘要、证据修订和完整 ID 集合。 当前 plain 和 evidence 都走同主模型审阅。act / revise / partial 通过普通反馈回到工作步骤。已经准确说明缺口、满足部分交付条件的候选可以接受。通用终态 verify_result(hooks) 继续处理只读一致性，不在 hook 中隐藏第二次模型调度。 def needs_delivery_reserve(budget, route, output_tokens):\n    \"\"\"Forecast delivery headroom from settled usage; hard limits stay in the budget.\"\"\"\n    if budget is None:\n        return False\n    if budget.steps >= budget.limits.steps - 3:\n        return True\n    if not budget.attempts:\n        return False\n    profiles = [\n        p\n        for p in budget.profiles\n        if (p.provider_id, p.binding_version) == (route.provider_id, route.binding_version)\n    ]\n    if not profiles:\n        return False  # The budget's normal reservation reports unsupported profiles.\n    # A profile's input bound may span the provider's entire context window.\n    # Reserving it repeatedly would close tools before even a small task starts.\n    tokens = budget.tokens // budget.attempts + output_tokens\n    cost = budget.cost_microusd // budget.attempts + max(\n        output_tokens * p.output_microusd for p in profiles\n    )\n    child_tokens = sum(c.limits.tokens for c in budget.children)\n    child_cost = sum(c.limits.cost_microusd for c in budget.children)\n    return (\n        budget.tokens + child_tokens + 3 * tokens > budget.limits.tokens\n        or budget.cost_microusd + child_cost + 3 * cost > budget.limits.cost_microusd\n    )\n 工作步骤与工具额度临近上限，以及 Token／成本的已结算用量估计无法覆盖继续工作、候选和审阅三次调用时，仅保留完成能力。模型及工具批次实际耗时用于估计交付时间。所有实际调用仍按原预算器预留与结算；硬预算不足结束为未完成状态。"},{"id":"section-3","title":"4. 候选、审阅与发布边界","text":"flowchart LR\n C[\"私有 Candidate\"] --> V[\"结构与引用检查\"]\n V --> R[\"同 Loop 主模型 Review\"]\n R -->|补查或修订| W[\"主循环工作步骤\"]\n W --> C\n R --> A[\"绑定摘要的接受记录\"]\n A --> T[\"租约／来源重验与原子事务\"]\n T --> P[\"正文＋引用＋附件＋出箱事件\"]\n 私有记录键：answer/v2/candidate/{id}、answer/v2/evidence/{id}、answer/v2/batch/{path}/{step}、answer/v2/accepted/{id}。身份由 Run、执行路径和实际调用派生；候选参数只返回 candidate_received，不公开草稿和 Review 文本。 接受记录绑定 candidateDigest、evidenceRevision、textDigest、citationsDigest、artifactDigest、mode、completion 和 executionPath。store.finish 要求根执行域的持久接受记录与本次参数、正文、引用及附件完全一致。取消阻止终稿发布；恢复沿既有租约和幂等出箱执行。 content.answerMode 与 content.completion 仅随被接受的正文发布。旧消息省略这两个字段，新初始空消息保持原投影。前端按显式模式选普通 Markdown 或 CitedAnswer；引用目录中的 revision 和 textDigest 绑定正文，点击再取详情。旧引用存储键保留，公共读取入口已迁到 context_runtime/citations.py。"},{"id":"section-4","title":"5. 权限与兼容","text":"新工具调用的拒绝是工具反馈，可以继续使用其他获准工具。已经进入当前模型上下文的来源被撤权时，复用既有来源重验终止该 Run，并限制历史、引用和产物读取；后续新问题重新执行。当前上下文没有实现局部清除后继续生成。 子 Agent 按注册的效果、审批、本地变更、编排与完成元数据继承当前可见的只读能力，模型上下文使用 intermediate 角色。返回内部中间结果和证据，需要用户确认的事项交回父级，父 Agent 负责最终候选。旧 Run 保留固定的旧协议和搜索快照恢复；新 Run 的查询、候选和发布不进入旧搜索专属裁决分支。原零售场景判断留在历史兼容路径，默认协议仅使用通用目标、来源、计算和模型审阅。"},{"id":"section-5","title":"6. 验证入口","text":"test_answer_protocol.py：模式、引用、计算、目标、Review 摘要、部分交付、混合批次、预算与旧消息序列化。 test_document_tools.py：首次并发 pin、空库跳过 Embedding、来源 owner 重验。 test_context_runtime_integration.py：真实 PostgreSQL 上的 plain / evidence / schema fallback、Markdown／CSV／看板、原子发布、拒绝被改写正文、恢复复用。 Web 知识库集成与真实浏览器：资料来源、正文边界、引用入口、窄屏及键盘操作；具体运行记录见验收文档。 工具观察中的 `recordRef` 是指向同一回执原始结果的 JSON Pointer，仅合并完全相同的记录。未完全相同的记录仍完整展示，私有证据与摘要保持原样，旧协议观察继续兼容。 候选和 Review 的输出额度以模型与预算能力为界，最高 8,192 token；普通问答的历史 2,048 token 默认值不再限制新协议的结构化候选。截断输出不执行工具，返回缩短重提反馈。父子共享的模型步骤也预留提交与审阅空间。 子任务回传证据 ID；父级适配器声明 `importEvidenceId`，通用 `after_tool_batch` 从当前 Run 私有存储导入原记录并复核来源关系。导入保持原 ID、工具与调用关系，模型观察只展示事实定位。Review 保留完整事实和证据摘要，权限记录继续在服务端用于恢复、发布与回看重验。 Review 的模型回执继续持久提交检查点，当前 worker 接着完成接受与发布检查。该边界不主动交还租约，避免发布前再次完整重放历史。进程退出仍从已有模型回执恢复；工作模型步骤保留原调度边界。"},{"id":"code-0","title":"实际决策定义","text":"@dataclass(frozen=True)\nclass Decision:\n    action: Literal[\"accept\", \"act\", \"revise\", \"partial\", \"review\"]\n    feedback: str = \"\"\n    body: str = \"\"\n    citations: dict | None = None\n"},{"id":"code-1","title":"实际交付预算预留","text":"def needs_delivery_reserve(budget, route, output_tokens):\n    \"\"\"Forecast delivery headroom from settled usage; hard limits stay in the budget.\"\"\"\n    if budget is None:\n        return False\n    if budget.steps >= budget.limits.steps - 3:\n        return True\n    if not budget.attempts:\n        return False\n    profiles = [\n        p\n        for p in budget.profiles\n        if (p.provider_id, p.binding_version) == (route.provider_id, route.binding_version)\n    ]\n    if not profiles:\n        return False  # The budget's normal reservation reports unsupported profiles.\n    # A profile's input bound may span the provider's entire context window.\n    # Reserving it repeatedly would close tools before even a small task starts.\n    tokens = budget.tokens // budget.attempts + output_tokens\n    cost = budget.cost_microusd // budget.attempts + max(\n        output_tokens * p.output_microusd for p in profiles\n    )\n    child_tokens = sum(c.limits.tokens for c in budget.children)\n    child_cost = sum(c.limits.cost_microusd for c in budget.children)\n    return (\n        budget.tokens + child_tokens + 3 * tokens > budget.limits.tokens\n        or budget.cost_microusd + child_cost + 3 * cost > budget.limits.cost_microusd\n    )\n"},{"id":"code-2","title":"私有候选与公开正文 · 图表源","text":"flowchart LR\n C[\"私有 Candidate\"] --> V[\"结构与引用检查\"]\n V --> R[\"同 Loop 主模型 Review\"]\n R -->|补查或修订| W[\"主循环工作步骤\"]\n W --> C\n R --> A[\"绑定摘要的接受记录\"]\n A --> T[\"租约／来源重验与原子事务\"]\n T --> P[\"正文＋引用＋附件＋出箱事件\"]\n"}],"codes":["@dataclass(frozen=True)\nclass Decision:\n    action: Literal[\"accept\", \"act\", \"revise\", \"partial\", \"review\"]\n    feedback: str = \"\"\n    body: str = \"\"\n    citations: dict | None = None\n","def needs_delivery_reserve(budget, route, output_tokens):\n    \"\"\"Forecast delivery headroom from settled usage; hard limits stay in the budget.\"\"\"\n    if budget is None:\n        return False\n    if budget.steps >= budget.limits.steps - 3:\n        return True\n    if not budget.attempts:\n        return False\n    profiles = [\n        p\n        for p in budget.profiles\n        if (p.provider_id, p.binding_version) == (route.provider_id, route.binding_version)\n    ]\n    if not profiles:\n        return False  # The budget's normal reservation reports unsupported profiles.\n    # A profile's input bound may span the provider's entire context window.\n    # Reserving it repeatedly would close tools before even a small task starts.\n    tokens = budget.tokens // budget.attempts + output_tokens\n    cost = budget.cost_microusd // budget.attempts + max(\n        output_tokens * p.output_microusd for p in profiles\n    )\n    child_tokens = sum(c.limits.tokens for c in budget.children)\n    child_cost = sum(c.limits.cost_microusd for c in budget.children)\n    return (\n        budget.tokens + child_tokens + 3 * tokens > budget.limits.tokens\n        or budget.cost_microusd + child_cost + 3 * cost > budget.limits.cost_microusd\n    )\n","flowchart LR\n C[\"私有 Candidate\"] --> V[\"结构与引用检查\"]\n V --> R[\"同 Loop 主模型 Review\"]\n R -->|补查或修订| W[\"主循环工作步骤\"]\n W --> C\n R --> A[\"绑定摘要的接受记录\"]\n A --> T[\"租约／来源重验与原子事务\"]\n T --> P[\"正文＋引用＋附件＋出箱事件\"]\n"]}</script>
+    <!-- prettier-ignore -->
+    <script>(() => {
+  "use strict";
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const { search: searchIndex, codes } = JSON.parse($("#document-data").textContent);
+  const toast = $(".toast");
+  let toastTimer;
+  function announce(message) {
+    toast.textContent = message;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.textContent = "";
+    }, 2400);
+  }
+  async function copy(text) {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = text;
+      field.style.cssText = "position:fixed;left:-10000px;top:0";
+      document.body.append(field);
+      field.select();
+      const succeeded = document.execCommand("copy");
+      field.remove();
+      if (!succeeded) {
+        announce("请选中代码后复制");
+        return;
+      }
+    }
+    announce("代码已复制");
+  }
+  $$("[data-copy]").forEach((button) =>
+    button.addEventListener("click", () => {
+      void copy(codes[Number(button.dataset.copy)]);
+    }),
+  );
+  $$("[data-expand]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const expanded = button.closest(".code-block").classList.toggle("expanded");
+      button.textContent = expanded ? "收起代码" : "展开代码";
+      button.setAttribute("aria-expanded", String(expanded));
+    }),
+  );
+  function reveal(id) {
+    const node = document.getElementById(id);
+    if (!node) return;
+    let parent = node.parentElement;
+    while (parent) {
+      if (parent.tagName === "DETAILS") parent.open = true;
+      parent = parent.parentElement;
+    }
+    const code = node.closest(".code-block");
+    if (code) {
+      code.classList.add("expanded");
+      const expand = $("[data-expand]", code);
+      if (expand) {
+        expand.textContent = "收起代码";
+        expand.setAttribute("aria-expanded", "true");
+      }
+    }
+    node.scrollIntoView({ block: "start" });
+    if (!node.hasAttribute("tabindex")) node.setAttribute("tabindex", "-1");
+    node.focus({ preventScroll: true });
+  }
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const id = decodeURIComponent(link.hash.slice(1));
+    if (!document.getElementById(id)) return;
+    event.preventDefault();
+    $$(".mobile-nav[open]").forEach((details) => {
+      details.open = false;
+    });
+    history.pushState(null, "", "#" + id);
+    reveal(id);
+  });
+  window.addEventListener("hashchange", () => reveal(decodeURIComponent(location.hash.slice(1))));
+  if (location.hash)
+    requestAnimationFrame(() => reveal(decodeURIComponent(location.hash.slice(1))));
+
+  const searchDialog = $("#search-dialog");
+  const searchInput = $("#search-input");
+  const results = $("#search-results");
+  function search() {
+    const query = searchInput.value.trim().toLowerCase();
+    const words = query.split(/\s+/).filter(Boolean);
+    const matches = searchIndex
+      .filter((item) =>
+        words.every((word) => (item.title + " " + item.text).toLowerCase().includes(word)),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.title.toLowerCase().includes(query)) -
+          Number(a.title.toLowerCase().includes(query)),
+      );
+    results.replaceChildren();
+    for (const item of matches.slice(0, 25)) {
+      const a = document.createElement("a");
+      a.className = "search-result";
+      a.href = "#" + item.id;
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      const description = document.createElement("p");
+      const index = query ? item.text.toLowerCase().indexOf(query) : 0;
+      const start = Math.max(0, index - 24);
+      description.textContent = item.text.slice(start, start + 110);
+      a.append(title, description);
+      a.addEventListener("click", () => searchDialog.close());
+      results.append(a);
+    }
+    $("#search-meta").textContent = query
+      ? "找到 " + matches.length + " 项" + (matches.length > 25 ? "，显示前 25 项" : "")
+      : "输入章节、字段或关键词 · Tab 选择结果 · Enter 跳转";
+  }
+  $$("[data-search]").forEach((button) =>
+    button.addEventListener("click", () => {
+      searchDialog.showModal();
+      search();
+      searchInput.focus();
+    }),
+  );
+  searchInput.addEventListener("input", search);
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      $(".search-result", results)?.focus();
+    }
+    if (event.key === "Enter") $(".search-result", results)?.click();
+  });
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      if (!searchDialog.open) searchDialog.showModal();
+      search();
+      searchInput.focus();
+    }
+  });
+  $$("[data-close]").forEach((button) =>
+    button.addEventListener("click", () => button.closest("dialog").close()),
+  );
+  $$("dialog").forEach((dialog) =>
+    dialog.addEventListener("click", (event) => {
+      if (event.target !== dialog) return;
+      const bounds = dialog.getBoundingClientRect();
+      if (
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom
+      )
+        dialog.close();
+    }),
+  );
+
+  const diagramDialog = $("#diagram-dialog");
+  const zoomContent = $("#zoom-content");
+  const zoomViewport = $("#zoom-viewport");
+  let diagramSource,
+    diagramName,
+    svgWidth = 1,
+    svgHeight = 1,
+    scale = 1;
+  function setScale(next) {
+    scale = Math.max(0.07, Math.min(3, next));
+    const svg = $("svg", zoomContent);
+    if (!svg) return;
+    svg.style.width = svgWidth * scale + "px";
+    svg.style.height = svgHeight * scale + "px";
+    zoomContent.style.width = svgWidth * scale + "px";
+    $("#zoom-level").textContent = Math.round(scale * 100) + "%";
+  }
+  function fit() {
+    setScale(
+      Math.min(
+        (zoomViewport.clientWidth - 64) / svgWidth,
+        (zoomViewport.clientHeight - 64) / svgHeight,
+      ),
+    );
+  }
+  $$("[data-diagram]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const figure = button.closest(".diagram");
+      const original = $(".diagram-stage > svg", figure);
+      diagramSource = original.outerHTML;
+      diagramName = figure.dataset.title;
+      $("#zoom-title").textContent = diagramName;
+      const svg = original.cloneNode(true);
+      // Namespace the copy so SVG marker references do not collide with the source.
+      const nodes = [svg, ...$$("*", svg)];
+      const ids = new Map(
+        nodes.filter((node) => node.id).map((node) => [node.id, "zoom-" + node.id]),
+      );
+      for (const node of nodes) {
+        for (const attribute of [...node.attributes]) {
+          let value = attribute.value.replace(/url\(['"]?#([^)'"]+)['"]?\)/g, (match, id) =>
+            ids.has(id) ? `url(#${ids.get(id)})` : match,
+          );
+          if (attribute.name === "id") value = ids.get(value);
+          else if (/^(?:xlink:)?href$/.test(attribute.name) && ids.has(value.slice(1)))
+            value = "#" + ids.get(value.slice(1));
+          else if (/^aria-(?:labelledby|describedby)$/.test(attribute.name))
+            value = value
+              .split(/\s+/)
+              .map((id) => ids.get(id) ?? id)
+              .join(" ");
+          node.setAttribute(attribute.name, value);
+        }
+        if (node.localName === "style")
+          node.textContent = node.textContent.replace(/#([A-Za-z_][\w:-]*)/g, (match, id) =>
+            ids.has(id) ? "#" + ids.get(id) : match,
+          );
+      }
+      zoomContent.replaceChildren(svg);
+      const viewBox = original.viewBox.baseVal;
+      svgWidth = viewBox.width;
+      svgHeight = viewBox.height;
+      diagramDialog.showModal();
+      fit();
+      zoomViewport.scrollTop = 0;
+      zoomViewport.scrollLeft = 0;
+    }),
+  );
+  $$("[data-zoom]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const mode = button.dataset.zoom;
+      if (mode === "fit") fit();
+      else setScale(mode === "actual" ? 1 : scale * (mode === "in" ? 1.3 : 1 / 1.3));
+    }),
+  );
+  $("#download-svg").addEventListener("click", () => {
+    if (!diagramSource) return;
+    const url = URL.createObjectURL(
+      new Blob([diagramSource], { type: "image/svg+xml;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "design-" + diagramName.replace(/[^\w\u4e00-\u9fff-]+/g, "-") + ".svg";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  let scheduled = false;
+  function updateReading() {
+    scheduled = false;
+    const total = document.documentElement.scrollHeight - innerHeight;
+    $(".reading-progress").style.transform =
+      "scaleX(" + (total > 0 ? Math.min(1, scrollY / total) : 0) + ")";
+  }
+  addEventListener(
+    "scroll",
+    () => {
+      if (!scheduled) {
+        scheduled = true;
+        requestAnimationFrame(updateReading);
+      }
+    },
+    { passive: true },
+  );
+  addEventListener("resize", updateReading);
+  updateReading();
+})();
+</script>
+    <script>
+      (() => {
+        const menu = document.querySelector(".lesson-toc");
+        menu.addEventListener("click", (event) => {
+          if (event.target.closest("a")) menu.open = false;
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && menu.open) {
+            menu.open = false;
+            menu.querySelector("summary").focus();
+          }
+        });
+        document.addEventListener("pointerdown", (event) => {
+          if (menu.open && !menu.contains(event.target)) menu.open = false;
+        });
+      })();
+    </script>
+  </body>
+</html>

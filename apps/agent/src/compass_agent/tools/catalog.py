@@ -3,6 +3,7 @@
 from compass_agent.tools.builtin.create_workflow import SPEC as CREATE_WORKFLOW
 from compass_agent.tools.builtin.database_query import SPEC as DATABASE_QUERY
 from compass_agent.tools.builtin.final_answer import SPEC as FINAL_ANSWER
+from compass_agent.tools.builtin.goal import SPEC as GOAL
 from compass_agent.tools.builtin.python_analysis import SPEC as PYTHON_ANALYSIS
 from compass_agent.tools.builtin.read_tool_result import SPEC as READ_TOOL_RESULT
 from compass_agent.tools.builtin.schedule_read import SPEC as SCHEDULE_READ
@@ -24,6 +25,7 @@ from compass_agent.tools.catalog_contracts import CatalogContext, ToolSpec
 
 TOOLS: tuple[ToolSpec, ...] = (
     FINAL_ANSWER,
+    GOAL,
     TODO_WRITE,
     DATABASE_QUERY,
     READ_TOOL_RESULT,

@@ -137,16 +137,24 @@ class SandboxBackend:
         self, binding: ExecutionBinding, args: object, context: ToolExecutionContext
     ) -> ExecutionReceipt:
         if not isinstance(binding, SandboxBinding) or not isinstance(args, dict):
-            raise ToolRejected("invalid_tool_binding")
+            return ExecutionReceipt(
+                context.call_id, "rejected", "not_started", reason_code="invalid_tool_binding"
+            )
         source_id, code = args["source_query_id"], args["code"]
         source = context.sources.get(source_id)
         if source is None or source.owner != context.owner or source.run_id != context.run_id:
-            raise ToolRejected("sandbox_source_denied")
+            return ExecutionReceipt(
+                context.call_id, "rejected", "not_started", reason_code="sandbox_source_denied"
+            )
         if source.revalidate is not None and not await context.control.perform(source.revalidate):
-            raise ToolRejected("sandbox_source_stale")
+            return ExecutionReceipt(
+                context.call_id, "rejected", "not_started", reason_code="sandbox_source_stale"
+            )
         inputs = json_bytes(source.data)
         if len(inputs) > 128 * 1024 or len(code.encode()) > 16 * 1024:
-            raise ToolRejected("sandbox_input_limit")
+            return ExecutionReceipt(
+                context.call_id, "rejected", "not_started", reason_code="sandbox_input_limit"
+            )
         context.require_running()
         attempt = uuid5(context.run_id, f"{context.step_id}:{context.call_id}")
         allocation = await self._begin_phase(

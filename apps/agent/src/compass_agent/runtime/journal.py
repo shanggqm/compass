@@ -90,6 +90,7 @@ class ExecutionJournal:
         self.pending_drafts = []
         self.active_started = monotonic()
         run = store.read_run(run_id)
+        self.goal_id = (run.config_snapshot.get("goal") or {}).get("goalId")
         self.accepted_at = run.created_at
         self.user_question = run.config_snapshot.get("command", {}).get("question", "")
         self.context_binding = run.config_snapshot.get("contextRuntime")
@@ -938,6 +939,7 @@ class ExecutionJournal:
         receive_frame=None,
         revalidate=None,
         yield_boundary=True,
+        settled_on_return=False,
     ):
         adapter = TypeAdapter(result_type)
         # Read accepted results before pause checks: pure reconstruction consumes no new resources.
@@ -962,6 +964,19 @@ class ExecutionJournal:
                 if budget is not None and not already_counted:
                     for name, value in saved.get("budget", {}).items():
                         setattr(budget, name, getattr(budget, name) + value)
+                    # Admission can fail without spending anything. Its stop reason
+                    # still determines the child delivery and must survive replay.
+                    reason = saved.get("budgetStopReason")
+                    if (
+                        "budgetStopReason" not in saved
+                        and isinstance(saved["result"], dict)
+                        and saved["result"].get("error_code") == "autonomy_admission_denied"
+                    ):
+                        # Receipts predating stop-reason persistence retain the
+                        # admission failure, but not its token/cost classification.
+                        reason = "model_budget_unavailable"
+                    if reason is not None:
+                        budget.reason = reason
                     if kind in {"ctx_select", "ctx_compact"}:
                         self.context_accounted_attempts.add(attempt_id)
                 saved = self.restore_continuation(saved["result"], saved.get("continuation"))
@@ -1007,7 +1022,7 @@ class ExecutionJournal:
             if kind == "tool":
                 receipt = encoded.get("receipt", encoded) if isinstance(encoded, dict) else encoded
                 receipts = receipt if isinstance(receipt, list) else [receipt]
-                tool_finished = all(
+                tool_finished = settled_on_return or all(
                     isinstance(receipt, dict)
                     and receipt.get("cleanup") in {"confirmed", "not_started", "remote_managed"}
                     for receipt in receipts
@@ -1031,6 +1046,7 @@ class ExecutionJournal:
                 "result": encoded,
                 "continuation": continuation,
                 "budget": {name: getattr(budget, name) - old for name, old in before.items()},
+                **({"budgetStopReason": budget.reason} if budget is not None else {}),
             }
             yielded = await asyncio.to_thread(
                 self.accept,

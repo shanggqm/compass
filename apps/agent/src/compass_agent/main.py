@@ -8,6 +8,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from compass_agent.api.goals import router as goal_router
 from compass_agent.api.mcp import router as mcp_router
 from compass_agent.api.models import ModelBoundaryMiddleware, create_model_service, error_response
 from compass_agent.api.models import router as model_router
@@ -236,6 +237,7 @@ app.include_router(starter_router)
 app.include_router(mcp_router)
 app.include_router(run_router)
 app.include_router(session_router)
+app.include_router(goal_router)
 
 app.include_router(internal_router)
 app.include_router(semantic_router)

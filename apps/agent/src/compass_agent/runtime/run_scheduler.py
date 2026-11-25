@@ -25,6 +25,16 @@ from compass_agent.schemas import RunContractModel, SchedulingPublic
 
 ACTIVE_JOBS = ("leased", "reclaiming")
 TERMINAL = {"completed", "failed", "canceled"}
+NON_RETRYABLE_RECOVERY = frozenset(
+    {
+        "workflow_replay_mismatch",
+        "checkpoint_invalid",
+        "checkpoint_corrupt",
+        "runtime_state_invalid",
+        "budget_policy_mismatch",
+        "schedule_permission_revoked",
+    }
+)
 ADVANCE_NAMESPACE = uuid5(NAMESPACE_URL, "compass.runtime.worker.advance.v1")
 
 
@@ -705,6 +715,10 @@ class RunScheduler:
             )
             if job.status != "reclaiming" and not parked_cancel:
                 return
+            # Validation of stored bytes cannot repair a deterministic replay
+            # mismatch. Preserve the execution failure and park it for intervention.
+            if run.reason_code in NON_RETRYABLE_RECOVERY:
+                recovery_error = recovery_error or run.reason_code
             allocation = tx.scalar(
                 select(SandboxAllocation.id)
                 .where(
@@ -757,7 +771,7 @@ class RunScheduler:
                     "confirmed",
                 )
                 run.reason_code, run.recovery_status = "user_canceled", "ready"
-                events.extend(canceled_execution(tx, run))
+                events.extend(canceled_execution(self.store, tx, run))
                 job.status = "done"
             elif unknown or recovery_error or run.recovery_status == "blocked":
                 run.status = "paused" if run.status != "cancelling" else "cancelling"

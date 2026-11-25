@@ -7,7 +7,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 import pytest
-from compass_agent.harness.autonomy import AutonomyBudget, AutonomyLimits
+from compass_agent.harness.autonomy import AutonomyBudget, AutonomyLimits, AutonomyStopped
 from compass_agent.harness.verification import VerificationRejected
 from compass_agent.llm.contracts import GenerationOutput, RuntimeResult
 from compass_agent.llm.errors import RuntimeFailure
@@ -304,3 +304,12 @@ def test_tool_budget_stops_before_extra_dispatch():
         execute([output(channel()), output(product())], limits=AutonomyLimits(tools=1))
     )
     assert result.status == "failed" and queried == ["c"]
+
+
+def test_paused_goal_stops_run_as_user_cancellation():
+    def paused(_input):
+        raise AutonomyStopped("goal_paused")
+
+    result, queried, _ = asyncio.run(execute([paused]))
+    assert result.status == "canceled" and result.reason == "user"
+    assert result.cleanup == "confirmed" and queried == []

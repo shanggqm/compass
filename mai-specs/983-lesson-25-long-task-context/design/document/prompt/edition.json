@@ -1,0 +1,57 @@
+{
+  "lesson": 25,
+  "title": "提示词与工具设计",
+  "subtitle": "第 25 课的模型可见文本：单 goal 工具、sub_agent 并行委派规则、子 Agent 汇报与目标锚点模板。",
+  "brand": "Compass",
+  "label": "第 25 课 · 提示词与工具设计",
+  "source": "../../PROMPT_DESIGN.md",
+  "guide": "guide.md",
+  "output": "../../PROMPT_DESIGN.html",
+  "code": {
+    "assembly_diagram": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "shared/fragments/long-task.md",
+      "language": "mermaid"
+    },
+    "pipeline_usage": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "usage.append(\"shared/fragments/long-task.md\")",
+      "language": "python"
+    },
+    "tool_goal": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "\"name\": \"goal\",",
+      "language": "json"
+    },
+    "tool_sub_agent": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "\"name\": \"sub_agent\",",
+      "language": "json"
+    },
+    "tool_report_to_parent": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "\"name\": \"report_to_parent\",",
+      "language": "json"
+    },
+    "frag_long_task": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "**长任务规则**",
+      "language": "markdown"
+    },
+    "frag_delegation": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "**委派规则**",
+      "language": "markdown"
+    },
+    "subagent_system": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "**独立分析子 Agent**",
+      "language": "markdown"
+    },
+    "goal_anchor": {
+      "file": "../../PROMPT_DESIGN.md",
+      "contains": "<goal_anchor revision=",
+      "language": "text"
+    }
+  }
+}

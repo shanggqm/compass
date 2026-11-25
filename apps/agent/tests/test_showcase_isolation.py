@@ -39,6 +39,7 @@ def test_production_registry_contains_only_shipped_tools():
         "python_analysis",
         "create_workflow",
         "sub_agent",
+        "goal",
         "schedule_read",
         "schedule_write",
     }
@@ -128,6 +129,7 @@ def test_production_wheel_excludes_showcases(tmp_path):
         "python_analysis",
         "create_workflow",
         "sub_agent",
+        "goal",
         "schedule_read",
         "schedule_write",
     }

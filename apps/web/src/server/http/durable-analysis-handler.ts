@@ -14,7 +14,7 @@ export function isDurableAnalysisRoute(route: string, request: Request) {
     route === "analysis/runtime/usage" ||
     /^analysis\/schedules(?:\/|$)/.test(route) ||
     /^analysis\/sessions(?:\/|$)/.test(route) ||
-    /^analysis\/runs\/[^/]+\/(events|pause|resume|decisions|reconcile|waits|timeline|semantic-results|citations)(?:\/|$)/.test(
+    /^analysis\/runs\/[^/]+\/(events|pause|resume|decisions|reconcile|waits|timeline|semantic-results|citations|children)(?:\/|$)/.test(
       route,
     ) ||
     (/^analysis\/runs\/[^/]+\/cancel$/.test(route) &&
@@ -67,14 +67,28 @@ export async function handleDurableAnalysis(request: Request, token: string) {
       }
     } else if (parts.length === 4 && parts[1] === "sessions") {
       uuid.parse(parts[2]);
-      if (parts[3] === "messages" && request.method === "GET") result = "AgentResponse";
+      if (parts[3] === "goal" && request.method === "GET") result = "SessionGoal";
+      else if (parts[3] === "messages" && request.method === "GET") result = "AgentResponse";
       else if (parts[3] === "context-reset" && request.method === "POST") {
         contract = "ControlCommand";
         result = "ControlReceipt";
       }
+    } else if (
+      parts.length === 5 &&
+      parts[1] === "sessions" &&
+      parts[3] === "goal" &&
+      parts[4] === "actions" &&
+      request.method === "POST"
+    ) {
+      uuid.parse(parts[2]);
+      contract = "GoalAction";
+      result = "SessionGoal";
     } else if (parts[1] === "runs") {
       uuid.parse(parts[2]);
-      if (parts[3] === "citations" && request.method === "GET" && parts.length === 4)
+      if (parts[3] === "children" && request.method === "GET" && parts.length === 5) {
+        uuid.parse(parts[4]);
+        result = "ChildTraceSnapshot";
+      } else if (parts[3] === "citations" && request.method === "GET" && parts.length === 4)
         result = "RunCitations";
       else if (parts[3] === "citations" && request.method === "GET" && parts.length === 5) {
         uuid.parse(parts[4]);

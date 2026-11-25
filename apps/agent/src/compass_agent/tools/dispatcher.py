@@ -1,6 +1,8 @@
 """Single-call admission and execution; batch scheduling lives in batch.py."""
 
 import asyncio
+import logging
+import traceback
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import replace
 from functools import partial
@@ -212,6 +214,22 @@ class ToolDispatcher:
         result: ToolExecutionResult | None = None
         try:
             await self.revalidate(prepared, context)
+            journal = current_execution.get()
+            if journal and prepared.tool.fingerprint:
+                from compass_agent.goal.ledger import Ledger
+
+                contexts = getattr(journal, "goal_tool_contexts", {})
+                contexts[(str(context.step_id), prepared.call_id)] = context
+                journal.goal_tool_contexts = contexts
+                reused = await asyncio.to_thread(
+                    Ledger(journal.store).reuse, journal, prepared, context
+                )
+                if reused is not None:
+                    prepared.tool.authorize(prepared.args, context)
+                    context.budget.start_tool()
+                    context.on_start(prepared)
+                    result = reused
+                    return result
             prepared = await self.prepare_approval(prepared, context)
             result = self.admission(prepared, context)
             if result is not None:
@@ -285,7 +303,13 @@ class ToolDispatcher:
                     )
                 except ToolBusinessStopped:
                     raise
-                except Exception:
+                except Exception as error:
+                    logging.getLogger(__name__).error(
+                        "tool.execution_failed tool=%s exception=%s frames=%s",
+                        prepared.tool.name,
+                        type(error).__name__,
+                        [(f.name, f.lineno) for f in traceback.extract_tb(error.__traceback__)],
+                    )
                     receipt = ExecutionReceipt(
                         prepared.call_id, "error", "unconfirmed", reason_code="tool_failed"
                     )

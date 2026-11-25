@@ -487,6 +487,72 @@
   }
 }
 
+.analysis-goal-panel {
+  margin-block: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-control);
+}
+.analysis-goal-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.analysis-goal-heading > span {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.analysis-goal-heading > svg {
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+}
+.analysis-goal-heading[aria-expanded="true"] > svg {
+  transform: rotate(0);
+}
+.analysis-goal-heading:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.analysis-goal-panel p {
+  margin-block: var(--space-2);
+}
+.analysis-goal-panel ul,
+.analysis-goal-proposal ul {
+  margin-block: var(--space-2);
+  padding-inline-start: var(--space-5);
+}
+.analysis-goal-panel .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+.ui-timeline-row + .ui-timeline-summary {
+  margin: 0 var(--space-2) var(--space-2) var(--space-8);
+  color: var(--muted);
+  font-size: var(--text-control);
+  overflow-wrap: anywhere;
+}
+.ui-timeline-detail > .ui-execution-timeline {
+  max-height: none;
+  overflow: visible;
+}
+
 .analysis-process {
   min-width: 0;
   margin: var(--space-1) 0 var(--space-4);
@@ -941,4 +1007,33 @@ button.ui-timeline-row {
 
 .schedule-results > .ui-button {
   justify-self: start;
+}
+
+/* Child executions stay compact in the parent and reuse its timeline in a drawer. */
+.ui-timeline-row.ui-child-trigger {
+  margin-block: var(--space-1);
+  border: 1px solid var(--border);
+  background: var(--primary-soft);
+  color: var(--ink);
+}
+.ui-child-trigger > svg:first-child {
+  color: var(--primary);
+}
+@media (hover: hover) {
+  .ui-child-trigger:hover {
+    border-color: var(--primary);
+  }
+}
+.ui-child-execution {
+  min-width: 0;
+}
+.ui-child-execution .analysis-final-answer {
+  margin-block-start: var(--space-6);
+}
+.ui-child-execution .analysis-final-answer > h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-body);
+}
+.ui-child-answer-empty {
+  color: var(--muted);
 }

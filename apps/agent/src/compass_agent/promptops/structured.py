@@ -73,6 +73,15 @@ def code_definition(name: str) -> dict:
     from compass_agent.tools.catalog import TOOLS
     from compass_agent.tools.catalog_contracts import CatalogContext
 
+    if name == "report_to_parent":
+        from compass_agent.goal.contracts import ReportToParentInput
+
+        value = parse(raw_factory_text("support/subagent/report-to-parent.json"))
+        value["function"]["parameters"] = {
+            "type": "object",
+            **ReportToParentInput.model_json_schema(by_alias=True),
+        }
+        return value
     spec = next((spec for spec in TOOLS if spec.name == name), None)
     if spec is None:
         raise PromptError("unknown_tool", "工具未在当前代码中注册。")
@@ -140,6 +149,8 @@ def validate_tool(path: str, document: dict) -> None:
 
 
 def contract_digest(path: str) -> str | None:
+    if path == "support/subagent/report-to-parent.json":
+        path = "tools/report_to_parent.json"
     if not path.startswith("tools/") or not path.endswith(".json"):
         return None
     value = copy.deepcopy(code_definition(path[6:-5]))
@@ -152,6 +163,8 @@ def validate_document(path: str, body: str) -> dict:
     document = parse(body)
     if path.startswith("tools/"):
         validate_tool(path, document)
+    elif path == "support/subagent/report-to-parent.json":
+        validate_tool("tools/report_to_parent.json", document)
     elif path == "support/routing/scenes.json":
         from compass_agent.routing.dictionary import catalog
 

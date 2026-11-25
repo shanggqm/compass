@@ -3,8 +3,7 @@
 import asyncio
 
 from compass_agent.schemas import TenantScope
-from compass_agent.tools.builtin.database_query.handler import registration
-from compass_agent.tools.contracts import PhaseCanceled
+from compass_agent.tools.builtin.database_query.handler import finish_bookkeeping, registration
 
 
 def provider(connections):
@@ -21,19 +20,19 @@ def provider(connections):
             return ()
 
         async def current():
-            if snapshot and not await asyncio.to_thread(
-                verify, journal.store.source_settings, trusted, journal.run_id, kinds=["detail"]
+            if snapshot and not await finish_bookkeeping(
+                asyncio.to_thread(
+                    verify, journal.store.source_settings, trusted, journal.run_id, kinds=["detail"]
+                )
             ):
                 return ()
 
-            loading = asyncio.create_task(
-                asyncio.to_thread(connections.bindings_for_run, trusted.scope)
+            return restrict_connections(
+                await finish_bookkeeping(
+                    asyncio.to_thread(connections.bindings_for_run, trusted.scope)
+                ),
+                snapshot,
             )
-            try:
-                return restrict_connections(await asyncio.shield(loading), snapshot)
-            except asyncio.CancelledError:
-                await asyncio.wait({loading}, timeout=0.5)
-                raise PhaseCanceled(cleanup_confirmed=loading.done()) from None
 
         bindings = await current()
         if snapshot and not bindings:

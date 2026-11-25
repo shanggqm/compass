@@ -4,7 +4,7 @@ import asyncio
 import os
 from dataclasses import replace
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from compass_agent.api.models import ModelBoundaryMiddleware, error_response
@@ -342,13 +342,21 @@ def test_real_classifier_fallback_preserves_each_attempt_under_original_run(targ
                 tools_provider=provider_for(lambda _: None),
                 definition=compass_definition(),
             )
-            run = await execute(
-                runtime,
-                command(
-                    question="你好呀，讲个笑话", selection={"mode": "auto", "provider_id": None}
-                ),
-                worker,
+            # Classifier Steps require a published Context pin. This fixture keeps
+            # the historical v1 final-answer contract used by its provider responses.
+            runtime.store.context_enabled = True
+            submitted = command(
+                question="你好呀，讲个笑话", selection={"mode": "auto", "provider_id": None}
             )
+            receipt = runtime.store.submit(submitted, CHAT)
+            run_id = UUID(receipt["runId"])
+            with runtime.store.transaction() as tx:
+                _, pinned = runtime.store.lock(tx, run_id)
+                binding = {**pinned.config_snapshot["contextRuntime"], "answerProtocol": 1}
+                pinned.config_snapshot = {**pinned.config_snapshot, "contextRuntime": binding}
+            runtime.schedule(run_id, worker, CHAT)
+            await asyncio.wait_for(runtime.tasks[run_id], 35)
+            run = runtime.store.read_run(run_id)
             assert run.status == "completed", run.reason_code
             expected_calls = len(upstream.requests)
             assert expected_calls >= 3

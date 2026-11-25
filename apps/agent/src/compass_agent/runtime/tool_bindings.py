@@ -292,6 +292,13 @@ class RunToolBindings:
                 return
             binding = prepared.tool.binding
             fields: dict[str, object] = {}
+            if prepared.tool.name == "goal" and isinstance(prepared.args, dict):
+                fields["title"] = {
+                    "propose": "确认长任务目标",
+                    "record": "记录目标进度",
+                    "complete": "核对目标完成条件",
+                    "block": "记录目标阻碍",
+                }.get(prepared.args.get("op", ""), "更新目标")
             if (
                 not self.search
                 and not prepared.tool.completion

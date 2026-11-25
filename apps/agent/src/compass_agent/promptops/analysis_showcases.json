@@ -54,5 +54,18 @@
         "path": "analysis/refund-shift-handoff.md"
       }
     ]
+  },
+  {
+    "title": "第 25 课 · 长任务与多 Agent 协作",
+    "suggestions": [
+      {
+        "label": "经营变化归因",
+        "path": "analysis/operating-attribution.md"
+      },
+      {
+        "label": "从经营诊断到行动方案",
+        "path": "analysis/operating-action-plan.md"
+      }
+    ]
   }
 ]

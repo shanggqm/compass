@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import replace
 from uuid import uuid5
 
-from compass_agent.execution_context import execution_scope
+from compass_agent.execution_context import current_execution, execution_scope
 from compass_agent.models.errors import ModelError
 from compass_agent.schemas import (
     ExecutionEnvironment,
@@ -58,9 +58,38 @@ class WorkflowTools:
         return trace.calls.get((str(context.step_id), context.call_id)) if trace else None
 
     async def subagent(self, args, context):
-        prompt = SubAgentInput.model_validate(args).prompt
-        result = await self.bindings.subagent.run(prompt, context, identifier=self._node(context))
-        return ExecutionReceipt(context.call_id, "ok", "confirmed", result)
+        value = SubAgentInput.model_validate(args)
+        if value.tasks:
+            result = await self.bindings.subagent.tasks(
+                value.tasks, context, group=self._node(context)
+            )
+        else:
+            result = await self.bindings.subagent.run(
+                value.prompt, context, identifier=self._node(context)
+            )
+        journal = current_execution.get()
+        dependencies = None
+        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2:
+            identifiers = {
+                key
+                for delivery in result.get("deliveries", [result])
+                for key in delivery.get("evidenceIds", [])
+            }
+            from compass_agent.goal.ledger import unique_refs
+
+            dependencies = tuple(
+                unique_refs(
+                    [
+                        record
+                        for records in journal.answer_evidence.values()
+                        for key, record in records.items()
+                        if key in identifiers
+                    ]
+                )
+            )
+        return ExecutionReceipt(
+            context.call_id, "ok", "confirmed", result, source_deps=dependencies
+        )
 
     def _workflow_host(self, context):
         trace, parent = self.bindings.state.trace, self._node(context)

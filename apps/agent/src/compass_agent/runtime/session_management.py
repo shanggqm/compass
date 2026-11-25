@@ -79,6 +79,9 @@ def update_session(
                 if session.title_status == "pending":
                     session.title_status = "fallback"
                     session.title_next_at = None
+                from compass_agent.goal.controller import cancel_session_goals
+
+                cancel_session_goals(tx, session.id)
                 session.deleted_at = now()
                 session.version += 1
             receipt = {"sessionId": str(session.id)}

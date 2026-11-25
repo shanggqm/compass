@@ -7,6 +7,7 @@ from typing import cast
 
 from compass_agent.data_connections.transport import AuthorizedDatabaseBinding
 from compass_agent.schemas import (
+    RUN_STREAM_LIMITS,
     RunToolError,
     ToolCall,
     ToolCallFunction,
@@ -24,18 +25,39 @@ from compass_agent.tools.builtin.database_query import (
     DatabaseResult,
     ListConnections,
     definition,
+    fingerprint,
     query_database,
 )
 from compass_agent.tools.contracts import (
     AuthorizedInput,
     ExecutionReceipt,
     InProcessBinding,
+    PhaseCanceled,
     RegisteredTool,
     ToolPolicy,
     ToolRejected,
     json_bytes,
 )
+from compass_agent.tools.contracts import (
+    preview as bounded_preview,
+)
 from compass_agent.tools.registry import bounded_payload, parse_arguments
+
+
+async def finish_bookkeeping(operation, *, timeout_s: float = 8):
+    """Drain local source-recording transactions after the physical query has settled."""
+    task = asyncio.create_task(operation)
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        done, _ = await asyncio.wait({task}, timeout=timeout_s)
+        if done:
+            task.exception()
+        else:
+            task.add_done_callback(
+                lambda finished: None if finished.cancelled() else finished.exception()
+            )
+        raise PhaseCanceled(cleanup_confirmed=bool(done)) from None
 
 
 def registration(
@@ -60,27 +82,34 @@ def registration(
         journal = current_execution.get()
         action = DATABASE_ACTION.validate_python(args)
         if isinstance(action, ListConnections):
-            visible = bindings
+            visible = tuple(
+                b
+                for b in bindings
+                if context.connection_ids is None
+                or str(b.connection_id or b.workspace_id) in context.connection_ids
+            )
             if getattr(journal, "search_snapshot", None):
                 from compass_agent.context_runtime.source_access import record_sources
 
                 authorized = await current() if current else ()
-                visible = tuple(b for b in bindings if b in authorized)
-                await asyncio.to_thread(
-                    record_sources,
-                    journal,
-                    [
-                        {
-                            "kind": "metadata",
-                            "connection": str(b.connection_id or b.workspace_id),
-                            "tenant": str(b.tenant_id),
-                            "workspace": str(b.workspace_id),
-                            "revision": b.revision,
-                            "role": b.role,
-                            "columns": {},
-                        }
-                        for b in visible
-                    ],
+                visible = tuple(b for b in visible if b in authorized)
+                await finish_bookkeeping(
+                    asyncio.to_thread(
+                        record_sources,
+                        journal,
+                        [
+                            {
+                                "kind": "metadata",
+                                "connection": str(b.connection_id or b.workspace_id),
+                                "tenant": str(b.tenant_id),
+                                "workspace": str(b.workspace_id),
+                                "revision": b.revision,
+                                "role": b.role,
+                                "columns": {},
+                            }
+                            for b in visible
+                        ],
+                    )
                 )
             return ExecutionReceipt(
                 context.call_id,
@@ -97,13 +126,21 @@ def registration(
                     ]
                 },
             )
-        available = {str(item.connection_id or item.workspace_id): item for item in bindings}
+        allowed_bindings = tuple(
+            b
+            for b in bindings
+            if context.connection_ids is None
+            or str(b.connection_id or b.workspace_id) in context.connection_ids
+        )
+        available = {
+            str(item.connection_id or item.workspace_id): item for item in allowed_bindings
+        }
         binding = (
             available.get(action.connection_id)
             if action.connection_id
             else (
                 available.get(str(context.owner[1]))
-                or (bindings[0] if len(bindings) == 1 else None)
+                or (allowed_bindings[0] if len(allowed_bindings) == 1 else None)
             )
         )
         if binding is None:
@@ -179,8 +216,8 @@ def registration(
         ):
             from compass_agent.semantic.service import remember_open
 
-            retained = await asyncio.to_thread(
-                remember_open, journal, context, args, result, binding
+            retained = await finish_bookkeeping(
+                asyncio.to_thread(remember_open, journal, context, args, result, binding)
             )
             if retained:
                 ref, witness = retained
@@ -188,7 +225,7 @@ def registration(
                     {"calculation_mode": "open_sql", "resultId": ref, "semantic_result_ref": ref}
                 )
         if journal and getattr(journal, "context_binding", None):
-            await asyncio.to_thread(record_source, journal, witness)
+            await finish_bookkeeping(asyncio.to_thread(record_source, journal, witness))
         context.sources[payload["resultId"]] = AuthorizedInput(
             context.run_id, context.owner, payload, revalidate
         )
@@ -200,6 +237,8 @@ def registration(
             if manifest
             else result.observation(include_result_id=False)
         )
+        if len(preview.encode()) > RUN_STREAM_LIMITS["toolResultBytes"]:
+            preview = bounded_preview(preview)
         payload_event = (
             ToolSucceededPayload(
                 **common,
@@ -230,4 +269,5 @@ def registration(
         bounded_payload,
         parallel_safe=True,
         evidence_adapter=evidence_result,
+        fingerprint=fingerprint,
     )

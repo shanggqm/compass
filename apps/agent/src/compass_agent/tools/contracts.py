@@ -192,6 +192,7 @@ class ToolExecutionContext:
     budget: ToolBudget
     visible_names: frozenset[str]
     caller: Literal["model", "workflow"] = "model"
+    connection_ids: frozenset[str] | None = None
     sources: MutableMapping[str, AuthorizedInput] = field(default_factory=dict, repr=False)
     emit: Callable[[ToolExecutionEvent], None] = field(default=lambda _: None, repr=False)
     call_id: str = ""
@@ -276,6 +277,7 @@ class RegisteredTool:
     completion: bool = False
     public_projection: Literal["normal", "status_only"] = "normal"
     evidence_adapter: Callable | None = None
+    fingerprint: Callable | None = None
 
 
 @dataclass(frozen=True, slots=True)

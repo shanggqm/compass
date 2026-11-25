@@ -992,3 +992,45 @@ def test_recommendations_are_idempotent_bounded_and_preserve_source_receipts(mon
     with pytest.raises(results.ModelError) as denied:
         offer(0, "配送时长")
     assert denied.value.code == "source_access_denied"
+
+
+def test_large_result_reauthorization_hashes_all_rows_not_preview(tmp_path):
+    import asyncio
+
+    from compass_agent.tools.builtin.database_query.result_output import result_fingerprint
+    from compass_agent.tools.result_store import ToolResultStore
+
+    rows = [(i, f"商品{i}") for i in range(255)]
+    files = ToolResultStore(tmp_path)
+    with files.writer(uuid4(), uuid4(), uuid4(), "query", columns=("id", "name")) as writer:
+        for row in rows:
+            writer.row(row)
+        manifest = writer.finish()
+    original = DatabaseResult(
+        "original", ("id", "name"), tuple(rows[:5]), True, context_result=manifest
+    )
+
+    class Stream:
+        async def __aenter__(self):
+            self.pending = list(rows)
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def execute(self, query):
+            pass
+
+        async def fetchmany(self, size):
+            import json
+
+            batch, self.pending = self.pending[:size], self.pending[size:]
+            return [(json.dumps(dict(zip(("id", "name"), row, strict=True))),) for row in batch]
+
+    cursor = SimpleNamespace(connection=SimpleNamespace(cursor=lambda **kwargs: Stream()))
+    control = SimpleNamespace(require_running=lambda: None)
+    verified = asyncio.run(result_fingerprint(cursor, "SELECT id, name FROM products", control))
+    assert open_digest(original) == open_digest(verified)
+    rows[-1] = (254, "已变化")
+    changed = asyncio.run(result_fingerprint(cursor, "SELECT id, name FROM products", control))
+    assert open_digest(original) != open_digest(changed)

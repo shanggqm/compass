@@ -27,86 +27,7 @@ def control(store, run_id, kind, command, context):
             raise ModelError("version_conflict", 409, run.version)
         if run.status in TERMINAL:
             raise ModelError("run_terminal", 409)
-        events = []
-        if kind == "pause":
-            if run.status != "running":
-                raise ModelError("state_conflict", 409)
-            run.control_intent = "pause"
-        elif kind == "resume":
-            if run.status == "waiting":
-                raise ModelError("decision_required", 409)
-            legacy_created = (
-                store.scheduler is not None
-                and run.status == "created"
-                and store.scheduler.job(tx, run_id) is None
-            )
-            if (
-                (run.status != "paused" and not legacy_created)
-                or run.recovery_status == "blocked"
-                or run.cleanup_status == "unconfirmed"
-            ):
-                raise ModelError("resume_blocked", 409)
-            if not store.ready:
-                raise ModelError("runtime_unavailable", 503)
-            run.control_intent, run.reason_code = None, None
-            if store.scheduler:
-                events.append(store.scheduler.enqueue(tx, session, run))
-        elif kind == "cancel":
-            run.status, run.control_intent = "cancelling", None
-            job = store.scheduler.job(tx, run.id) if store.scheduler else None
-            reclaiming = job is not None and job.status in ACTIVE_JOBS
-            unknown = tx.scalar(
-                select(AgentAttempt.id)
-                .join(AgentStep, AgentStep.id == AgentAttempt.step_id)
-                .where(
-                    AgentAttempt.run_id == run.id,
-                    AgentAttempt.status.in_(["dispatched", "unknown", "incomplete"]),
-                    AgentStep.kind != "workflow_host",
-                )
-                .limit(1)
-            )
-            if unknown and run.execution_epoch is None and not reclaiming:
-                if job is not None and job.status == "parked":
-                    if run.recovery_status != "blocked":
-                        run.recovery_status, run.reason_code = "blocked", "execution_unknown"
-                else:
-                    run.cleanup_status, run.reason_code = "unconfirmed", "cleanup_unconfirmed"
-            pending = tx.scalars(
-                select(AgentWait).where(
-                    AgentWait.run_id == run.id,
-                    AgentWait.status == "pending",
-                    AgentWait.kind != "reconciliation",
-                )
-            ).all()
-            for wait in pending:
-                wait.status, wait.decided_at = "canceled", now()
-                events.append(approval_event(wait, reason="user_canceled"))
-            # Dispatch moves an approved action to unknown under the same Run lock.
-            for action in tx.scalars(
-                select(AgentAction).where(
-                    AgentAction.run_id == run.id, AgentAction.state == "pending"
-                )
-            ):
-                action.state, action.updated_at = "denied", now()
-            if (
-                run.execution_epoch is None
-                and run.cleanup_status != "unconfirmed"
-                and not reclaiming
-                and not unknown
-            ):
-                run.status, run.finished_at, run.cleanup_status = "canceled", now(), "confirmed"
-                run.reason_code, run.recovery_status = "user_canceled", "ready"
-                events.extend(canceled_execution(tx, run))
-            if (
-                store.scheduler
-                and not store.distributed
-                and job is not None
-                and job.status == "leased"
-            ):
-                job.status, run.execution_epoch = "reclaiming", None
-                store.scheduler.acknowledge(tx, run, "interrupted", "user_canceled")
-        else:
-            raise ModelError("validation_failed", 422)
+        events = control_run(store, tx, session, run, kind)
         store.outbox(tx, session, run, events)
         result = {
             "sessionId": str(session.id),
@@ -119,6 +40,83 @@ def control(store, run_id, kind, command, context):
             tx, context, command.request_id, kind, payload, session.id, run.id, result
         )
         return result
+
+
+def control_run(store, tx, session, run, kind):
+    events = []
+    if kind == "pause":
+        if run.status != "running":
+            raise ModelError("state_conflict", 409)
+        run.control_intent = "pause"
+    elif kind == "resume":
+        if run.status == "waiting":
+            raise ModelError("decision_required", 409)
+        legacy_created = (
+            store.scheduler is not None
+            and run.status == "created"
+            and store.scheduler.job(tx, run.id) is None
+        )
+        if (
+            (run.status != "paused" and not legacy_created)
+            or run.recovery_status == "blocked"
+            or run.cleanup_status == "unconfirmed"
+        ):
+            raise ModelError("resume_blocked", 409)
+        if not store.ready:
+            raise ModelError("runtime_unavailable", 503)
+        run.control_intent, run.reason_code = None, None
+        if store.scheduler:
+            events.append(store.scheduler.enqueue(tx, session, run))
+    elif kind == "cancel":
+        run.status, run.control_intent = "cancelling", None
+        job = store.scheduler.job(tx, run.id) if store.scheduler else None
+        reclaiming = job is not None and job.status in ACTIVE_JOBS
+        unknown = tx.scalar(
+            select(AgentAttempt.id)
+            .join(AgentStep, AgentStep.id == AgentAttempt.step_id)
+            .where(
+                AgentAttempt.run_id == run.id,
+                AgentAttempt.status.in_(["dispatched", "unknown", "incomplete"]),
+                AgentStep.kind != "workflow_host",
+            )
+            .limit(1)
+        )
+        if unknown and run.execution_epoch is None and not reclaiming:
+            if job is not None and job.status == "parked":
+                if run.recovery_status != "blocked":
+                    run.recovery_status, run.reason_code = "blocked", "execution_unknown"
+            else:
+                run.cleanup_status, run.reason_code = "unconfirmed", "cleanup_unconfirmed"
+        pending = tx.scalars(
+            select(AgentWait).where(
+                AgentWait.run_id == run.id,
+                AgentWait.status == "pending",
+                AgentWait.kind != "reconciliation",
+            )
+        ).all()
+        for wait in pending:
+            wait.status, wait.decided_at = "canceled", now()
+            events.append(approval_event(wait, reason="user_canceled"))
+        # Dispatch moves an approved action to unknown under the same Run lock.
+        for action in tx.scalars(
+            select(AgentAction).where(AgentAction.run_id == run.id, AgentAction.state == "pending")
+        ):
+            action.state, action.updated_at = "denied", now()
+        if (
+            run.execution_epoch is None
+            and run.cleanup_status != "unconfirmed"
+            and not reclaiming
+            and not unknown
+        ):
+            run.status, run.finished_at, run.cleanup_status = "canceled", now(), "confirmed"
+            run.reason_code, run.recovery_status = "user_canceled", "ready"
+            events.extend(canceled_execution(store, tx, run))
+        if store.scheduler and not store.distributed and job is not None and job.status == "leased":
+            job.status, run.execution_epoch = "reclaiming", None
+            store.scheduler.acknowledge(tx, run, "interrupted", "user_canceled")
+    else:
+        raise ModelError("validation_failed", 422)
+    return events
 
 
 def context_reset(store, session_id, command, context):

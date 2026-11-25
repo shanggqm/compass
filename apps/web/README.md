@@ -160,3 +160,11 @@ Chat 中的数字角标可用键盘或鼠标打开。详情展示结论、适用
 在当前工作区进入「管理与治理 → 数据与语义 → 知识文档」。具备数据与语义模块权限的活跃租户成员可维护资料。支持 Markdown、TXT 和文本型 PDF，单文件最多 5 MB。点击分段查看全文，修改后保存会更新向量，开关决定该段是否进入检索。解析或向量化失败可在文件列表重试。Agent 服务提供受信的 OpenAI 向量生成接口，Web 自有数据库保存原文件、分段和 pgvector 向量。
 
 已有华东课堂资料的环境先执行 Web 迁移，然后从仓库根运行 `uv run --env-file .env python examples/showcases/lesson-23-east-gmv-rag/import_library.py`。安装顺序及检索行为见[本课方案](../../mai-specs/973-lesson-23-agentic-search/design/VECTOR_SEARCH.md)。
+
+## 第 25 课长任务目标
+
+分析页在用户确认目标草案后展示目标面板，包含验收项、约束、预算用量与进度计数。可暂停、恢复、修改或取消。修改草案会拒绝当前提案并将修改要求带回输入框。自动续轮期间发送消息会先停止当前轮，终态后再提交插话；用户主动暂停的目标保持暂停。
+
+子任务在主流程显示为带 Bot 图标的独立节点，点击打开右侧抽屉。抽屉复用主 Agent 的执行时间线与 Markdown 回答组件，读取获授权子树和完整交付回答，打开期间轮询更新并复核权限。短暂失败可重试，失权时清除过程与回答；关闭取消请求，Esc 与关闭按钮返回入口。桌面使用侧边抽屉，窄屏使用全宽抽屉。组件示例位于 `/guide#ui-execution`。
+
+`tests/e2e/long-task-goal.spec.ts` 使用独立 Agent/Web PostgreSQL、Redis 和模型上游，设置 `COMPASS_GOAL_E2E=true` 执行。`apps/agent/tests/goal_e2e_app.py` 仅把测试凭据 `isolated-fixture` 转到本地受控上游，其余已配置 Provider 使用真实服务；追加 `COMPASS_GOAL_REAL_E2E=true` 执行真实模型的普通查询、目标确认与完成。`apps/agent/tests/goal_prompt_probe.py` 运行七项真实模型决策评测，报告写到 `work/983-real-prompt-report.json`。环境与验收范围见 [Feature 983 测试计划](../../mai-specs/983-lesson-25-long-task-context/test/TEST_PLAN.md)。

@@ -243,6 +243,7 @@ def prepare_input(
     registry_context=None,
     run_facts=None,
     fit_budget=True,
+    goal_anchor=None,
 ):
     from compass_agent.promptops.template import render
 
@@ -285,6 +286,10 @@ def prepare_input(
         usage.append("shared/tools/schedule-guidance.md")
     if "create_workflow" in names:
         usage.append("shared/fragments/workflow.md")
+    if "goal" in names:
+        usage.append("shared/fragments/long-task.md")
+    if "sub_agent" in names:
+        usage.append("shared/fragments/delegation.md")
     paths = list(dict.fromkeys([*profile.paths, *support_paths, *usage]))
     if binding.get("optimizationVersion") == 1:
         paths.append("shared/fragments/context-results.md")
@@ -409,6 +414,10 @@ def prepare_input(
         metric_ids = [m.metric_id for m in selected_metrics]
         metric_sources = used_sources
         profile_skills = list(profile.skills)
+    if goal_anchor:
+        messages[0] = messages[0].model_copy(
+            update={"content": (messages[0].content or "") + "\n\n" + goal_anchor}
+        )
     update: dict = {"messages": messages, "tools": declared}
     if output_schema:
         # The root delivery step formats accepted observations. Reserve its output

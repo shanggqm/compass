@@ -560,3 +560,51 @@ describe("analysis Run BFF", () => {
     expect(mocks.audit).not.toHaveBeenCalled();
   });
 });
+
+describe("goal and authorized child trace proxy", () => {
+  it.each([
+    ["GET", `analysis/sessions/${id(20)}/goal`, { goal: null, runId: runId }],
+    ["POST", `analysis/sessions/${id(20)}/goal/actions`, { goal: null, runId: null }],
+    [
+      "GET",
+      `analysis/runs/${runId}/children/${id(21)}`,
+      { childRunId: id(21), seq: "1-0", nodes: [], answer: "完整回答".repeat(200) },
+    ],
+  ])("validates %s %s and disables caching", async (method, path, output) => {
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify(output), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const input =
+      method === "GET"
+        ? new Request(`${origin}/api/web/v1/${path}?${new URLSearchParams(scope)}`)
+        : new Request(`${origin}/api/web/v1/${path}`, {
+            method,
+            headers: {
+              origin,
+              "content-type": "application/json",
+              "x-csrf-token": csrfToken(token),
+            },
+            body: JSON.stringify({ ...scope, action: "pause", expectedRevision: 1, requestId }),
+          });
+    const result = await handleDurableAnalysis(input, token);
+    expect(result?.status).toBe(200);
+    expect(result?.headers.get("cache-control")).toContain("no-store");
+    expect(await result?.json()).toEqual(output);
+    expect(mocks.authorize).toHaveBeenCalled();
+  });
+  it("rejects an invalid goal action before calling the Agent", async () => {
+    const result = await handleDurableAnalysis(
+      new Request(`${origin}/api/web/v1/analysis/sessions/${id(20)}/goal/actions`, {
+        method: "POST",
+        headers: { origin, "content-type": "application/json", "x-csrf-token": csrfToken(token) },
+        body: JSON.stringify({ ...scope, action: "complete", expectedRevision: 0, requestId }),
+      }),
+      token,
+    );
+    expect(result?.status).toBe(422);
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+});

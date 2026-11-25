@@ -83,7 +83,7 @@ def message_snapshot(message: AgentMessage) -> dict:
     }
 
 
-def canceled_execution(tx, run):
+def canceled_execution(store, tx, run):
     for step in tx.scalars(
         select(AgentStep).where(
             AgentStep.run_id == run.id, AgentStep.status.in_(("pending", "waiting", "running"))
@@ -106,18 +106,41 @@ def canceled_execution(tx, run):
     value = message_snapshot(message)
     value["revision"] += 1
     value["status"] = "incomplete"
-    return [*settled_nodes(run, "canceled"), {"type": "message.upsert", "payload": value}]
+    return [
+        *settled_nodes(store, tx, run, "canceled"),
+        {"type": "message.upsert", "payload": value},
+    ]
 
 
-def settled_nodes(run, status):
+def settled_nodes(store, tx, run, status):
+    # Progress may be committed before Redis projection catches up. Settle from
+    # the latest committed revision so a stop never overwrites an accepted view.
+    objects = dict(run.public_view["objects"])
+    for box in tx.scalars(
+        select(AgentOutbox).where(AgentOutbox.run_id == run.id, AgentOutbox.delivered_at.is_(None))
+    ):
+        for packet in box.payload["packets"]:
+            event = packet["event"]
+            if event["type"] != "view.upsert" or event["payload"]["kind"] != "execution.node":
+                continue
+            item = event["payload"]
+            previous = objects.get(item["objectId"])
+            if previous is None or previous["revision"] < item["revision"]:
+                objects[item["objectId"]] = item
     events = []
-    for obj in run.public_view["objects"].values():
+    for obj in objects.values():
         if obj["kind"] != "execution.node" or obj["value"]["status"] not in {
             "running",
             "preparing",
             "waiting",
         }:
             continue
+        if run.config_snapshot.get("contextRuntime"):
+            from compass_agent.context_runtime.source_access import read_private, view_key
+
+            saved = read_private(store, tx, run.id, view_key(obj))
+            if saved:
+                obj = saved["payload"]
         value = deepcopy(obj)
         value["revision"] += 1
         value["value"].update(
@@ -347,10 +370,22 @@ class RuntimeStore:
         return payload
 
     def submit_in_transaction(
-        self, tx, command, context, *, imported_history=None, schedule=None, run_environment=None
+        self,
+        tx,
+        command,
+        context,
+        *,
+        imported_history=None,
+        schedule=None,
+        run_environment=None,
+        goal_round=None,
     ):
         payload = self.submission_payload(command)
-        kind = "schedule_submit" if schedule else "submit"
+        kind = (
+            "schedule_submit"
+            if schedule
+            else ("goal_submit" if goal_round is not None else "submit")
+        )
         old = self.command(tx, context, command.request_id, payload)
         if old:
             if old.kind != kind:
@@ -430,6 +465,17 @@ class RuntimeStore:
             "timeoutSeconds": (command.constraints.timeout_seconds if command.constraints else None)
             or DEFAULT_RUN_TIMEOUT_SECONDS,
         }
+        from compass_agent.goal.controller import open_goal
+
+        goal = open_goal(tx, session.id)
+        if goal_round is not None and (goal is None or goal.status != "active"):
+            raise ModelError("goal_not_active", 409)
+        if goal:
+            config["goal"] = {
+                "goalId": str(goal.id),
+                "round": goal_round,
+                "ledgerRevision": goal.ledger_revision,
+            }
         if self.scheduler:
             config["budget"] = self.scheduler.budget
         if schedule:
@@ -832,6 +878,8 @@ class RuntimeStore:
                 events = [
                     *events,
                     *settled_nodes(
+                        self,
+                        tx,
                         run,
                         "completed"
                         if status == "completed"

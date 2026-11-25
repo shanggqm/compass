@@ -88,8 +88,10 @@ async def test_actual_run_discovers_personal_mcp_without_retail_and_waits_before
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("row_count", [20, 192])
 async def test_actual_run_registers_full_query_source_and_accepts_png_after_backend_cleanup(
     monkeypatch,
+    row_count,
 ):
     class Models(FakeModels):
         async def run(self, prepared, request, **kwargs):
@@ -120,7 +122,7 @@ async def test_actual_run_registers_full_query_source_and_accepts_png_after_back
             self.calls += 1
             source = ctx.sources[args["source_query_id"]]
             assert source.owner == ctx.owner and source.run_id == ctx.run_id
-            assert len(source.data["rows"]) == 20  # model preview only contains twelve rows
+            assert len(source.data["rows"]) == row_count
             assert await source.revalidate()
             return ExecutionReceipt("execution", "ok", "confirmed", {"total": 7}, file=png())
 
@@ -133,7 +135,10 @@ async def test_actual_run_registers_full_query_source_and_accepts_png_after_back
 
     async def query(call, bound, control):
         return DatabaseResult(
-            str(uuid4()), ("code", "value"), tuple((f"P{i}", 7) for i in range(20)), False
+            str(uuid4()),
+            ("code", "value"),
+            tuple((f"商品名称-{i}" * 4, 7) for i in range(row_count)),
+            False,
         )
 
     monkeypatch.setattr("compass_agent.tools.builtin.database_query.handler.query_database", query)
@@ -248,3 +253,52 @@ async def test_combined_catalog_limit_rejects_before_routing_or_inference():
 
 async def query_provider(trusted, control, emit):
     return (database_registration((binding(),), emit=emit),)
+
+
+def test_database_bookkeeping_cancellation_drains_local_transaction():
+    from compass_agent.tools.builtin.database_query.handler import finish_bookkeeping
+    from compass_agent.tools.contracts import PhaseCanceled
+
+    async def scenario():
+        started, release, settled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def transaction():
+            started.set()
+            await release.wait()
+            settled.set()
+
+        task = asyncio.create_task(finish_bookkeeping(transaction()))
+        await started.wait()
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done() and not settled.is_set()
+        release.set()
+        with pytest.raises(PhaseCanceled) as caught:
+            await task
+        assert caught.value.cleanup_confirmed and settled.is_set()
+
+    asyncio.run(scenario())
+
+
+def test_database_bookkeeping_keeps_unsettled_transaction_unknown():
+    from compass_agent.tools.builtin.database_query.handler import finish_bookkeeping
+    from compass_agent.tools.contracts import PhaseCanceled
+
+    async def scenario():
+        started, release, settled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def transaction():
+            started.set()
+            await release.wait()
+            settled.set()
+
+        task = asyncio.create_task(finish_bookkeeping(transaction(), timeout_s=0.01))
+        await started.wait()
+        task.cancel()
+        with pytest.raises(PhaseCanceled) as caught:
+            await task
+        assert not caught.value.cleanup_confirmed and not settled.is_set()
+        release.set()
+        await asyncio.wait_for(settled.wait(), 1)
+
+    asyncio.run(scenario())

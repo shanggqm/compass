@@ -309,9 +309,13 @@ class RunService(RuntimeTurn):
         except StopRequested:
             self._close_open_step(state, "canceled", emit)
         except (AutonomyStopped, TimeoutError) as error:
-            self._close_open_step(state, "failed", emit)
             stop_reason = (
                 error.reason if isinstance(error, AutonomyStopped) else "execution_timeout"
+            )
+            if stop_reason == "goal_paused":
+                control.request_stop("user")
+            self._close_open_step(
+                state, "canceled" if stop_reason == "goal_paused" else "failed", emit
             )
             code: RunError = "internal_error"
             if stop_reason == "execution_timeout":
@@ -444,8 +448,19 @@ class RunService(RuntimeTurn):
         result_reader = getattr(journal, "context_results", None)
         if result_reader is not None:
             capabilities = capabilities | {"context_results"}
+        goals = None
+        if (
+            answer_protocol
+            and self.autonomy_profiles
+            and (journal.store.scheduler or journal.store.distributed)
+        ):
+            from compass_agent.goal.service import GoalTools
+
+            goals = GoalTools(journal)
+            capabilities = capabilities | {"goal"}
         catalog = CatalogContext(
             frozenset(capabilities),
+            goals=goals,
             result_reader=result_reader.read if result_reader else None,
             documents=documents,
             semantics=semantic,

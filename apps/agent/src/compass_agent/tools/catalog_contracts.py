@@ -27,6 +27,7 @@ class CatalogContext:
     semantics: RegistryTools | None = None
     documents: DocumentTools | None = None
     result_reader: Callable | None = None
+    goals: object | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class ToolSpec:
     factory: Callable[[], RegisteredTool] | None = None
     context_factory: Callable[[CatalogContext], RegisteredTool] | None = None
     evidence_adapter: Callable | None = None
+    fingerprint: Callable | None = None
     public_projection: Literal["normal", "status_only"] = "normal"
 
     def register(self, context: CatalogContext, handler: Callable) -> RegisteredTool:
@@ -59,6 +61,8 @@ class ToolSpec:
                 bounded_payload,
                 parallel_safe=self.parallel_safe,
             )
+        if self.fingerprint is not None:
+            entry = replace(entry, fingerprint=self.fingerprint)
         if self.evidence_adapter is not None:
             entry = replace(entry, evidence_adapter=self.evidence_adapter)
         if self.public_projection != "normal":

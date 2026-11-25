@@ -236,7 +236,12 @@ def test_exporter_failure_during_execution_keeps_authorized_message_and_timeline
             return SpanExportResult.FAILURE
 
     async def scenario():
-        runtime = DurableRuntime(engine, Settings(), RunRegistry(), schedule_jobs=True)
+        runtime = DurableRuntime(
+            engine,
+            Settings(compass_context_runtime_enabled=False),
+            RunRegistry(),
+            schedule_jobs=True,
+        )
         exporter = UnavailableExporter()
         observer = Observer(
             Settings(compass_observability_enabled=True, compass_observability_sample_ratio=1),

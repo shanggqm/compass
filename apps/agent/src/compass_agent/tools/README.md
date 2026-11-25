@@ -43,12 +43,15 @@ Runtime 默认工具集为空。产品入口 compass_definition() 装配 todo、
 - database_query：列出授权 PostgreSQL 连接、发现获准 schema 的表和字段、执行受限只读 SQL。多连接使用 connectionId，表名须带 schema。工具读取表和字段注释；账号权限与 RLS 继续约束可见数据。当前 MySQL 仅提供连接配置与探测。
 - python_analysis：沙箱可用时执行通用分析代码；输入必须是当前 owner、租户和 Run 授权的数据引用。当前产物通道保留 PNG。
 - create_workflow：用本次参数试跑模型生成的编排，成功后提出保存邀请。脚本入口支持异步函数体及 `async function (args) { … }` 包装，编译失败返回 `invalid_workflow_script`。
-- sub_agent：接收 prompt，启动独立的只读调查循环。新答案协议按注册元数据继承当前可见只读能力；变更、固定审批、递归编排和完成能力留给父级，动态确认事项交回父级。父子共享预算，子级只返回内部结果与证据，父级统一交付。旧 Run 保留原数据库委派边界。
+- goal：propose 经本人审批创建或修订会话目标；record 写入进度账本，complete 执行完成核验，block 停止自动推进并说明所需决定。仅主任务、受控自主模式和调度消费者可用。
+- sub_agent：接收 tasks 委派契约（最多 4 项、并行 2 项），也兼容 prompt。每项使用独立进程与 3–8 步预算，按父任务工具、连接和输入范围运行；report_to_parent progress/final 回传并按 childRunId 单次持久交付。新答案协议按注册元数据继承当前可见只读能力；变更、固定审批、递归编排和完成能力留给父级，动态确认事项交回父级。父子共享预算，子级只返回内部结果与证据，父级统一交付。旧 Run 保留原数据库委派边界。
 - schedule_read 读取当前工作区内本人计划和触发历史。schedule_write 生成一次所有者确认，摘要包含计划变更和按计划时区显示的预计触发时间，分析内容保留 Markdown 换行。工具使用已批准的计划版本、Run 租约与持久 Action 同事务完成更新和 Checkpoint。定时 Run 只装配读取工具。
 - 个人工作流：按用户及工作区装配启用的动态资产，执行时再次复验。模型工具清单保留通用和 MCP 工具，剩余槽位按创建时间装配资产。
 - 用户配置的 MCP：每个 Run 重新发现，沿用统一授权、预算、审批、取消和恢复机制。
 
 数据库注册由 data_connections.tools.provider() 按可信运行上下文加载连接，使用 database_query 自己的声明和工厂。查询结果在工具适配内登记 AuthorizedInput，供 Python 使用；Runtime 不解析业务字段。
+
+子 Agent 的 Token 与费用按每次调用从父 Run 共用余额预留，并发调用合计受同一上限约束；步数与工具次数仍各自分配。预算拒绝会结束对应模型节点，回执保留停止原因供恢复使用；旧预算拒绝回执也恢复为相同的子任务失败交付。检查点一致性错误由调度器停入待处理状态，避免重复回放。
 
 ## 教学扩展
 

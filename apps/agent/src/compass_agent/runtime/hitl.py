@@ -33,6 +33,7 @@ def approval_event(wait, *, reason=None):
         kind=wait.kind,
         status=wait.status,
         summary=wait.public_proposal["summary"],
+        goal=wait.public_proposal.get("goal"),
         expiresAt=wait.expires_at.isoformat() if wait.expires_at else None,
         decisionId=str(wait.decision_id) if wait.decision_id else None,
         reasonCode=reason,
@@ -227,7 +228,7 @@ class HumanDecisions:
             [
                 approval_event(wait, reason=reason),
                 {"type": "message.upsert", "payload": message},
-                *settled_nodes(run, "canceled"),
+                *settled_nodes(self.store, tx, run, "canceled"),
             ],
         )
 

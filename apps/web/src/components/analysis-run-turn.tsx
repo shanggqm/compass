@@ -403,7 +403,12 @@ export const AnalysisRunTurn = memo(function AnalysisRunTurn({
   saved?: boolean;
   partialText?: string;
   retry?: () => void;
-  durable?: { run: RunView; sessionId: string; reload: () => void };
+  durable?: {
+    run: RunView;
+    sessionId: string;
+    reload: () => void;
+    editGoal?: (objective: string) => void;
+  };
 }) {
   const completed = turn.terminal?.status === "completed" ? turn.terminal : undefined;
   const waiting = turn.terminal?.status === "waiting" ? turn.terminal : undefined;

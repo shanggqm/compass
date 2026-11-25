@@ -232,3 +232,28 @@ describe("context optimization process", () => {
     expect(entry.queryResult).toContain("返回 10000 行（原件已保存）");
   });
 });
+
+describe("independent child task traces", () => {
+  it("keeps two children separate even when their completed model ancestors are hidden", () => {
+    const first = node(101, {
+      kind: "subagent",
+      title: "库存",
+      subagent: { name: "库存", childRunId: id(201) },
+    });
+    const second = node(102, {
+      kind: "subagent",
+      title: "销售",
+      subagent: { name: "销售", childRunId: id(202), deliveryStatus: "partial" },
+    });
+    const hidden = node(103, { kind: "model", parentId: first.id, title: "", status: "completed" });
+    const tools = [
+      node(104, { kind: "tool", parentId: hidden.id }),
+      node(105, { kind: "tool", parentId: second.id }),
+    ];
+    const entries = executionEntries([first, second, hidden, ...tools], true);
+    expect(entries.map((e) => e.id)).toEqual([first.id, second.id]);
+    expect(entries[0].children?.map((e) => e.id)).toEqual([id(104)]);
+    expect(entries[1].children?.map((e) => e.id)).toEqual([id(105)]);
+    expect(entries[1].deliveryStatus).toBe("partial");
+  });
+});

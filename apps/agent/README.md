@@ -5,7 +5,7 @@
 从工程根运行 `pnpm dev -F agent`，统一加载根 `.env`。本目录 `turbo.json` 为构建和静态检查声明 Python 工具链缓存指纹；开发、迁移及 seed 不缓存。
 
 - `/healthz`：进程存活，无数据库依赖。
-- `/readyz` 检查数据库版本 0018、运行表、模型与数据连接、工作流资产和提示词表。迁移、Runtime 密钥、Redis、运行协议或共享策略检查失败时返回 503。
+- `/readyz` 检查数据库版本 0019、运行表、模型与数据连接、工作流资产和提示词表。迁移、Runtime 密钥、Redis、运行协议或共享策略检查失败时返回 503。
 - `/v1/demo/overview`：固定合成数据聚合；默认关闭，启用后仍只读。空数据或数据库故障返回 503。
 
 Feature 993 增加进程内 LLM Runtime、平台模型 Provider 配置、能力测试和 Chat 调用。`models/` 拥有配置与元记录，`llm/` 统一参数、适配器、结果和错误；`api/models.py` 提供内部 HTTP 入口。账户、租户与权限由 Web / BFF 拥有，每次调用先完成短事务鉴权，再携服务令牌及可信上下文调用 Agent。Agent 校验上下文与 Provider 状态，不访问 Web 业务表。Feature 989 在此基础上增加进程内 Run / Step、顺序 ReAct、固定 Retail 查询、SSE 进度、CSV 与在途终止；第 16～18 课补充计划预算、Workflow、统一工具调度、MCP 与独立 Sandbox；第 19 课接入持久 Session/Run、Redis 投影与人工确认，见 [运行说明](../../docs/lesson-19-durable-runtime.md)。
@@ -63,7 +63,7 @@ Base URL 可留空使用 SDK 默认端点；自定义端点须在 `COMPASS_MODEL
 
 主生成最多两次尝试，分类/诊断/决策各一次；整轮 Chat 共用 180 秒父期限。进程默认 K=8、N=32。已输出片段的中断不自动重试，失败片段不进入后续上下文；取槽后到期正常形成超时摘要，关闭未确认时隔离执行槽。
 
-平台管理员的 `/v1/models/reliability/scenarios` 和 `/v1/models/reliability/runs` 提供固定模拟演示，运行真实 SDK/Runtime/执行器，无真实供应商出站或业务表写入。入口由 BFF 平台权限及可信上下文保护；运行每进程最多一个、最多 20 条调用/20 秒。详见 [演示模块](src/compass_agent/reliability/README.md)。可靠性摘要由 0004 引入，当前数据库版本为 0018，升级和恢复见 [agent/main](db/main/README.md)。
+平台管理员的 `/v1/models/reliability/scenarios` 和 `/v1/models/reliability/runs` 提供固定模拟演示，运行真实 SDK/Runtime/执行器，无真实供应商出站或业务表写入。入口由 BFF 平台权限及可信上下文保护；运行每进程最多一个、最多 20 条调用/20 秒。详见 [演示模块](src/compass_agent/reliability/README.md)。可靠性摘要由 0004 引入，当前数据库版本为 0019，升级和恢复见 [agent/main](db/main/README.md)。
 
 ## 第 14 课调用观测
 
@@ -138,3 +138,19 @@ Agent 在受理时固定工作区的发布清单。正式查询通过 Registry �
 JEV 复用平台启用的 decision Provider；可通过 `COMPASS_ROUTING_JEV_PROVIDER_ID` 显式指定。需在 `COMPASS_AUTONOMY_MODEL_PROFILES` 中登记对应 Provider、绑定版本、输入输出预算及费率；decision 的 `sdk_model` 可为 null。预算缺失只跳过可选选择调用。选择与摘要按原 Journal 结算、取消及恢复。
 
 `COMPASS_CONTEXT_RESULTS_ROOT` 应设置为所有 Agent Worker 可访问的同一绝对路径；目录权限 0700、文件 0600，禁止映射为公开静态目录。原件引用随会话删除清理，跨 Run 回读重新检查身份、会话重置点及来源权限。关闭优化只影响新 Run；旧 Run 继续按受理时的版本恢复。本课新增 0 张表，修改 0 张表。
+
+## 第 25 课长任务目标与委派
+
+模型使用单个 `goal` 工具提出目标草案；用户确认后，Goal 控制循环按已交付终态结算并提交下一轮。默认上限为 12 轮、200 万 Token、2,000 万微美元。目标、验收项、约束、未完成待办与失败记录在每次主模型调用前重新装配，历史压缩保留这些内容。运行权限、来源权限和连接修订号在恢复与复用时重新核对。连续三轮无进展或失败会停止自动推进。
+
+`goal` 支持 `propose / record / complete / block`。完成核验检查验收项支撑、必需待办、冲突和失效事实；缺口形成补救待办。查询与 Python 结果按工具指纹复用，证据复制到当前 Run 后继续通过既有交付核验。账本属于本会话，每个目标最多 400 条。
+
+`sub_agent.tasks` 一次提交 1–4 个独立任务，同时运行至多 2 个，每个任务最多 3–8 步。每个子任务使用独立进程，只继承父任务允许的只读工具、连接和显式输入。`report_to_parent` 的 progress 更新进度，final 立即结束并单次交付；宿主核对证据归属后合入账本。历史 prompt 入参继续兼容。
+
+父子任务共用 Run 的 Token 和费用余额；每次模型调用按配置上界预留，并把所有在途子任务的预留额计入总上限，返回后按实际用量结算，未知用量保守结算。子任务继续使用独立的步数和工具次数额度。预算准入拒绝的停止原因随私有模型回执保存，恢复时还原；旧回执中的 `autonomy_admission_denied` 也按预算失败恢复，保持子任务交付一致。
+
+检查点不一致、损坏、私有状态无效或预算策略不兼容会将 Run 停在 `paused / blocked`，调度任务进入 `parked` 并保留原因，释放执行槽位。关联的进行中 Goal 同步进入受阻状态并给出说明，用户主动暂停的目标保持暂停。自动恢复不重复领取这些任务；普通租约到期和进程中断仍走原恢复路径。
+
+目标控制接口为 `GET /v1/analysis/sessions/{id}/goal` 和 `POST /v1/analysis/sessions/{id}/goal/actions`。子任务详情通过 `GET /v1/analysis/runs/{id}/children/{childId}` 按当前权限读取独立执行子树与完整交付回答（`answer`）；回答从已接受的私有回执读取，并在每次请求复核来源权限。尚未交付时 `answer` 为 `null`，主 SSE 契约保持兼容。
+
+升级至 [agent/main 0019](db/main/README.md#0019-目标与进度账本)，导入并发布随包 Goal、委派与子任务回传提示词。Goal 需要调度消费者、受控自主预算和答案协议 2 同时启用。课程对比实验见[三种上下文策略](../../examples/showcases/lesson25_context_strategies/README.md)。

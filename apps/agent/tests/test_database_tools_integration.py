@@ -1070,7 +1070,7 @@ def test_0012_provider_upgrade_preserves_binding_and_defaults_to_null(targets, m
 
 
 @pytest.mark.parametrize("mode", ["native", "sql"])
-def test_0017_reopens_drained_control_and_protects_semantic_receipts(targets, mode):
+def test_0017_reopens_drained_control_and_protects_semantic_receipts(targets, mode, monkeypatch):
     runtime, migration = targets("registry_" + mode)
     assert db.migrate(target="0016") == "applied"
     with psycopg.connect(db.dsn(runtime)) as old:
@@ -1105,7 +1105,10 @@ def test_0017_reopens_drained_control_and_protects_semantic_receipts(targets, mo
             ),
         )
         store.ready = True
-        run_id = store.submit(command(), CHAT)["runId"]
+        # Seed a pre-0019 Run; goals did not exist in this historical schema.
+        with monkeypatch.context() as historical:
+            historical.setattr("compass_agent.goal.controller.open_goal", lambda *a, **k: None)
+            run_id = store.submit(command(), CHAT)["runId"]
         assert CHAT.scope.kind == "tenant"
         with psycopg.connect(db.dsn(migration)) as c:
             c.execute("SET ROLE compass_agent_owner")

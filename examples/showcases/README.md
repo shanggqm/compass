@@ -15,3 +15,5 @@
 [第 22 课经营语义与指标口径](lesson-22-semantic-governance/README.md)提供新建分析的四道题、纯 NL2SQL 对照方法及指标保存、修订和冲突选择的课堂操作。
 
 [第 24 课动态上下文选择与压缩](lesson-24-context-selection/README.md)提供新建分析里的两道交接题、分批长记录和追问对照。
+
+[第 25 课长任务上下文策略对比](lesson25_context_strategies/README.md)使用真实账本与上下文优化器，对比固定窗口、阶段摘要、目标锚点的保留与补查行为。

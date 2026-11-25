@@ -735,10 +735,49 @@ def test_answer_protocol_uses_generic_loop_private_submission_and_durable_replay
             from compass_agent.execution_context import execution_path
 
             if mode == "child" and "subagent:" in execution_path.get():
-                assert [t.function.name for t in request.tools] == ["lookup_inventory"]
+                assert {t.function.name for t in request.tools} == {
+                    "lookup_inventory",
+                    "report_to_parent",
+                }
                 if any(m.role == "tool" for m in request.messages):
                     assert "recordRef" in str(request.messages)
-                    out = model_result(text="已查到库存 17 件，回执随结果返回。")
+                    observations = [
+                        json.loads(message.content or "{}")
+                        for message in request.messages
+                        if message.role == "tool"
+                    ]
+                    query_ids = [
+                        item["evidenceId"]
+                        for observed in observations
+                        for item in observed.get("verification", {}).get("evidence", [])
+                        if item["kind"] == "query"
+                    ]
+                    assert len(query_ids) == 1
+                    out = model_result(
+                        tool_calls=[
+                            call(
+                                "report_to_parent",
+                                "child-final",
+                                args=json.dumps(
+                                    {
+                                        "kind": "final",
+                                        "result": {
+                                            "status": "completed",
+                                            "summary": "已查到库存 17 件，回执随结果返回。",
+                                            "findings": [
+                                                {
+                                                    "statement": "库存 17 件",
+                                                    "evidenceIds": query_ids,
+                                                }
+                                            ],
+                                        },
+                                    }
+                                ),
+                            )
+                        ],
+                        finish="tool_calls",
+                        token=secrets.seal("tool_continuation", {"approved": "fixture"}),
+                    )
                 else:
                     out = model_result(
                         tool_calls=[call("lookup_inventory", "child-lookup")],

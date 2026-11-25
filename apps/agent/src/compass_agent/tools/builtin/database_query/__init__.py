@@ -267,11 +267,17 @@ async def query_database(
         },
         lambda: query_database_live(call, binding, control),
         DatabaseResult | RunToolError,
+        # read_database drains and closes its connection before returning a value.
+        settled_on_return=True,
     )
 
 
 async def query_database_live(
-    call: ToolCall, binding: AuthorizedDatabaseBinding, control: ToolControl
+    call: ToolCall,
+    binding: AuthorizedDatabaseBinding,
+    control: ToolControl,
+    *,
+    fingerprint_only: bool = False,
 ) -> DatabaseResult | RunToolError:
     try:
         action = DATABASE_ACTION.validate_python(parse_tool_arguments(call.function.arguments))
@@ -328,6 +334,12 @@ async def query_database_live(
             from compass_agent.execution_context import current_execution
 
             journal = current_execution.get()
+            if fingerprint_only and isinstance(action, ReadSql):
+                from compass_agent.tools.builtin.database_query.result_output import (
+                    result_fingerprint,
+                )
+
+                return await result_fingerprint(cursor, query, control)
             if isinstance(action, ReadSql) and getattr(journal, "context_results", None):
                 from compass_agent.tools.builtin.database_query.result_output import full_result
 
@@ -392,6 +404,16 @@ async def query_database_live(
         return "database_query_failed"
 
 
+def fingerprint(args, context=None):
+    from hashlib import sha256
+
+    from compass_agent.llm.continuation import canonical
+
+    if args.get("op") != "query" or not args.get("sql"):
+        return None
+    return sha256(canonical({"tool": "database_query", "args": args})).hexdigest(), "query"
+
+
 SPEC = ToolSpec(
     "database_query",
     "builtin",
@@ -399,4 +421,5 @@ SPEC = ToolSpec(
     definition,
     lambda context: context.database,
     parallel_safe=True,
+    fingerprint=fingerprint,
 )

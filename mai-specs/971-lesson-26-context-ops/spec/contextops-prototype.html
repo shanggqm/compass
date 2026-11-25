@@ -1,0 +1,3099 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compass · ContextOps 与上下文安全控制台（高保真原型）</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f8f9f6;
+        --surface: #ffffff;
+        --surface-subtle: #f3f6f2;
+        --ink: #202b27;
+        --muted: #62716a;
+        --primary: #1c5145;
+        --primary-hover: #153e35;
+        --primary-soft: #e5eee7;
+        --border: #dce2da;
+        --border-strong: #788b80;
+        --danger: #a34236;
+        --danger-soft: #fff4f1;
+        --warning: #745018;
+        --warning-soft: #fff4de;
+        --info: #1d5772;
+        --info-soft: #eaf4f8;
+        --track-input: #2b8a6e;
+        --track-model: #7e68b8;
+        --track-tool: #d28735;
+        --track-error: #c43d32;
+        --focus-ring: #28725e;
+        --code-surface: #182620;
+        --code-toolbar: #22352b;
+        --code-border: #385144;
+        --code-text: #e1eee5;
+        --code-muted: #aec5b6;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        --font-code: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        --rail: 60px;
+        --secondary: 236px;
+        --radius-control: 8px;
+        --radius-panel: 14px;
+        --ui-fast: 140ms;
+        --ui-ease: cubic-bezier(0.23, 1, 0.32, 1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 14px/1.55 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+
+      .app-shell {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      .nav-rail {
+        width: var(--rail);
+        flex: none;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 0;
+        gap: 8px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        z-index: 20;
+      }
+
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 16px;
+        margin-bottom: 10px;
+      }
+
+      .rail-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+
+      .rail-btn:hover {
+        background: var(--surface-subtle);
+        color: var(--primary);
+      }
+
+      .rail-btn.active {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+
+      .rail-spacer {
+        flex: 1;
+      }
+
+      .avatar-badge {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 600;
+        font-size: 12px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--border);
+      }
+
+      .nav-secondary {
+        width: var(--secondary);
+        flex: none;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        padding: 16px 12px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+      }
+
+      .nav-sec-title {
+        font-size: 15px;
+        font-weight: 650;
+        padding: 4px 10px 2px;
+      }
+
+      .nav-sec-desc {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 0 10px 14px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+
+      .nav-group-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        padding: 8px 10px 4px;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: var(--radius-control);
+        color: var(--ink);
+        font-size: 13.5px;
+        font-weight: 500;
+        cursor: pointer;
+        border: 0;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+      }
+
+      .nav-item:hover {
+        background: var(--surface-subtle);
+      }
+
+      .nav-item.active {
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      .nav-pill {
+        margin-left: auto;
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: var(--surface-subtle);
+        color: var(--muted);
+        border: 1px solid var(--border);
+      }
+
+      .nav-item.active .nav-pill {
+        background: #fff;
+        color: var(--primary);
+        border-color: #c2d7ca;
+      }
+
+      .workspace-box {
+        margin-top: auto;
+        padding: 10px;
+        border-radius: 10px;
+        background: var(--surface-subtle);
+        border: 1px solid var(--border);
+        font-size: 12px;
+      }
+
+      .workspace-box strong {
+        display: block;
+        font-size: 12.5px;
+      }
+
+      .workspace-box span {
+        color: var(--muted);
+      }
+
+      .main-area {
+        flex: 1;
+        min-width: 0;
+        padding: 16px 26px 40px;
+        max-width: 1480px;
+      }
+
+      .role-switcher-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 14px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        background: #eef4f0;
+        border: 1px solid #cddcd2;
+        font-size: 12.5px;
+      }
+
+      .role-toggle {
+        display: inline-flex;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 2px;
+        gap: 2px;
+      }
+
+      .role-toggle button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .role-toggle button.active {
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .ui-page-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .heading-left h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 650;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .heading-left p {
+        margin: 3px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .heading-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 500;
+        background: var(--primary-soft);
+        color: var(--primary);
+        border: 1px solid #c6dacd;
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #1f8a62;
+      }
+
+      .ui-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 34px;
+        padding: 6px 13px;
+        border-radius: var(--radius-control);
+        border: 1px solid transparent;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .ui-btn-primary {
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .ui-btn-primary:hover {
+        background: var(--primary-hover);
+      }
+
+      .ui-btn-secondary {
+        background: var(--surface);
+        color: var(--primary);
+        border-color: var(--border-strong);
+      }
+
+      .ui-btn-secondary:hover {
+        background: var(--surface-subtle);
+      }
+
+      .ui-btn-quiet {
+        background: transparent;
+        color: var(--muted);
+        border-color: var(--border);
+      }
+
+      .ui-btn-quiet:hover {
+        background: var(--surface-subtle);
+        color: var(--ink);
+      }
+
+      .ui-btn-sm {
+        min-height: 29px;
+        padding: 3px 10px;
+        font-size: 12px;
+      }
+
+      /* Filter Bar */
+      .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 9px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+      }
+
+      .filter-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .filter-label {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .filter-bar select,
+      .filter-bar input {
+        min-height: 31px;
+        padding: 4px 9px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-control);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 12.5px;
+      }
+
+      /* Persistent Top Dashboard: Unified 4x2 KPI Cards with Sparkline */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .kpi-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        padding: 13px 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .kpi-left {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .kpi-spark {
+        width: 82px;
+        height: 44px;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+      }
+
+      .kpi-spark svg {
+        width: 82px;
+        height: 32px;
+        display: block;
+        overflow: visible;
+      }
+
+      .kpi-spark-label {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      /* Sub-Tabs */
+      .sub-tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        margin: 16px 0 14px;
+        overflow-x: auto;
+      }
+
+      .sub-tab {
+        padding: 9px 15px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .sub-tab:hover {
+        color: var(--ink);
+      }
+
+      .sub-tab.active {
+        color: var(--primary);
+        font-weight: 650;
+        border-bottom-color: var(--primary);
+      }
+
+      .tab-badge {
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: var(--surface-subtle);
+        color: var(--muted);
+      }
+
+      .sub-tab.active .tab-badge {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      .ui-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        padding: 15px 18px;
+        min-width: 0;
+      }
+
+      .panel-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .panel-title {
+        font-size: 15px;
+        font-weight: 650;
+        margin: 0;
+      }
+
+      .panel-sub {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .kpi-tag {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--primary);
+        background: var(--primary-soft);
+        padding: 2px 8px;
+        border-radius: 999px;
+      }
+
+      .kpi-val {
+        font-size: 23px;
+        font-weight: 700;
+        letter-spacing: -0.4px;
+        margin: 4px 0;
+      }
+
+      .kpi-meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .kpi-meta b {
+        color: var(--ink);
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .badge-ok {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+
+      .badge-warn {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      .badge-danger {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .badge-info {
+        background: var(--info-soft);
+        color: var(--info);
+      }
+
+      .badge-neutral {
+        background: var(--surface-subtle);
+        color: var(--muted);
+        border: 1px solid var(--border);
+      }
+
+      /* Unified Trajectory Shell (3-Track Waterfall OR Business Stages + Shared Split Inspector) */
+      .waterfall-shell {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        overflow: hidden;
+      }
+
+      .wf-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 14px;
+        background: var(--surface-subtle);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .view-lens-switch {
+        display: inline-flex;
+        background: #e9efe9;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 2px;
+        gap: 2px;
+      }
+
+      .view-lens-btn {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 4px 11px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .view-lens-btn.active {
+        background: #fff;
+        color: var(--primary);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+
+      .wf-modes {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .wf-mode-btn {
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        padding: 3px 9px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .wf-mode-btn.active {
+        background: #fff;
+        color: var(--ink);
+        border-color: var(--border);
+      }
+
+      /* 3-Track Technical Waterfall */
+      .wf-tracks {
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        border-bottom: 1px solid var(--border);
+        background: #fff;
+      }
+
+      .wf-track-row {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .wf-track-label {
+        font-size: 11.5px;
+        color: var(--muted);
+        font-weight: 600;
+        text-align: right;
+      }
+
+      .wf-track-lane {
+        position: relative;
+        height: 16px;
+        background: #f6f8f5;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .wf-seg {
+        position: absolute;
+        top: 2px;
+        height: 12px;
+        border-radius: 2.5px;
+        cursor: pointer;
+        border: 0;
+        padding: 0;
+      }
+
+      .wf-seg:hover {
+        filter: brightness(0.9);
+        transform: scaleY(1.18);
+        z-index: 2;
+      }
+
+      .wf-seg.selected {
+        outline: 2px solid var(--ink);
+        outline-offset: 1px;
+        z-index: 3;
+      }
+
+      .wf-seg.input {
+        background: var(--track-input);
+      }
+
+      .wf-seg.model {
+        background: var(--track-model);
+      }
+
+      .wf-seg.tool {
+        background: var(--track-tool);
+      }
+
+      .wf-seg.error {
+        background: var(--track-error);
+      }
+
+      /* Graphical Business-Stage Overlay on the 3-Track Waterfall */
+      .wf-canvas {
+        position: relative;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        background: #fff;
+      }
+
+      .wf-stage-header-row {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        gap: 10px;
+        margin-bottom: 8px;
+        align-items: stretch;
+      }
+
+      .wf-stage-header-track {
+        position: relative;
+        height: 44px;
+      }
+
+      .wf-stage-band-btn {
+        position: absolute;
+        top: 0;
+        height: 44px;
+        padding: 4px 8px;
+        border-radius: 7px 7px 0 0;
+        border: 1px solid var(--border);
+        border-bottom: 2px solid var(--primary);
+        background: var(--surface-subtle);
+        text-align: left;
+        cursor: pointer;
+        overflow: hidden;
+        transition:
+          background var(--ui-fast) var(--ui-ease),
+          box-shadow var(--ui-fast) var(--ui-ease);
+      }
+
+      .wf-stage-band-btn:hover {
+        background: #eaf2ec;
+      }
+
+      .wf-stage-band-btn.active {
+        background: #e2f0e7;
+        box-shadow: 0 0 0 2px rgba(28, 81, 69, 0.16);
+        z-index: 2;
+      }
+
+      .wf-stage-band-btn.warn {
+        border-bottom-color: #c5882a;
+        background: #fffaf0;
+      }
+
+      .wf-stage-band-btn.danger {
+        border-bottom-color: var(--danger);
+        background: #fff4f1;
+      }
+
+      .wf-stage-band-title {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .wf-stage-band-stat {
+        font-size: 10.5px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .wf-tracks-inner {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .wf-stage-bg {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        pointer-events: none;
+        border-right: 1px dashed #c4d0c7;
+        border-radius: 0 0 4px 4px;
+      }
+
+      .wf-stage-bg.tint-0 {
+        background: rgba(29, 87, 114, 0.045);
+      }
+
+      .wf-stage-bg.tint-1 {
+        background: rgba(74, 141, 115, 0.055);
+      }
+
+      .wf-stage-bg.tint-2 {
+        background: rgba(197, 136, 42, 0.065);
+      }
+
+      .wf-stage-bg.tint-3 {
+        background: rgba(126, 104, 184, 0.055);
+      }
+
+      .wf-stage-bg.active {
+        background: rgba(28, 81, 69, 0.11);
+      }
+
+      .stage-funnel-mini {
+        margin-top: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: var(--surface-subtle);
+        border: 1px solid var(--border);
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        font-size: 12px;
+      }
+
+      /* Shared Split Trajectory List + Generic 4-Tab Detail Pane */
+      .split-inspector {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        align-items: start;
+      }
+
+      .traj-list {
+        border-right: 1px solid var(--border);
+        padding: 8px 0;
+      }
+
+      .turn-divider {
+        padding: 5px 14px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        background: #fafbf9;
+        border-top: 1px solid #edf1ec;
+        border-bottom: 1px solid #edf1ec;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .traj-row {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 9px 14px;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        overflow: hidden;
+      }
+
+      .traj-row-bg {
+        position: absolute;
+        left: 0;
+        top: 2px;
+        bottom: 2px;
+        border-radius: 0 5px 5px 0;
+        pointer-events: none;
+        z-index: 0;
+        transition: width 180ms var(--ui-ease);
+      }
+
+      .traj-row-bg.bg-model {
+        background: rgba(126, 104, 184, 0.11);
+      }
+
+      .traj-row-bg.bg-tool {
+        background: rgba(210, 135, 53, 0.13);
+      }
+
+      .traj-row-bg.bg-ctx {
+        background: rgba(43, 138, 110, 0.1);
+      }
+
+      .traj-row-bg.bg-sec {
+        background: rgba(163, 66, 54, 0.12);
+      }
+
+      .traj-row > :not(.traj-row-bg) {
+        position: relative;
+        z-index: 1;
+      }
+
+      .traj-ms {
+        flex: none;
+        font-family: var(--font-code);
+        font-size: 11.5px;
+        color: var(--muted);
+        padding-top: 2px;
+        min-width: 58px;
+        text-align: right;
+      }
+
+      .traj-row:hover {
+        background: var(--surface-subtle);
+      }
+
+      .traj-row.active {
+        background: #eef6f1;
+        border-left-color: var(--primary);
+      }
+
+      .tag-role {
+        flex: none;
+        font-size: 11px;
+        font-weight: 650;
+        padding: 2px 7px;
+        border-radius: 5px;
+        min-width: 50px;
+        text-align: center;
+      }
+
+      .tag-intent {
+        background: #e6f2fa;
+        color: #165a8a;
+      }
+
+      .tag-sys {
+        background: #eceff1;
+        color: #455a64;
+      }
+
+      .tag-user {
+        background: #e3f0fb;
+        color: #1565c0;
+      }
+
+      .tag-ctx {
+        background: #e2f3ea;
+        color: #1c5145;
+      }
+
+      .tag-sec {
+        background: #fff0ed;
+        color: #a34236;
+      }
+
+      .tag-asst {
+        background: #efeaf9;
+        color: #5b4399;
+      }
+
+      .traj-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .traj-text {
+        font-size: 13px;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .traj-sub {
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .detail-pane {
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        position: sticky;
+        top: 12px;
+      }
+
+      .detail-head {
+        padding: 12px 16px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .detail-head-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .detail-tabs {
+        display: flex;
+        gap: 14px;
+      }
+
+      .detail-tab {
+        padding: 6px 2px 9px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .detail-tab.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+      }
+
+      .detail-body {
+        padding: 14px 16px;
+        overflow-y: auto;
+        flex: 1;
+        font-size: 13px;
+      }
+
+      .kv-grid {
+        display: grid;
+        grid-template-columns: 88px 1fr;
+        gap: 8px 10px;
+        font-size: 12.5px;
+        margin-bottom: 12px;
+      }
+
+      .kv-k {
+        color: var(--muted);
+      }
+
+      .kv-v {
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      /* Bars, Tables, Code, Modals */
+      .bar-list {
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+      }
+
+      .bar-row {
+        cursor: pointer;
+        padding: 5px 8px;
+        border-radius: 8px;
+      }
+
+      .bar-row:hover {
+        background: var(--surface-subtle);
+      }
+
+      .bar-row-head {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        margin-bottom: 5px;
+        gap: 8px;
+      }
+
+      .bar-track {
+        height: 9px;
+        background: var(--surface-subtle);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--primary);
+      }
+
+      .bar-fill.danger {
+        background: var(--danger);
+      }
+
+      .bar-fill.warning {
+        background: #c5882a;
+      }
+
+      .bar-fill.info {
+        background: #2b7b99;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+        background: var(--surface-subtle);
+      }
+
+      tbody tr.clickable {
+        cursor: pointer;
+      }
+
+      tbody tr.clickable:hover {
+        background: var(--surface-subtle);
+      }
+
+      .code-panel {
+        border: 1px solid var(--code-border);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--code-surface);
+        color: var(--code-text);
+      }
+
+      .code-toolbar {
+        background: var(--code-toolbar);
+        padding: 7px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--code-muted);
+        border-bottom: 1px solid var(--code-border);
+      }
+
+      .code-body {
+        margin: 0;
+        padding: 12px 14px;
+        font-family: var(--font-code);
+        font-size: 12px;
+        line-height: 1.55;
+        max-height: 260px;
+        overflow: auto;
+        white-space: pre;
+      }
+
+      .notice-box {
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 12.5px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        border: 1px solid #c6dacd;
+        margin-bottom: 12px;
+      }
+
+      .decision-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .decision-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 11px 12px;
+        background: var(--surface);
+      }
+
+      .decision-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 5px;
+      }
+
+      .decision-id {
+        font-family: var(--font-code);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .decision-meta {
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 4px;
+        display: flex;
+        gap: 12px;
+      }
+
+      .control-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .diff-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .diff-box {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 13px;
+        background: var(--surface-subtle);
+      }
+
+      .diff-box.improved {
+        background: #f2f9f5;
+        border-color: #a9d1bd;
+      }
+
+      .chip-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+
+      .chip {
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--muted);
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .chip.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(24, 38, 32, 0.42);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        padding: 20px;
+      }
+
+      .overlay.open {
+        display: flex;
+      }
+
+      .overlay.drawer {
+        justify-content: flex-end;
+        padding: 0;
+      }
+
+      .modal-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        width: min(680px, 100%);
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 20px 50px rgba(24, 38, 32, 0.22);
+      }
+
+      .overlay.drawer .modal-card {
+        width: min(560px, 100%);
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+      }
+
+      .modal-head {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .modal-head h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+      }
+
+      .modal-body {
+        padding: 16px 18px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .modal-foot {
+        padding: 12px 18px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        background: var(--surface-subtle);
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: var(--code-surface);
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-size: 13px;
+        opacity: 0;
+        transform: translateY(10px);
+        pointer-events: none;
+        transition:
+          opacity 180ms ease,
+          transform 180ms ease;
+        z-index: 60;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (max-width: 1120px) {
+        .kpi-grid,
+        .metrics-strip,
+        .biz-stage-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .grid-2,
+        .split-inspector,
+        .diff-grid {
+          grid-template-columns: 1fr;
+        }
+        .traj-list {
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+        }
+      }
+
+      @media (max-width: 860px) {
+        .nav-secondary {
+          display: none;
+        }
+        .main-area {
+          padding: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="nav-rail" aria-label="主导航">
+        <div class="brand-mark" title="Compass">C</div>
+        <button class="rail-btn" title="分析空间" aria-label="分析空间">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
+        <button class="rail-btn" title="经营报告" aria-label="经营报告">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+        </button>
+        <button class="rail-btn active" title="管理与治理" aria-label="管理与治理">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </button>
+        <div class="rail-spacer"></div>
+        <div class="avatar-badge" id="avatarText">AD</div>
+      </aside>
+
+      <aside class="nav-secondary" aria-label="管理与治理菜单">
+        <div class="nav-sec-title" id="sidebarTitle">管理与治理</div>
+        <div class="nav-sec-desc" id="sidebarDesc">配置、运行与治理</div>
+
+        <div class="nav-group-label admin-only">模型与数据</div>
+        <button class="nav-item admin-only" type="button" onclick="showToast('模型与观测')">模型与观测</button>
+        <button class="nav-item admin-only" type="button" onclick="showToast('数据源')">数据源</button>
+
+        <div class="nav-group-label">上下文</div>
+        <button class="nav-item admin-only" type="button" onclick="showToast('提示词管理')">提示词管理</button>
+        <button class="nav-item admin-only" type="button" onclick="showToast('经营语义')">经营语义</button>
+        <button class="nav-item active" type="button">
+          <span id="navContextOpsLabel">ContextOps</span>
+        </button>
+
+        <div class="nav-group-label admin-only">安全</div>
+        <button class="nav-item admin-only" type="button" onclick="switchTab('security')">安全与审计</button>
+
+        <div class="workspace-box">
+          <strong>Contoso 电商</strong>
+          <span id="workspaceScopeLabel">管理员 · 全部成员</span>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <!-- Prototype Role Switcher -->
+        <div class="role-switcher-bar">
+          <span style="color: var(--muted)">演示视角</span>
+          <div class="role-toggle" role="group">
+            <button id="roleBtnAdmin" class="active" type="button" onclick="setRole('admin')">管理员</button>
+            <button id="roleBtnMember" type="button" onclick="setRole('member')">普通用户（张敏）</button>
+          </div>
+        </div>
+
+        <header class="ui-page-heading">
+          <div class="heading-left">
+            <h1><span id="pageTitleText">ContextOps</span></h1>
+            <p id="pageSubText">上下文观测与安全治理</p>
+          </div>
+          <div class="heading-actions">
+            <span class="status-pill" title="已接入本地 Langfuse，仅上报脱敏元数据">
+              <span class="status-dot"></span>Langfuse 已连接
+            </span>
+            <button class="ui-btn ui-btn-secondary admin-only" type="button" onclick="openModal('mcpDrawer')">
+              MCP 接入
+            </button>
+            <button
+              class="ui-btn ui-btn-primary admin-only"
+              type="button"
+              onclick="showToast('打开 Langfuse：http://127.0.0.1:3002')"
+            >
+              Langfuse ↗
+            </button>
+          </div>
+        </header>
+
+        <!-- ==================== PERSISTENT TOP DASHBOARD ==================== -->
+        <section aria-label="运行统计看板">
+          <div class="filter-bar">
+            <div class="filter-group">
+              <span class="filter-label">时间</span>
+              <select id="filterWindow" onchange="refreshDashboard()">
+                <option value="24h">近 24 小时</option>
+                <option value="7d" selected>近 7 天</option>
+                <option value="30d">近 30 天</option>
+              </select>
+            </div>
+            <div class="filter-group admin-only" id="actorFilterGroup">
+              <span class="filter-label">成员</span>
+              <select id="actorFilter" onchange="onActorChange()">
+                <option value="all">全部成员</option>
+                <option value="zhangmin">张敏</option>
+                <option value="liwei">李伟</option>
+                <option value="chenhao">陈浩</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">策略</span>
+              <select id="filterPolicy" onchange="refreshDashboard()">
+                <option value="all">全部版本</option>
+                <option value="pol_8f3a1c">v2.4</option>
+                <option value="pol_6c1b09">v2.3</option>
+              </select>
+            </div>
+            <span style="margin-left: auto; font-size: 12px; color: var(--muted)" id="statsSampleInfo">
+              68 会话 · 142 次运行
+            </span>
+          </div>
+
+          <div class="kpi-grid">
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">上下文淘汰率</span>
+                <div class="kpi-val" id="kpiDropRate">64.2%</div>
+                <div class="kpi-meta">压缩省 <b>38.5%</b> · 缓存 <b>71.4%</b></div>
+              </div>
+              <div class="kpi-spark" id="sparkDropRate"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">中位耗时</span>
+                <div class="kpi-val" id="kpiRunP50">3.42 s</div>
+                <div class="kpi-meta">P95 <b>6.8s</b> · 准备 <b>28.4%</b></div>
+              </div>
+              <div class="kpi-spark" id="sparkRunP50"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">异常率</span>
+                <div class="kpi-val" id="kpiErrRate">6.3%</div>
+                <div class="kpi-meta">错误 <b>9</b> · 空结果 <b>6</b> · 中断 <b>3</b></div>
+              </div>
+              <div class="kpi-spark" id="sparkErrRate"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">安全拦截</span>
+                <div class="kpi-val" id="kpiSecBlocks">19 次</div>
+                <div class="kpi-meta">注入 <b>7</b> · 越权 <b>3</b> · 脱敏 <b>9</b></div>
+              </div>
+              <div class="kpi-spark" id="sparkSecBlocks"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">会话</span>
+                <div class="kpi-val" id="statSessions">68</div>
+                <div class="kpi-meta"><b id="statRuns">142</b> 次运行</div>
+              </div>
+              <div class="kpi-spark" id="sparkSessions"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">平均轮数</span>
+                <div class="kpi-val" id="statAvgTurns">3.4</div>
+                <div class="kpi-meta">最小 <b id="statMinTurns">1</b> · 最大 <b id="statMaxTurns">12</b></div>
+              </div>
+              <div class="kpi-spark" id="sparkAvgTurns"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">完成率</span>
+                <div class="kpi-val" id="statCompletion">92.6%</div>
+                <div class="kpi-meta">1–3 轮 <b>68%</b> · 中断 <b>7.4%</b></div>
+              </div>
+              <div class="kpi-spark" id="sparkCompletion"></div>
+            </article>
+
+            <article class="kpi-card">
+              <div class="kpi-left">
+                <span class="kpi-tag">平均搜索</span>
+                <div class="kpi-val" id="statAvgSearch">2.1 轮</div>
+                <div class="kpi-meta">每次运行检索轮次</div>
+              </div>
+              <div class="kpi-spark" id="sparkAvgSearch"></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- ==================== LOWER TABBED VIEWS ==================== -->
+        <nav class="sub-tabs" role="tablist" aria-label="视图切换">
+          <button class="sub-tab active" id="tab-trajectory" role="tab" aria-selected="true" onclick="switchTab('trajectory')">
+            轨迹
+          </button>
+          <button class="sub-tab" id="tab-intent" role="tab" aria-selected="false" onclick="switchTab('intent')">
+            意图
+          </button>
+          <button class="sub-tab" id="tab-anomalies" role="tab" aria-selected="false" onclick="switchTab('anomalies')">
+            异常
+          </button>
+          <button
+            class="sub-tab admin-only"
+            id="tab-security"
+            role="tab"
+            aria-selected="false"
+            onclick="switchTab('security')"
+          >
+            安全 <span class="tab-badge">19</span>
+          </button>
+          <button
+            class="sub-tab admin-only"
+            id="tab-replay"
+            role="tab"
+            aria-selected="false"
+            onclick="switchTab('replay')"
+          >
+            回放 <span class="tab-badge" id="badcaseCountBadge">2</span>
+          </button>
+        </nav>
+
+        <!-- ==================== TAB 1: TRAJECTORY ==================== -->
+        <section id="panel-trajectory" class="tab-panel active">
+          <div class="filter-bar">
+            <div class="filter-group">
+              <span class="filter-label" id="sessionFilterLabel">会话</span>
+              <select id="sessionFilter" onchange="onSessionChange()" style="min-width: 220px"></select>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">运行</span>
+              <select id="runSelector" onchange="renderRunView()" style="min-width: 260px"></select>
+            </div>
+            <div style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+              <button class="ui-btn ui-btn-quiet ui-btn-sm" type="button" onclick="openSnapshotModal()">
+                查看快照
+              </button>
+              <button
+                class="ui-btn ui-btn-secondary ui-btn-sm admin-only"
+                type="button"
+                onclick="openModal('badcaseModal')"
+              >
+                标为问题
+              </button>
+              <button
+                class="ui-btn ui-btn-quiet ui-btn-sm admin-only"
+                type="button"
+                onclick="showToast('已跳转 Langfuse 查看原始 Trace')"
+              >
+                原始 Trace ↗
+              </button>
+            </div>
+          </div>
+
+          <div class="waterfall-shell">
+            <div class="wf-toolbar">
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                <div class="view-lens-switch" role="group" aria-label="轨道视角">
+                  <button id="trajViewTech" class="view-lens-btn active" type="button" onclick="setTrajView('tech')">
+                    通用轨
+                  </button>
+                  <button id="trajViewBiz" class="view-lens-btn" type="button" onclick="setTrajView('biz')">
+                    业务阶段
+                  </button>
+                </div>
+
+                <div class="wf-modes" id="wfScaleModes">
+                  <button class="wf-mode-btn active" type="button" onclick="setWfMode('duration', this)">时长</button>
+                  <button class="wf-mode-btn" type="button" onclick="setWfMode('turn', this)">轮次</button>
+                  <button class="wf-mode-btn" type="button" onclick="setWfMode('tokens', this)">Token</button>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="font-size: 12px; color: var(--muted)" id="runMetaLine"></span>
+                <input
+                  id="trajSearch"
+                  type="search"
+                  placeholder="搜索"
+                  oninput="renderTrajectoryList()"
+                  style="min-height: 28px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 6px; width: 170px; font-size: 12px"
+                />
+              </div>
+            </div>
+
+            <div class="wf-canvas">
+              <div class="wf-stage-header-row" id="wfStageHeaderRow" style="display: none">
+                <div class="wf-track-label" style="align-self: center">阶段</div>
+                <div class="wf-stage-header-track" id="wfStageHeaderTrack"></div>
+              </div>
+              <div class="wf-tracks-inner" id="wfTracks"></div>
+              <div class="stage-funnel-mini" id="stageFunnelMini"></div>
+            </div>
+
+            <div class="split-inspector">
+              <div class="traj-list" id="trajList"></div>
+              <div class="detail-pane">
+                <div class="detail-head">
+                  <div class="detail-head-top">
+                    <div style="display: flex; align-items: center; gap: 8px">
+                      <span class="tag-role tag-ctx" id="detailTag">上下文</span>
+                      <strong style="font-size: 13px" id="detailStepTitle">第 1 轮 · 第 1 步</strong>
+                    </div>
+                    <span class="badge badge-neutral" id="detailOtelType">chain</span>
+                  </div>
+                  <div class="detail-tabs">
+                    <button class="detail-tab active" type="button" onclick="setDetailTab('overview', this)">概述</button>
+                    <button class="detail-tab" type="button" onclick="setDetailTab('security', this)">安全</button>
+                    <button class="detail-tab" type="button" onclick="setDetailTab('raw', this)">内容</button>
+                    <button class="detail-tab" type="button" onclick="setDetailTab('source', this)">来源</button>
+                  </div>
+                </div>
+                <div class="detail-body" id="detailBody"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== TAB 2: INTENT ==================== -->
+        <section id="panel-intent" class="tab-panel">
+          <div class="grid-2">
+            <section class="ui-panel">
+              <div class="panel-head">
+                <h2 class="panel-title">意图分布</h2>
+                <span class="badge badge-neutral">共 142 次</span>
+              </div>
+              <div class="bar-list">
+                <div class="bar-row" onclick="jumpToRun('run_9a7c2e')">
+                  <div class="bar-row-head">
+                    <span><strong>经营异常归因</strong> <span class="badge badge-info">JEV 72% · Flash 28%</span></span>
+                    <span><strong>48 次</strong> · 33.8%</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill" style="width: 86%"></div></div>
+                </div>
+                <div class="bar-row" onclick="jumpToRun('run_9a7c2e')">
+                  <div class="bar-row-head">
+                    <span><strong>SQL 指标查询</strong> <span class="badge badge-ok">JEV 95% 直判</span></span>
+                    <span><strong>41 次</strong> · 28.9%</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill info" style="width: 74%"></div></div>
+                </div>
+                <div class="bar-row" onclick="jumpToRun('run_4b1f80')">
+                  <div class="bar-row-head">
+                    <span><strong>经营报告生成</strong> <span class="badge badge-info">JEV 65% · Flash 35%</span></span>
+                    <span><strong>23 次</strong> · 16.2%</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill" style="width: 46%; background: #4a8d73"></div></div>
+                </div>
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <span><strong>经营看板创建</strong> <span class="badge badge-ok">JEV 86% 直判</span></span>
+                    <span><strong>14 次</strong> · 9.9%</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill" style="width: 30%; background: #62716a"></div></div>
+                </div>
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <span><strong>口径澄清 / 追问</strong> <span class="badge badge-warn">Flash 触发</span></span>
+                    <span><strong>10 次</strong> · 7.0%</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill warning" style="width: 22%"></div></div>
+                </div>
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <span><strong>未识别 / 兜底路由</strong> <span class="badge badge-danger">兜底触发</span></span>
+                    <span><strong>6 次</strong> · 4.2%</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill danger" style="width: 14%"></div></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Chart 2: Intent Latency -->
+            <section class="ui-panel">
+              <div class="panel-head">
+                <h2 class="panel-title">分类耗时</h2>
+                <span class="badge badge-neutral">P50 68ms · P95 490ms</span>
+              </div>
+              <svg viewBox="0 0 540 248" width="100%" style="display: block" role="img" aria-label="意图分类耗时哑铃图">
+                <line x1="120" y1="16" x2="120" y2="216" stroke="#dce2da" />
+                <line x1="220" y1="16" x2="220" y2="216" stroke="#edf1ec" stroke-dasharray="3,3" />
+                <line x1="320" y1="16" x2="320" y2="216" stroke="#edf1ec" stroke-dasharray="3,3" />
+                <line x1="420" y1="16" x2="420" y2="216" stroke="#edf1ec" stroke-dasharray="3,3" />
+                <line x1="510" y1="16" x2="510" y2="216" stroke="#edf1ec" stroke-dasharray="3,3" />
+                <text x="115" y="234" font-size="11" fill="#62716a">0ms</text>
+                <text x="206" y="234" font-size="11" fill="#62716a">200ms</text>
+                <text x="306" y="234" font-size="11" fill="#62716a">400ms</text>
+                <text x="406" y="234" font-size="11" fill="#62716a">600ms</text>
+                <text x="492" y="234" font-size="11" fill="#62716a">800ms</text>
+
+                <text x="0" y="38" font-size="12" font-weight="600" fill="#202b27">SQL 指标查询</text>
+                <line x1="141" y1="34" x2="164" y2="34" stroke="#1c5145" stroke-width="4" stroke-linecap="round" />
+                <circle cx="141" cy="34" r="5" fill="#1c5145" />
+                <circle cx="164" cy="34" r="5" fill="#c5882a" />
+                <text x="176" y="38" font-size="11" fill="#62716a">42ms → 88ms</text>
+
+                <text x="0" y="72" font-size="12" font-weight="600" fill="#202b27">经营看板创建</text>
+                <line x1="148" y1="68" x2="210" y2="68" stroke="#1c5145" stroke-width="4" stroke-linecap="round" />
+                <circle cx="148" cy="68" r="5" fill="#1c5145" />
+                <circle cx="210" cy="68" r="5" fill="#c5882a" />
+                <text x="222" y="72" font-size="11" fill="#62716a">56ms → 180ms</text>
+
+                <text x="0" y="106" font-size="12" font-weight="600" fill="#202b27">经营异常归因</text>
+                <line x1="168" y1="102" x2="365" y2="102" stroke="#2b7b99" stroke-width="4" stroke-linecap="round" />
+                <circle cx="168" cy="102" r="5" fill="#1c5145" />
+                <circle cx="365" cy="102" r="5" fill="#c5882a" />
+                <text x="377" y="106" font-size="11" fill="#62716a">96ms → 490ms</text>
+
+                <text x="0" y="140" font-size="12" font-weight="600" fill="#202b27">经营报告生成</text>
+                <line x1="185" y1="136" x2="395" y2="136" stroke="#2b7b99" stroke-width="4" stroke-linecap="round" />
+                <circle cx="185" cy="136" r="5" fill="#1c5145" />
+                <circle cx="395" cy="136" r="5" fill="#c5882a" />
+                <text x="407" y="140" font-size="11" fill="#62716a">130ms → 550ms</text>
+
+                <text x="0" y="174" font-size="12" font-weight="600" fill="#202b27">口径澄清/追问</text>
+                <line x1="250" y1="170" x2="430" y2="170" stroke="#c5882a" stroke-width="4" stroke-linecap="round" />
+                <circle cx="250" cy="170" r="5" fill="#1c5145" />
+                <circle cx="430" cy="170" r="5" fill="#c5882a" />
+                <text x="442" y="174" font-size="11" fill="#62716a">260ms → 620ms</text>
+
+                <text x="0" y="208" font-size="12" font-weight="600" fill="#a34236">未识别/兜底</text>
+                <line x1="290" y1="204" x2="485" y2="204" stroke="#a34236" stroke-width="4" stroke-linecap="round" />
+                <circle cx="290" cy="204" r="5" fill="#1c5145" />
+                <circle cx="485" cy="204" r="5" fill="#a34236" />
+                <text x="494" y="208" font-size="11" fill="#a34236">730ms</text>
+              </svg>
+            </section>
+          </div>
+
+          <section class="ui-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">分类记录</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Run ID</th>
+                    <th>识别意图 / 场景</th>
+                    <th>判决来源</th>
+                    <th>耗时</th>
+                    <th>路由模式</th>
+                    <th>绑定字典版本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="clickable" onclick="jumpToRun('run_9a7c2e')">
+                    <td style="font-family: var(--font-code)"><strong>run_9a7c2e</strong></td>
+                    <td>经营异常归因 (`attribution`)</td>
+                    <td><span class="badge badge-ok">intent_jev 直判</span></td>
+                    <td>64 ms</td>
+                    <td>标准多步分析</td>
+                    <td style="font-family: var(--font-code)">dict_v12</td>
+                  </tr>
+                  <tr class="clickable" onclick="jumpToRun('run_4b1f80')">
+                    <td style="font-family: var(--font-code)"><strong>run_4b1f80</strong></td>
+                    <td>经营报告生成 (`report`)</td>
+                    <td><span class="badge badge-info">intent_jev → flash 复核</span></td>
+                    <td>312 ms</td>
+                    <td>文档检索 + 对比</td>
+                    <td style="font-family: var(--font-code)">dict_v12</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <!-- ==================== TAB 3: ANOMALIES ==================== -->
+        <section id="panel-anomalies" class="tab-panel">
+          <div class="grid-2">
+            <section class="ui-panel">
+              <div class="panel-head">
+                <h2 class="panel-title">异常排行</h2>
+                <span class="badge badge-danger">18 次</span>
+              </div>
+              <div class="bar-list">
+                <div class="bar-row" onclick="jumpToRun('run_9a7c2e')">
+                  <div class="bar-row-head">
+                    <strong>上下文压缩丢口径</strong>
+                    <span>14 次</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill danger" style="width: 82%"></div></div>
+                </div>
+                <div class="bar-row" onclick="jumpToRun('run_9a7c2e')">
+                  <div class="bar-row-head">
+                    <strong>文档检索空结果</strong>
+                    <span>6 次</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill warning" style="width: 48%"></div></div>
+                </div>
+                <div class="bar-row" onclick="jumpToRun('run_4b1f80')">
+                  <div class="bar-row-head">
+                    <strong>SQL 查询超时 / 重试</strong>
+                    <span>5 次</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill danger" style="width: 40%"></div></div>
+                </div>
+                <div class="bar-row" onclick="jumpToRun('run_9a7c2e')">
+                  <div class="bar-row-head">
+                    <strong>语义口径冲突澄清</strong>
+                    <span>4 次</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill info" style="width: 32%"></div></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="ui-panel">
+              <div class="panel-head">
+                <h2 class="panel-title">阶段耗时</h2>
+                <span class="badge badge-neutral">P50 / P95</span>
+              </div>
+              <div class="bar-list">
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <strong>意图</strong>
+                    <span>68ms / 490ms</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill info" style="width: 16%"></div></div>
+                </div>
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <strong>搜索</strong>
+                    <span>920ms / 2.41s</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill warning" style="width: 58%"></div></div>
+                </div>
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <strong>上下文</strong>
+                    <span>118ms / 290ms</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill" style="width: 14%"></div></div>
+                </div>
+                <div class="bar-row">
+                  <div class="bar-row-head">
+                    <strong>回答</strong>
+                    <span>2.31s / 4.85s</span>
+                  </div>
+                  <div class="bar-track"><div class="bar-fill" style="width: 88%; background: #7e68b8"></div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="ui-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">异常记录</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>运行 ID</th>
+                    <th>成员</th>
+                    <th>异常</th>
+                    <th>阶段</th>
+                    <th>耗时</th>
+                    <th>Token</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="clickable" onclick="jumpToRun('run_9a7c2e')">
+                    <td style="font-family: var(--font-code)"><strong>run_9a7c2e</strong></td>
+                    <td>张敏</td>
+                    <td><span class="badge badge-warn">压缩丢口径</span></td>
+                    <td>上下文</td>
+                    <td>4.82 s</td>
+                    <td>3,910 / 18,420</td>
+                  </tr>
+                  <tr class="clickable" onclick="jumpToRun('run_4b1f80')">
+                    <td style="font-family: var(--font-code)"><strong>run_4b1f80</strong></td>
+                    <td>李伟</td>
+                    <td><span class="badge badge-danger">安全拦截 ×2</span></td>
+                    <td>上下文</td>
+                    <td>2.95 s</td>
+                    <td>2,840 / 9,120</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <!-- ==================== TAB 4: SECURITY ==================== -->
+        <section id="panel-security" class="tab-panel">
+          <section class="ui-panel" style="margin-bottom: 16px">
+            <div class="panel-head">
+              <h2 class="panel-title">安全校验</h2>
+              <button
+                class="ui-btn ui-btn-primary ui-btn-sm"
+                type="button"
+                onclick="showToast('安全校验通过：4/4')"
+              >
+                运行校验
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>校验项</th>
+                    <th>场景</th>
+                    <th>动作</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>跨租户隔离</strong></td>
+                    <td>租户 A 混入租户 B 缓存</td>
+                    <td>同步拒绝</td>
+                    <td><span class="badge badge-ok">通过</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>间接提示词注入</strong></td>
+                    <td>检索文档含指令覆盖语句</td>
+                    <td>在线阻断</td>
+                    <td><span class="badge badge-ok">通过</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>敏感信息脱敏</strong></td>
+                    <td>工具结果含手机号与密钥</td>
+                    <td>自动掩码</td>
+                    <td><span class="badge badge-ok">通过</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>摘要权限继承</strong></td>
+                    <td>受限数据压缩生成摘要与快照</td>
+                    <td>继承最小权限</td>
+                    <td><span class="badge badge-ok">通过</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="ui-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">审计记录</h2>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>类型</th>
+                    <th>动作</th>
+                    <th>规则</th>
+                    <th>成员</th>
+                    <th>对象</th>
+                  </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                  <tr>
+                    <td>08:11:04</td>
+                    <td><span class="badge badge-danger">注入拦截</span></td>
+                    <td>阻断</td>
+                    <td style="font-family: var(--font-code)">indirect_injection_override</td>
+                    <td>李伟</td>
+                    <td style="font-family: var(--font-code)">run_4b1f80 / doc_q3_promo</td>
+                  </tr>
+                  <tr>
+                    <td>08:11:03</td>
+                    <td><span class="badge badge-danger">越权拒绝</span></td>
+                    <td>拒绝</td>
+                    <td style="font-family: var(--font-code)">tenant_workspace_mismatch</td>
+                    <td>李伟</td>
+                    <td style="font-family: var(--font-code)">run_4b1f80 / item_t2_901</td>
+                  </tr>
+                  <tr>
+                    <td>08:04:19</td>
+                    <td><span class="badge badge-info">敏感脱敏</span></td>
+                    <td>脱敏</td>
+                    <td style="font-family: var(--font-code)">cn_phone_mask</td>
+                    <td>张敏</td>
+                    <td style="font-family: var(--font-code)">run_9a7c2e / sql_preview</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <!-- ==================== TAB 5: REPLAY ==================== -->
+        <section id="panel-replay" class="tab-panel">
+          <div class="grid-2">
+            <section class="ui-panel">
+              <div class="panel-head">
+                <h2 class="panel-title">问题列表</h2>
+              </div>
+              <div class="decision-list" id="badcaseList">
+                <div class="decision-card" style="border-color: var(--primary); background: #f6fbf8">
+                  <div class="decision-head">
+                    <span class="decision-id">run_9a7c2e · 张敏</span>
+                    <span class="badge badge-warn">压缩失真</span>
+                  </div>
+                  <div style="font-size: 13px"><strong>华东区 GMV 归因遗漏退款口径</strong></div>
+                  <div class="decision-meta"><span>快照 csnp_7e2a91</span><span>策略 v2.4</span></div>
+                </div>
+                <div class="decision-card">
+                  <div class="decision-head">
+                    <span class="decision-id">run_7d02a1 · 陈浩</span>
+                    <span class="badge badge-info">排序截断</span>
+                  </div>
+                  <div style="font-size: 13px"><strong>大促库存调拨被历史对话挤出窗口</strong></div>
+                  <div class="decision-meta"><span>快照 csnp_3a91c0</span><span>策略 v2.4</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="ui-panel">
+              <div class="panel-head">
+                <h2 class="panel-title">策略回放</h2>
+                <span class="badge badge-neutral">快照 csnp_7e2a91</span>
+              </div>
+              <div class="control-row">
+                <strong style="font-size: 13px">保护业务语义口径</strong>
+                <input type="checkbox" id="optProtectDict" checked style="width: 18px; height: 18px" />
+              </div>
+              <div class="control-row">
+                <strong style="font-size: 13px">输入预算：<span id="lblBudget">8000</span> Token</strong>
+                <input
+                  type="range"
+                  id="optBudget"
+                  min="4000"
+                  max="12000"
+                  step="500"
+                  value="8000"
+                  oninput="document.getElementById('lblBudget').textContent = this.value"
+                />
+              </div>
+              <div class="control-row">
+                <strong style="font-size: 13px">单源上限：<span id="lblMaxObs">6</span> 条</strong>
+                <input
+                  type="range"
+                  id="optMaxObs"
+                  min="3"
+                  max="12"
+                  step="1"
+                  value="6"
+                  oninput="document.getElementById('lblMaxObs').textContent = this.value"
+                />
+              </div>
+              <div style="margin-top: 12px">
+                <button class="ui-btn ui-btn-primary" type="button" onclick="runContextReplay()">
+                  开始回放
+                </button>
+              </div>
+              <div class="diff-grid">
+                <div class="diff-box">
+                  <div style="font-size: 12px; color: var(--muted)">原策略</div>
+                  <div style="font-size: 19px; font-weight: 700; margin: 4px 0">3,910 tok</div>
+                  <div style="font-size: 12px">业务口径：<span class="badge badge-danger">缺失 1 项</span></div>
+                </div>
+                <div class="diff-box improved">
+                  <div style="font-size: 12px; color: var(--primary)">新策略</div>
+                  <div style="font-size: 19px; font-weight: 700; margin: 4px 0" id="candTokens">3,420 tok (-490)</div>
+                  <div style="font-size: 12px" id="candDictStatus">
+                    权威口径：<span class="badge badge-ok">100% 完整保留</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal: Authorized Snapshot -->
+    <div class="overlay" id="snapshotModal" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>加密上下文快照查看（RBAC 实时复核通过）</h2>
+          <button class="ui-btn ui-btn-quiet ui-btn-sm" type="button" onclick="closeModal('snapshotModal')">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="notice-box">
+            已复核当前用户归属权限，本次查看已写入 <code>snapshot_viewed</code> 审计；敏感字段已脱敏。
+          </div>
+          <div class="code-panel">
+            <div class="code-toolbar"><span>csnp_7e2a91.decrypted.json</span><span>min_trust: observation</span></div>
+            <pre class="code-body">{
+  "snapshot_ref": "csnp_7e2a91",
+  "derived_lineage": {
+    "min_trust_level": "observation",
+    "access_scope": ["tenant:contoso", "workspace:east_china_retail"]
+  },
+  "omitted_critical_items": [
+    { "item_id": "dict_gmv_refund_rule", "trust": "dictionary", "reason": "compaction_budget_pressure" }
+  ],
+  "redactions_applied": [{ "rule": "cn_phone_mask", "count": 2 }]
+}</pre>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="ui-btn ui-btn-secondary" type="button" onclick="closeModal('snapshotModal')">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Drawer: MCP -->
+    <div class="overlay drawer" id="mcpDrawer" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>ContextOps MCP 只读接入与试跑</h2>
+          <button class="ui-btn ui-btn-quiet ui-btn-sm" type="button" onclick="closeModal('mcpDrawer')">关闭</button>
+        </div>
+        <div class="modal-body">
+          <div class="notice-box">
+            端点 <code>POST /v1/contextops/mcp</code> 严格只读、按租户隔离，仅返回脱敏摘要与统计，不暴露明文快照。
+          </div>
+          <div class="chip-bar">
+            <button class="chip active" onclick="simulateMcp('contextops_get_stats', this)">contextops_get_stats</button>
+            <button class="chip" onclick="simulateMcp('contextops_get_run_flow', this)">contextops_get_run_flow</button>
+            <button class="chip" onclick="simulateMcp('contextops_list_runs', this)">contextops_list_runs</button>
+            <button class="chip" onclick="simulateMcp('contextops_list_badcases', this)">contextops_list_badcases</button>
+          </div>
+          <div class="code-panel">
+            <div class="code-toolbar"><span id="mcpToolLabel">JSON-RPC 2.0 · contextops_get_stats</span><span>只读脱敏</span></div>
+            <pre class="code-body" id="mcpResponseCode">{
+  "jsonrpc": "2.0",
+  "id": "req_01",
+  "result": {
+    "tenant_id": "contoso",
+    "window": "7d",
+    "session_count": 68,
+    "run_count": 142,
+    "avg_turns": 3.4,
+    "avg_search_turns": 2.1,
+    "drop_rate_pct": 64.2,
+    "otel_plaintext_leaks": 0
+  }
+}</pre>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="ui-btn ui-btn-primary" type="button" onclick="closeModal('mcpDrawer')">完成</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Create Badcase -->
+    <div class="overlay" id="badcaseModal" role="dialog" aria-modal="true">
+      <div class="modal-card" style="width: min(480px, 100%)">
+        <div class="modal-head">
+          <h2>沉淀脱敏 Badcase</h2>
+          <button class="ui-btn ui-btn-quiet ui-btn-sm" type="button" onclick="closeModal('badcaseModal')">关闭</button>
+        </div>
+        <div class="modal-body">
+          <label style="display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px">标题</label>
+          <input
+            id="newBcTitle"
+            type="text"
+            value="华东区 GMV 归因在压缩阶段丢失退款口径"
+            style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px"
+          />
+          <label style="display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px">根因分类</label>
+          <select
+            id="newBcCategory"
+            style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px"
+          >
+            <option value="compression_loss">compression_loss（压缩失真）</option>
+            <option value="ranking_cutoff">ranking_cutoff（排序截断）</option>
+            <option value="retrieval">retrieval（检索空结果）</option>
+          </select>
+        </div>
+        <div class="modal-foot">
+          <button class="ui-btn ui-btn-quiet" type="button" onclick="closeModal('badcaseModal')">取消</button>
+          <button class="ui-btn ui-btn-primary" type="button" onclick="submitBadcase()">确认沉淀</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const SESSIONS = [
+        {
+          id: "sess_east_gmv",
+          actor: "zhangmin",
+          actorName: "张敏",
+          title: "华东区 Q4 GMV 波动排查",
+          runs: ["run_9a7c2e", "run_9a7c3f"],
+        },
+        {
+          id: "sess_q3_promo",
+          actor: "liwei",
+          actorName: "李伟",
+          title: "Q3 促销复盘与华南利润对比",
+          runs: ["run_4b1f80"],
+        },
+        {
+          id: "sess_east_stock",
+          actor: "zhangmin",
+          actorName: "张敏",
+          title: "双十一华东仓补货测算",
+          runs: ["run_9a7c2e"],
+        },
+      ];
+
+      const RUN_DATA = {
+        run_9a7c2e: {
+          label: "run_9a7c2e · 华东区 GMV 环比下降归因（张敏）",
+          meta: "trace_4d8f29c1a12 · Policy: pol_8f3a1c · 4.82s · 2 轮 · 7 步",
+          stages: [
+            { key: "intent", left: 0, width: 8, name: "意图", ms: "64ms", badge: "JEV", status: "ok", sub: "2 步" },
+            { key: "search", left: 8, width: 20, name: "搜索", ms: "890ms", badge: "2 次搜索", status: "warn", sub: "语义 3 · 文档 48" },
+            { key: "compile", left: 28, width: 5, name: "上下文", ms: "152ms", badge: "丢口径", status: "warn", sub: "48→12" },
+            { key: "answer", left: 33, width: 67, name: "回答", ms: "3.71s", badge: "2 轮 · 1 SQL", status: "ok", sub: "3,910 tok" },
+          ],
+          funnelSummary:
+            "<strong>上下文漏斗摘要：</strong>候选 <b>48 条 (18,420 tok)</b> → 安全/权限过滤 <b>44 条</b> → 排序截断 <b>20 条</b> → 压缩进窗 <b>12 条 (3,910 / 8,000 tok)</b> · 窗口占比：System 20% / 语义 11% / Search 41% / 摘要 20% / Memory 8%",
+          waterfall: [
+            { id: "e0", track: "model", left: 1, width: 3, label: "意图识别：intent_jev (64ms)" },
+            { id: "e1", track: "input", left: 5, width: 2, label: "系统提示词 + 用户问题" },
+            { id: "e2", track: "input", left: 8, width: 4, label: "语义口径解析 (210ms)" },
+            { id: "e3", track: "tool", left: 13, width: 14, label: "search_documents (680ms)" },
+            { id: "e4", track: "input", left: 28, width: 4, label: "在线 PEP + 上下文压缩 (丢口径)" },
+            { id: "e5", track: "model", left: 33, width: 34, label: "主模型推理 · 第 1 轮 (2,450ms)" },
+            { id: "e6", track: "tool", left: 68, width: 11, label: "database_query (420ms)" },
+            { id: "e7", track: "input", left: 80, width: 3, label: "SQL 结果脱敏回填 (PII ×2)" },
+            { id: "e8", track: "model", left: 84, width: 15, label: "最终回答生成 · 第 2 轮 (908ms)" },
+          ],
+          trajectory: [
+            {
+              id: "e0",
+              stage: "intent",
+              turn: 1,
+              step: 1,
+              tag: "意图",
+              tagCls: "tag-intent",
+              otel: "generation",
+              title: "意图分类命中：经营异常归因（attribution）· JEV 决策模型直判",
+              sub: "intent_jev · 64ms · 字典 dict_v12",
+              overview: { 业务阶段: "1. 意图识别", 判决来源: "intent_jev 直判", 耗时: "64 毫秒", 命中场景: "attribution" },
+              security: "路由元信息仅传闭集枚举，原始提问正文不进 OTLP。",
+              raw: '{"category_id":"analysis","scene_id":"attribution","classifier":"intent_jev"}',
+              source: "routing_service · dict_v12",
+            },
+            {
+              id: "e1",
+              stage: "intent",
+              turn: 1,
+              step: 2,
+              tag: "系统",
+              tagCls: "tag-sys",
+              otel: "span",
+              title: "装载 Prompt Gen #18 + 用户提问：分析华东区本周 GMV 环比下降原因",
+              sub: "managed · 780 tok · 4ms",
+              overview: { 业务阶段: "1. 意图识别", 来源: "PromptOps (#18)", 耗时: "4 毫秒", Token: "780 tok" },
+              security: "信任等级：managed（最高优先级指令）。",
+              raw: "[managed] 你是 Compass 电商经营分析助手...",
+              source: "prompt_file: analysis/attribution/system.md @ gen-18",
+            },
+            {
+              id: "e2",
+              stage: "search",
+              turn: 1,
+              step: 3,
+              tag: "上下文",
+              tagCls: "tag-ctx",
+              otel: "retriever",
+              title: "语义层解析命中 3 条口径（含“华东净 GMV 退款剔除规则”）",
+              sub: "semantic_layer · dictionary · 860 tok · 210ms",
+              overview: { 业务阶段: "2. 研究与搜索", 来源: "企业语义层", 耗时: "210 毫秒", Token: "860 tok" },
+              security: "信任等级：dictionary；访问范围：workspace:east_china_retail。",
+              raw: "metric: net_gmv_east_china = sum(order_amt) - sum(refund_7d_amt)",
+              source: "semantic_metric: net_gmv_east_china (v4)",
+            },
+            {
+              id: "e3",
+              stage: "search",
+              turn: 1,
+              step: 4,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "tool",
+              title: "调用 Agentic Search 检索华东区促销与客单价复盘文档",
+              sub: "… 2 个工具调用 · search_documents, read_document · 680ms · 召回 12,400 tok",
+              overview: { 业务阶段: "2. 研究与搜索", 来源: "Agentic Search", 耗时: "680 毫秒", Token: "12,400 tok" },
+              security: "检索片段强制标为 observation，待 PEP 校验。",
+              raw: "tool_call: search_documents(query='华东区 GMV 环比', top_k=20)",
+              source: "knowledge_library: east_china_ops_docs",
+            },
+            {
+              id: "e4",
+              stage: "compile",
+              turn: 1,
+              step: 5,
+              tag: "上下文",
+              tagCls: "tag-sec",
+              otel: "chain",
+              title: "在线 PEP 通过 + 动态压缩装配（告警：dict_gmv_refund_rule 超预算截断）",
+              sub: "48 条 → 12 条 · 18,420 → 3,910 tok · 145ms · 淘汰率 78.8%",
+              overview: { 业务阶段: "3. 上下文安全与编译", 来源: "Context Runtime", 耗时: "145 毫秒", Token: "3,910 / 8,000" },
+              security: "PEP 耗时 7ms；零注入命中；派生摘要继承 min_trust=observation。",
+              raw: "omitted: dict_gmv_refund_rule (reason=compaction_budget_pressure)",
+              source: "policy_digest: pol_8f3a1c · snapshot: csnp_7e2a91",
+            },
+            {
+              id: "e5",
+              stage: "answer",
+              turn: 1,
+              step: 6,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "generation",
+              title: "主模型生成华东区 GMV 对比 SQL 并调用 database_query",
+              sub: "qwen-max · 2,450ms · 附带 1 次 SQL 工具调用 (420ms)",
+              overview: { 业务阶段: "4. 推理与回答生成", 模型: "qwen-max", 耗时: "2,450 毫秒", Token: "in 3,910 / out 412" },
+              security: "OTel 零正文导出；SQL 结果回填前经 PII 脱敏 2 处。",
+              raw: "SELECT region, SUM(order_amount) FROM dws_orders WHERE ... (未减退款)",
+              source: "attempt_id: att_91c2",
+            },
+            {
+              id: "e8",
+              stage: "answer",
+              turn: 2,
+              step: 1,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "generation",
+              title: "完成归因分析结论与图表产物输出",
+              sub: "qwen-max · 908ms · 终态: completed",
+              overview: { 业务阶段: "4. 推理与回答生成", 模型: "qwen-max", 耗时: "908 毫秒", 终态: "completed" },
+              security: "完整关联 trace_id 与加密快照，可一键沉淀 Badcase。",
+              raw: "华东区本周 GMV 环比下降 6.3%（含对比折线图产物）。",
+              source: "attempt_id: att_91c8",
+            },
+          ],
+        },
+        run_9a7c3f: {
+          label: "run_9a7c3f · 追问：按类目拆分退货率 Top 3 品类",
+          meta: "trace_4d8f29c1b99 · v2.4 · 2.18s · 1 轮 · 4 步",
+          stages: [
+            { key: "intent", left: 0, width: 10, name: "意图", ms: "48ms", badge: "JEV", status: "ok", sub: "SQL 查询" },
+            { key: "search", left: 10, width: 22, name: "搜索", ms: "310ms", badge: "1 次搜索", status: "ok", sub: "复用语义" },
+            { key: "compile", left: 32, width: 10, name: "上下文", ms: "62ms", badge: "正常", status: "ok", sub: "14→8" },
+            { key: "answer", left: 42, width: 58, name: "回答", ms: "1.76s", badge: "1 SQL", status: "ok", sub: "2,240 tok" },
+          ],
+          funnelSummary:
+            "<strong>上下文漏斗：</strong>候选 <b>14 条 (5,120 tok)</b> → 过滤 <b>14 条</b> → 排序 <b>10 条</b> → 进窗 <b>8 条 (2,240 / 8,000 tok)</b>",
+          waterfall: [
+            { id: "r2_0", track: "model", left: 1, width: 6, label: "意图识别：SQL 查询 (48ms)" },
+            { id: "r2_1", track: "input", left: 9, width: 5, label: "追问 + 历史摘要装载" },
+            { id: "r2_2", track: "tool", left: 16, width: 16, label: "database_query 类目退货率 (310ms)" },
+            { id: "r2_3", track: "model", left: 36, width: 62, label: "生成 Top 3 退货类目图表与结论 (1,760ms)" },
+          ],
+          trajectory: [
+            {
+              id: "r2_0",
+              stage: "intent",
+              turn: 3,
+              step: 1,
+              tag: "意图",
+              tagCls: "tag-intent",
+              otel: "generation",
+              title: "意图分类命中：SQL 指标查询（JEV 直判）",
+              sub: "intent_jev · 48ms",
+              overview: { 阶段: "意图", 来源: "JEV 直判", 耗时: "48 毫秒", 场景: "sql" },
+              security: "仅记录闭集枚举。",
+              raw: '{"scene_id":"sql","classifier":"intent_jev"}',
+              source: "routing_service",
+            },
+            {
+              id: "r2_1",
+              stage: "compile",
+              turn: 3,
+              step: 2,
+              tag: "上下文",
+              tagCls: "tag-ctx",
+              otel: "chain",
+              title: "复用上轮会话摘要并装配类目退货率口径",
+              sub: "14 条 → 8 条 · 2,240 tok · 62ms",
+              overview: { 阶段: "上下文", 来源: "Context Runtime", 耗时: "62 毫秒", Token: "2,240 / 8,000" },
+              security: "PEP 检查通过，零拦截。",
+              raw: "selected: 8 items (history_summary + return_rate_metric)",
+              source: "policy: v2.4",
+            },
+            {
+              id: "r2_2",
+              stage: "search",
+              turn: 3,
+              step: 3,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "tool",
+              title: "执行类目退货率 Top 3 SQL 查询",
+              sub: "1 个工具调用 · database_query · 310ms",
+              overview: { 阶段: "搜索", 工具: "database_query", 耗时: "310 毫秒", 状态: "成功" },
+              security: "只读受限连接，无敏感字段。",
+              raw: "SELECT category, return_rate FROM dws_returns_east ORDER BY 2 DESC LIMIT 3",
+              source: "retail_ro_east_china",
+            },
+            {
+              id: "r2_3",
+              stage: "answer",
+              turn: 3,
+              step: 4,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "generation",
+              title: "输出华东区退货率 Top 3 类目排名与原因摘要",
+              sub: "qwen-max · 1,760ms · 已完成",
+              overview: { 阶段: "回答", 模型: "qwen-max", 耗时: "1,760 毫秒", 状态: "已完成" },
+              security: "脱敏校验通过。",
+              raw: "退货率前三类目：女装（14.2%）、生鲜冷链（9.8%）、小家电（6.4%）。",
+              source: "attempt_id: att_92a1",
+            },
+          ],
+        },
+        run_4b1f80: {
+          label: "run_4b1f80 · Q3 促销复盘与利润对比（李伟 · 安全拦截）",
+          meta: "trace_8a1c77f0e04 · Policy: pol_8f3a1c · 2.95s · 1 轮 · 5 步",
+          stages: [
+            { key: "intent", left: 0, width: 12, name: "意图", ms: "312ms", badge: "Flash", status: "ok", sub: "复核" },
+            { key: "search", left: 12, width: 18, name: "搜索", ms: "440ms", badge: "1 次搜索", status: "ok", sub: "24 条" },
+            { key: "compile", left: 30, width: 14, name: "上下文", ms: "101ms", badge: "拦截 ×2", status: "danger", sub: "注入 · 越权" },
+            { key: "answer", left: 44, width: 56, name: "回答", ms: "2.10s", badge: "已完成", status: "ok", sub: "2,840 tok" },
+          ],
+          funnelSummary:
+            "<strong>上下文漏斗摘要：</strong>候选 <b>24 条 (9,120 tok)</b> → <b>在线 PEP 拦截 2 条（注入 + 跨租户）</b> → 排序截断 <b>11 条</b> → 最终进窗 <b>9 条 (2,840 / 8,000 tok)</b>",
+          waterfall: [
+            { id: "s0", track: "model", left: 1, width: 10, label: "意图识别：JEV + Flash 复核 (312ms)" },
+            { id: "s2", track: "tool", left: 13, width: 16, label: "search_documents (440ms)" },
+            { id: "s3", track: "tool", left: 31, width: 6, label: "PEP 阻断间接注入 + 跨租户缓存", error: true },
+            { id: "s4", track: "input", left: 39, width: 4, label: "净化后上下文装配 (2,840 tok)" },
+            { id: "s5", track: "model", left: 45, width: 53, label: "主模型安全推理输出 (2,097ms)" },
+          ],
+          trajectory: [
+            {
+              id: "s0",
+              stage: "intent",
+              turn: 1,
+              step: 1,
+              tag: "意图",
+              tagCls: "tag-intent",
+              otel: "generation",
+              title: "意图分类命中：经营报告生成（report）· JEV 低置信触发 Flash 复核",
+              sub: "intent_jev → intent_flash · 312ms",
+              overview: { 业务阶段: "1. 意图识别", 判决来源: "JEV → Flash 复核", 耗时: "312 毫秒", 命中场景: "report" },
+              security: "路由与意图仅落枚举字段。",
+              raw: '{"scene_id":"report","classifier":"intent_flash","fallback":true}',
+              source: "routing_service",
+            },
+            {
+              id: "s2",
+              stage: "search",
+              turn: 1,
+              step: 2,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "tool",
+              title: "调用 search_documents 检索 Q3 促销复盘文档",
+              sub: "1 个工具调用 · 440ms · 召回 24 条候选",
+              overview: { 业务阶段: "2. 研究与搜索", 工具: "search_documents", 耗时: "440 毫秒", 候选数: "24 条" },
+              security: "外部文档均标为 observation。",
+              raw: "tool_call: search_documents(query='Q3 促销复盘 华南利润')",
+              source: "knowledge_library",
+            },
+            {
+              id: "s3",
+              stage: "compile",
+              turn: 1,
+              step: 3,
+              tag: "安全",
+              tagCls: "tag-sec",
+              otel: "guardrail",
+              title: "在线 PEP 拦截 2 条高危上下文（Indirect Prompt Injection + 跨租户缓存）",
+              sub: "guardrail · 9ms · block ×1 · deny ×1",
+              overview: { 业务阶段: "3. 上下文安全与编译", 拦截数: "2 条", 耗时: "9 毫秒", 模式: "enforce" },
+              security: "命中 indirect_injection_override 与 tenant_workspace_mismatch，同步阻断并写入审计。",
+              raw: "[BLOCKED] doc_q3_promo_poisoned / item_t2_901",
+              source: "ContextSecurityGuard",
+            },
+            {
+              id: "s5",
+              stage: "answer",
+              turn: 1,
+              step: 4,
+              tag: "助手",
+              tagCls: "tag-asst",
+              otel: "generation",
+              title: "基于净化后上下文输出合规利润对比结论",
+              sub: "qwen-max · 2,097ms · 终态: completed",
+              overview: { 业务阶段: "4. 推理与回答生成", 模型: "qwen-max", 耗时: "2,097 毫秒", 终态: "completed" },
+              security: "零跨租户泄露，恶意指令未生效。",
+              raw: "根据合规文档与财务毛利口径，Q3 华南利润率同比提升 1.4%...",
+              source: "attempt_id: att_44b2",
+            },
+          ],
+        },
+      };
+
+      let currentRole = "admin";
+      let currentTrajView = "tech";
+      let activeStageFilter = "all";
+      let currentDetailTab = "overview";
+      let selectedEventId = "e4";
+
+      function setRole(role) {
+        currentRole = role;
+        document.getElementById("roleBtnAdmin").classList.toggle("active", role === "admin");
+        document.getElementById("roleBtnMember").classList.toggle("active", role === "member");
+        document.querySelectorAll(".admin-only").forEach((el) => (el.style.display = role === "admin" ? "" : "none"));
+
+        if (role === "admin") {
+          document.getElementById("avatarText").textContent = "AD";
+          document.getElementById("sidebarTitle").textContent = "管理与治理";
+          document.getElementById("navContextOpsLabel").textContent = "ContextOps";
+          document.getElementById("workspaceScopeLabel").textContent = "管理员 · 全部成员";
+          document.getElementById("pageTitleText").textContent = "ContextOps";
+          document.getElementById("pageSubText").textContent = "上下文观测与安全治理";
+          document.getElementById("sessionFilterLabel").textContent = "会话";
+          document.getElementById("actorFilter").value = "all";
+        } else {
+          document.getElementById("avatarText").textContent = "张敏";
+          document.getElementById("sidebarTitle").textContent = "个人空间";
+          document.getElementById("navContextOpsLabel").textContent = "运行轨迹";
+          document.getElementById("workspaceScopeLabel").textContent = "张敏 · 仅本人";
+          document.getElementById("pageTitleText").textContent = "运行轨迹";
+          document.getElementById("pageSubText").textContent = "查看本人的会话与执行记录";
+          document.getElementById("sessionFilterLabel").textContent = "我的会话";
+          if (
+            document.getElementById("panel-security").classList.contains("active") ||
+            document.getElementById("panel-replay").classList.contains("active")
+          ) {
+            switchTab("trajectory");
+          }
+        }
+        populateSessionsAndRuns();
+        refreshDashboard(true);
+      }
+
+      function renderSparkline(elId, values, color, label) {
+        const el = document.getElementById(elId);
+        if (!el || !values.length) return;
+        const w = 82;
+        const h = 30;
+        const pad = 3;
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const span = max - min || 1;
+        const pts = values.map((v, i) => {
+          const x = pad + (i * (w - pad * 2)) / Math.max(1, values.length - 1);
+          const y = h - pad - ((v - min) / span) * (h - pad * 2);
+          return [x, y];
+        });
+        const line = pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+        const area = `M ${pts[0][0].toFixed(1)},${h} L ${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" L ")} L ${pts[pts.length - 1][0].toFixed(1)},${h} Z`;
+        const last = pts[pts.length - 1];
+        el.innerHTML = `
+          <svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}趋势">
+            <path d="${area}" fill="${color}" opacity="0.12" />
+            <polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.6" fill="${color}" />
+          </svg>
+          <span class="kpi-spark-label">${label}</span>
+        `;
+      }
+
+      function renderAllSparklines(win) {
+        const label = win === "24h" ? "近 24h" : win === "30d" ? "近 30 日" : "近 7 日";
+        const series = {
+          "24h": {
+            drop: [61, 59, 63, 66, 62, 64],
+            p50: [3.1, 3.3, 3.6, 3.5, 3.2, 3.4],
+            err: [5, 7, 6, 8, 5, 6],
+            sec: [1, 0, 1, 2, 0, 1],
+            sess: [2, 3, 4, 2, 3, 2],
+            turns: [3.1, 3.5, 3.2, 3.8, 3.3, 3.4],
+            comp: [94, 92, 93, 91, 94, 93],
+            search: [1.9, 2.0, 2.2, 2.1, 2.0, 2.1],
+          },
+          "7d": {
+            drop: [58, 60, 63, 61, 67, 65, 64],
+            p50: [3.8, 3.6, 3.5, 3.7, 3.3, 3.5, 3.4],
+            err: [8.2, 7.5, 6.9, 7.1, 5.8, 6.6, 6.3],
+            sec: [2, 3, 1, 4, 2, 3, 4],
+            sess: [7, 9, 11, 8, 12, 10, 11],
+            turns: [3.1, 3.3, 3.6, 3.2, 3.5, 3.3, 3.4],
+            comp: [90, 91, 92, 91, 93, 92, 93],
+            search: [2.4, 2.3, 2.2, 2.1, 2.0, 2.2, 2.1],
+          },
+          "30d": {
+            drop: [70, 68, 69, 66, 67, 65, 66, 64, 65, 64],
+            p50: [4.2, 4.0, 3.9, 3.8, 3.7, 3.6, 3.5, 3.6, 3.5, 3.4],
+            err: [9.5, 8.8, 8.1, 7.9, 7.4, 7.2, 6.9, 6.5, 6.6, 6.3],
+            sec: [5, 7, 6, 8, 9, 7, 8, 6, 9, 9],
+            sess: [18, 22, 25, 24, 29, 31, 33, 35, 38, 39],
+            turns: [3.8, 3.7, 3.6, 3.5, 3.5, 3.4, 3.5, 3.4, 3.3, 3.4],
+            comp: [88, 89, 90, 90, 91, 91, 92, 92, 92, 93],
+            search: [2.6, 2.5, 2.5, 2.4, 2.3, 2.2, 2.2, 2.1, 2.2, 2.1],
+          },
+        }[win] || {};
+
+        renderSparkline("sparkDropRate", series.drop, "#c5882a", label);
+        renderSparkline("sparkRunP50", series.p50, "#1c5145", label);
+        renderSparkline("sparkErrRate", series.err, "#a34236", label);
+        renderSparkline("sparkSecBlocks", series.sec, "#a34236", label);
+        renderSparkline("sparkSessions", series.sess, "#1c5145", label);
+        renderSparkline("sparkAvgTurns", series.turns, "#2b7b99", label);
+        renderSparkline("sparkCompletion", series.comp, "#1c5145", label);
+        renderSparkline("sparkAvgSearch", series.search, "#2b7b99", label);
+      }
+
+      function refreshDashboard(silent) {
+        const win = document.getElementById("filterWindow").value;
+        const isMember = currentRole === "member";
+        document.getElementById("statSessions").textContent = isMember ? "14" : win === "24h" ? "16" : win === "30d" ? "294" : "68";
+        document.getElementById("statRuns").textContent = isMember ? "24" : win === "24h" ? "28" : win === "30d" ? "618" : "142";
+        document.getElementById("statAvgTurns").textContent = isMember ? "2.9" : "3.4";
+        document.getElementById("statMaxTurns").textContent = isMember ? "7" : "12";
+        document.getElementById("statCompletion").textContent = isMember ? "95.8%" : "92.6%";
+        document.getElementById("statAvgSearch").textContent = isMember ? "1.8 轮" : "2.1 轮";
+        document.getElementById("kpiDropRate").textContent = isMember ? "58.6%" : "64.2%";
+        document.getElementById("kpiSecBlocks").textContent = isMember ? "2 次" : "19 次";
+        document.getElementById("statsSampleInfo").textContent = isMember
+          ? "14 会话 · 24 次运行"
+          : "68 会话 · 142 次运行";
+        renderAllSparklines(win);
+        if (!silent) showToast("已刷新");
+      }
+
+      function populateSessionsAndRuns() {
+        const actor = currentRole === "member" ? "zhangmin" : document.getElementById("actorFilter").value;
+        const allowed = SESSIONS.filter((s) => actor === "all" || s.actor === actor);
+        document.getElementById("sessionFilter").innerHTML = allowed
+          .map((s) => `<option value="${s.id}">${s.title}${currentRole === "admin" ? " · " + s.actorName : ""}</option>`)
+          .join("");
+        onSessionChange();
+      }
+
+      function onActorChange() {
+        populateSessionsAndRuns();
+        refreshDashboard();
+      }
+
+      function onSessionChange() {
+        const sessId = document.getElementById("sessionFilter").value;
+        const sess = SESSIONS.find((s) => s.id === sessId) || SESSIONS[0];
+        const allOpt = `<option value="all" selected>全部（${sess.runs.length} 次运行）</option>`;
+        const runOpts = sess.runs.map((r) => `<option value="${r}">${RUN_DATA[r].label}</option>`).join("");
+        document.getElementById("runSelector").innerHTML = allOpt + runOpts;
+        renderRunView();
+      }
+
+      function getActiveRunData() {
+        const val = document.getElementById("runSelector").value;
+        if (val !== "all") return RUN_DATA[val];
+
+        const sessId = document.getElementById("sessionFilter").value;
+        const sess = SESSIONS.find((s) => s.id === sessId) || SESSIONS[0];
+        const runs = sess.runs.map((id) => ({ id, ...RUN_DATA[id] }));
+        if (runs.length === 1) return runs[0];
+
+        const slot = 100 / runs.length;
+        const combinedWaterfall = [];
+        const combinedStages = [];
+        const combinedTraj = [];
+
+        runs.forEach((r, idx) => {
+          const offset = idx * slot;
+          r.waterfall.forEach((w) => {
+            combinedWaterfall.push({
+              ...w,
+              left: +(offset + (w.left * slot) / 100).toFixed(2),
+              width: +Math.max(1.2, (w.width * slot) / 100).toFixed(2),
+              label: `[运行 ${idx + 1}] ${w.label}`,
+            });
+          });
+          r.stages.forEach((s) => {
+            combinedStages.push({
+              ...s,
+              key: `${idx}_${s.key}`,
+              origKey: s.key,
+              left: +(offset + (s.left * slot) / 100).toFixed(2),
+              width: +((s.width * slot) / 100).toFixed(2),
+              name: `R${idx + 1} ${s.name}`,
+            });
+          });
+          r.trajectory.forEach((t) => {
+            combinedTraj.push({
+              ...t,
+              stage: `${idx}_${t.stage}`,
+              runLabel: `运行 ${idx + 1} (${r.id})`,
+            });
+          });
+        });
+
+        return {
+          meta: `整个会话 · 共 ${runs.length} 次运行 · ${combinedTraj.length} 步`,
+          stages: combinedStages,
+          funnelSummary: `<strong>会话汇总：</strong>共 ${runs.length} 次运行 · 总入窗 <b>6,150 tok</b> · 含 1 次压缩丢口径告警（运行 1）`,
+          waterfall: combinedWaterfall,
+          trajectory: combinedTraj,
+        };
+      }
+
+      function switchTab(tabId) {
+        document.querySelectorAll(".sub-tab").forEach((el) => {
+          const active = el.id === "tab-" + tabId;
+          el.classList.toggle("active", active);
+          el.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        document.querySelectorAll(".tab-panel").forEach((el) => {
+          el.classList.toggle("active", el.id === "panel-" + tabId);
+        });
+      }
+
+      function setTrajView(mode) {
+        currentTrajView = mode;
+        activeStageFilter = "all";
+        document.getElementById("trajViewTech").classList.toggle("active", mode === "tech");
+        document.getElementById("trajViewBiz").classList.toggle("active", mode === "biz");
+        document.getElementById("wfStageHeaderRow").style.display = mode === "biz" ? "grid" : "none";
+        document.getElementById("stageFunnelMini").style.display = mode === "biz" ? "flex" : "none";
+        renderRunView();
+      }
+
+      function setWfMode(mode, btn) {
+        document.querySelectorAll(".wf-mode-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        showToast("已切换瀑布图尺度：" + (mode === "duration" ? "按时长" : mode === "turn" ? "按轮次" : "按 Token"));
+      }
+
+      function jumpToRun(runId) {
+        if (currentRole === "member" && runId === "run_4b1f80") {
+          showToast("普通用户无权查看他人（李伟）的 Run");
+          return;
+        }
+        const sess = SESSIONS.find((s) => s.runs.includes(runId));
+        if (sess) {
+          if (currentRole === "admin") document.getElementById("actorFilter").value = "all";
+          populateSessionsAndRuns();
+          document.getElementById("sessionFilter").value = sess.id;
+          onSessionChange();
+          document.getElementById("runSelector").value = runId;
+          renderRunView();
+        }
+        switchTab("trajectory");
+      }
+
+      function renderRunView() {
+        const data = getActiveRunData();
+        document.getElementById("runMetaLine").textContent = data.meta;
+        selectedEventId = data.trajectory[Math.min(4, data.trajectory.length - 1)].id;
+        renderWaterfall(data);
+        renderBizStages(data);
+        renderTrajectoryList();
+        renderDetailPane();
+      }
+
+      function renderWaterfall(data) {
+        const tracks = [
+          { key: "input", label: "输入" },
+          { key: "model", label: "模型" },
+          { key: "tool", label: "工具" },
+        ];
+        const stageBgs =
+          currentTrajView === "biz"
+            ? data.stages
+                .map(
+                  (s, idx) =>
+                    `<div class="wf-stage-bg tint-${idx % 4} ${activeStageFilter === s.key ? "active" : ""}" style="left:${s.left}%;width:${s.width}%"></div>`,
+                )
+                .join("")
+            : "";
+
+        document.getElementById("wfTracks").innerHTML = tracks
+          .map((t) => {
+            const segs = data.waterfall
+              .filter((w) => w.track === t.key)
+              .map(
+                (w) => `
+                <button
+                  type="button"
+                  class="wf-seg ${w.error ? "error" : w.track} ${w.id === selectedEventId ? "selected" : ""}"
+                  style="left:${w.left}%;width:${w.width}%"
+                  title="${w.label}"
+                  onclick="selectEvent('${w.id}')"
+                ></button>
+              `,
+              )
+              .join("");
+            return `<div class="wf-track-row"><div class="wf-track-label">${t.label}</div><div class="wf-track-lane">${stageBgs}${segs}</div></div>`;
+          })
+          .join("");
+      }
+
+      function renderBizStages(data) {
+        document.getElementById("wfStageHeaderTrack").innerHTML = data.stages
+          .map((s) => {
+            const cls = s.status === "danger" ? "danger" : s.status === "warn" ? "warn" : "";
+            const active = activeStageFilter === s.key ? "active" : "";
+            return `
+              <button
+                type="button"
+                class="wf-stage-band-btn ${cls} ${active}"
+                style="left:${s.left}%;width:calc(${s.width}% - 2px)"
+                title="${s.name} · ${s.ms} · ${s.badge} · ${s.sub}"
+                onclick="toggleStageFilter('${s.key}')"
+              >
+                <div class="wf-stage-band-title">${s.name} · ${s.ms}</div>
+                <div class="wf-stage-band-stat">${s.badge} · ${s.sub}</div>
+              </button>
+            `;
+          })
+          .join("");
+        document.getElementById("stageFunnelMini").innerHTML = data.funnelSummary;
+      }
+
+      function toggleStageFilter(stageKey) {
+        activeStageFilter = activeStageFilter === stageKey ? "all" : stageKey;
+        const data = getActiveRunData();
+        renderWaterfall(data);
+        renderBizStages(data);
+        renderTrajectoryList();
+      }
+
+      function renderTrajectoryList() {
+        const data = getActiveRunData();
+        const q = (document.getElementById("trajSearch").value || "").trim().toLowerCase();
+        const items = data.trajectory.filter(
+          (i) =>
+            (activeStageFilter === "all" || i.stage === activeStageFilter) &&
+            (!q || i.title.toLowerCase().includes(q) || i.sub.toLowerCase().includes(q)),
+        );
+        function parseDurationMs(item) {
+          if (typeof item.ms === "number") return item.ms;
+          const m = (item.sub || "").match(/([\d,]+)\s*ms/i);
+          if (m) return parseInt(m[1].replace(/,/g, ""), 10);
+          return 20;
+        }
+
+        const maxMs = Math.max(1, ...items.map(parseDurationMs));
+        let lastTurn = null;
+        document.getElementById("trajList").innerHTML = items.length
+          ? items
+              .map((item) => {
+                const ms = parseDurationMs(item);
+                const pct = Math.max(2, Math.round((ms / maxMs) * 100));
+                const bgCls =
+                  item.tagCls === "tag-sec"
+                    ? "bg-sec"
+                    : item.otel === "tool"
+                      ? "bg-tool"
+                      : item.otel === "generation"
+                        ? "bg-model"
+                        : "bg-ctx";
+                const msLabel = ms >= 1000 ? (ms / 1000).toFixed(2) + "s" : ms + "ms";
+                const divider =
+                  item.turn !== lastTurn
+                    ? `<div class="turn-divider"><span>第 ${item.turn} 轮${item.runLabel ? " · " + item.runLabel : ""}</span><span>${activeStageFilter === "all" ? "" : "已按阶段筛选"}</span></div>`
+                    : "";
+                lastTurn = item.turn;
+                return `
+                  ${divider}
+                  <div class="traj-row ${item.id === selectedEventId ? "active" : ""}" onclick="selectEvent('${item.id}')">
+                    <div class="traj-row-bg ${bgCls}" style="width:${pct}%"></div>
+                    <span class="tag-role ${item.tagCls}">${item.tag}</span>
+                    <div class="traj-content">
+                      <div class="traj-text">${item.title}</div>
+                      <div class="traj-sub">${item.sub}</div>
+                    </div>
+                    <span class="traj-ms">${msLabel}</span>
+                  </div>
+                `;
+              })
+              .join("")
+          : '<div style="padding:20px;text-align:center;color:var(--muted)">无匹配轨迹</div>';
+      }
+
+      function selectEvent(id) {
+        selectedEventId = id;
+        const data = getActiveRunData();
+        renderWaterfall(data);
+        renderTrajectoryList();
+        renderDetailPane();
+      }
+
+      function setDetailTab(tab, btn) {
+        currentDetailTab = tab;
+        document.querySelectorAll(".detail-tab").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        renderDetailPane();
+      }
+
+      function renderDetailPane() {
+        const data = getActiveRunData();
+        const item = data.trajectory.find((t) => t.id === selectedEventId) || data.trajectory[0];
+        const tagEl = document.getElementById("detailTag");
+        tagEl.textContent = item.tag;
+        tagEl.className = "tag-role " + item.tagCls;
+        document.getElementById("detailStepTitle").textContent = `第 ${item.turn} 轮 · 第 ${item.step} 步`;
+        document.getElementById("detailOtelType").textContent = item.otel;
+
+        const body = document.getElementById("detailBody");
+        if (currentDetailTab === "overview") {
+          const rows = Object.entries(item.overview)
+            .map(([k, v]) => `<div class="kv-k">${k}</div><div class="kv-v">${v}</div>`)
+            .join("");
+          body.innerHTML = `<div class="kv-grid">${rows}</div><p style="margin:0">${item.title}</p>`;
+        } else if (currentDetailTab === "security") {
+          body.innerHTML = `<div class="notice-box" style="margin-bottom:8px">${item.security}</div><p style="font-size:12px;color:var(--muted)">策略模式：enforce（同步硬拦截）</p>`;
+        } else if (currentDetailTab === "raw") {
+          body.innerHTML = `<div class="code-panel"><div class="code-toolbar"><span>脱敏片段预览</span><span>零明文泄露</span></div><pre class="code-body">${item.raw.replace(/</g, "&lt;")}</pre></div>`;
+        } else {
+          body.innerHTML = `<div class="kv-grid"><div class="kv-k">来源标识</div><div class="kv-v" style="font-family:var(--font-code)">${item.source}</div><div class="kv-k">当前视角</div><div class="kv-v">${currentRole === "admin" ? "管理员全局审计" : "本人会话权限"}</div></div>`;
+        }
+      }
+
+      function runContextReplay() {
+        const protectDict = document.getElementById("optProtectDict").checked;
+        const budget = parseInt(document.getElementById("optBudget").value, 10);
+        const maxObs = parseInt(document.getElementById("optMaxObs").value, 10);
+        const candTokens = Math.min(budget - 300, 2200 + maxObs * 200 + (protectDict ? 420 : 0));
+        const delta = candTokens - 3910;
+        document.getElementById("candTokens").textContent = `${candTokens.toLocaleString()} tok (${delta > 0 ? "+" : ""}${delta})`;
+        document.getElementById("candDictStatus").innerHTML = protectDict
+          ? '权威口径：<span class="badge badge-ok">100% 完整保留</span>'
+          : '权威口径：<span class="badge badge-danger">仍缺失 1 项</span>';
+        showToast("Context-only Replay 执行完成");
+      }
+
+      function openSnapshotModal() {
+        openModal("snapshotModal");
+      }
+
+      function submitBadcase() {
+        const title = document.getElementById("newBcTitle").value.trim() || "未命名 Badcase";
+        const cat = document.getElementById("newBcCategory").value;
+        const card = document.createElement("div");
+        card.className = "decision-card";
+        card.innerHTML = `<div class="decision-head"><span class="decision-id">bc_new · run_9a7c2e</span><span class="badge badge-warn">${cat}</span></div><div style="font-size:13px"><strong>${title}</strong></div>`;
+        document.getElementById("badcaseList").prepend(card);
+        closeModal("badcaseModal");
+        switchTab("replay");
+        showToast("已沉淀脱敏 Badcase");
+      }
+
+      const MCP_SAMPLES = {
+        contextops_get_stats: { jsonrpc: "2.0", id: "req_01", result: { tenant_id: "contoso", session_count: 68, run_count: 142, avg_turns: 3.4, avg_search_turns: 2.1, drop_rate_pct: 64.2 } },
+        contextops_get_run_flow: { jsonrpc: "2.0", id: "req_02", result: { run_id: "run_9a7c2e", stages: ["intent", "search", "compile", "answer"], tokens_final: 3910, omitted_dictionary_items: ["dict_gmv_refund_rule"] } },
+        contextops_list_runs: { jsonrpc: "2.0", id: "req_03", result: { items: [{ run_id: "run_9a7c2e", actor: "zhangmin", duration_ms: 4820 }, { run_id: "run_4b1f80", actor: "liwei", security_blocked: 2 }] } },
+        contextops_list_badcases: { jsonrpc: "2.0", id: "req_04", result: { items: [{ id: "bc_01", root_cause: "compression_loss", policy_digest: "pol_8f3a1c" }] } },
+      };
+
+      function simulateMcp(toolName, btn) {
+        document.querySelectorAll("#mcpDrawer .chip").forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("mcpToolLabel").textContent = "JSON-RPC 2.0 · " + toolName;
+        document.getElementById("mcpResponseCode").textContent = JSON.stringify(MCP_SAMPLES[toolName], null, 2);
+      }
+
+      function openModal(id) {
+        document.getElementById(id).classList.add("open");
+      }
+      function closeModal(id) {
+        document.getElementById(id).classList.remove("open");
+      }
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") document.querySelectorAll(".overlay.open").forEach((el) => el.classList.remove("open"));
+      });
+
+      let toastTimer;
+      function showToast(msg) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove("show"), 2500);
+      }
+
+      populateSessionsAndRuns();
+      refreshDashboard(true);
+    </script>
+  </body>
+</html>

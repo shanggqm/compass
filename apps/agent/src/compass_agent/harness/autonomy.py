@@ -59,6 +59,32 @@ class AutonomyBudget:
         self.reason: str | None = None
         self.closed = False
         self.children: set[AutonomyBudget] = set()
+        self.root = self
+
+    def committed(self, resource: str) -> int:
+        """Count settled usage and outstanding reservations exactly once in the tree."""
+        reserved = 0
+        if self.reservation:
+            _, reservation = self.reservation
+            reserved = (
+                reservation.profile.input_tokens + reservation.output_limit
+                if resource == "tokens"
+                else reservation.cost(reservation.profile.input_tokens, reservation.output_limit)
+            )
+        return (
+            getattr(self, resource)
+            + reserved
+            + sum(child.committed(resource) for child in self.children)
+        )
+
+    def remaining(self, resource: str) -> int:
+        return max(
+            0,
+            min(
+                getattr(self.limits, resource) - self.committed(resource),
+                getattr(self.root.limits, resource) - self.root.committed(resource),
+            ),
+        )
 
     def require_continue(self) -> None:
         if self.reason is not None:
@@ -76,7 +102,13 @@ class AutonomyBudget:
         self.tools += 1
 
     def reserve(self, request: ExecutionRequest, attempt_id: UUID) -> bool:
-        if self.closed or self.reason is not None or self.reservation is not None:
+        if (
+            self.closed
+            or self.root.closed
+            or self.reason is not None
+            or self.root.reason is not None
+            or self.reservation is not None
+        ):
             return False
         spec = request.access.spec
         value = request.input
@@ -104,12 +136,9 @@ class AutonomyBudget:
         first_step = self.generation == request.context.call_id != self.counted_generation
         if first_step and self.steps >= self.limits.steps:
             self.reason = "max_steps"
-        elif self.tokens + profile.input_tokens + output_limit > self.limits.tokens:
+        elif profile.input_tokens + output_limit > self.remaining("tokens"):
             self.reason = "token_budget"
-        elif (
-            self.cost_microusd + reservation.cost(profile.input_tokens, output_limit)
-            > self.limits.cost_microusd
-        ):
+        elif reservation.cost(profile.input_tokens, output_limit) > self.remaining("cost_microusd"):
             self.reason = "cost_budget"
         if self.reason:
             return False
@@ -155,8 +184,20 @@ class AutonomyBudget:
         ):
             self.reason = "usage_bound_violation"
 
+    def can_slice(self, steps):
+        return (
+            self.reason is None
+            and len(self.children) + len(steps) <= 2
+            and self.limits.steps - self.steps - sum(c.limits.steps for c in self.children)
+            >= sum(steps) + 1
+            and self.limits.tools - self.tools - sum(c.limits.tools for c in self.children)
+            >= sum(v + 1 for v in steps) + 1
+            and self.remaining("tokens") >= len(steps)
+            and self.remaining("cost_microusd") >= len(steps)
+        )
+
     @contextmanager
-    def child_budget(self):
+    def child_budget(self, *, steps=3):
         self.require_continue()
         available = AutonomyLimits(
             steps=max(
@@ -165,15 +206,8 @@ class AutonomyBudget:
             tools=max(
                 0, self.limits.tools - self.tools - sum(c.limits.tools for c in self.children)
             ),
-            tokens=max(
-                0, self.limits.tokens - self.tokens - sum(c.limits.tokens for c in self.children)
-            ),
-            cost_microusd=max(
-                0,
-                self.limits.cost_microusd
-                - self.cost_microusd
-                - sum(c.limits.cost_microusd for c in self.children),
-            ),
+            tokens=self.remaining("tokens"),
+            cost_microusd=self.remaining("cost_microusd"),
         )
         if (
             available.steps < 3
@@ -182,16 +216,19 @@ class AutonomyBudget:
             or len(self.children) >= 2
         ):
             raise AutonomyStopped("max_steps" if available.steps < 3 else "max_tool_calls")
-        lanes = 3 - len(self.children)
+        # Money and tokens are reserved at dispatch against the shared Run pool.
+        # Fixed thirds can reject both children even when both calls fit together.
+        # Step/tool slices remain isolated so children cannot consume the parent loop.
         child = AutonomyBudget(
             self.profiles,
             AutonomyLimits(
-                steps=min(3, available.steps - 1),
-                tools=min(4, available.tools - 1),
-                tokens=available.tokens // lanes,
-                cost_microusd=available.cost_microusd // lanes,
+                steps=min(steps, available.steps - 1),
+                tools=min(steps + 1, available.tools - 1),
+                tokens=self.limits.tokens,
+                cost_microusd=self.limits.cost_microusd,
             ),
         )
+        child.root = self.root
         self.children.add(child)
         try:
             yield child

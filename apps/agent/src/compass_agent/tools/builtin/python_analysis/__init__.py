@@ -14,6 +14,19 @@ from compass_agent.tools.contracts import (
 from compass_agent.tools.registry import bounded_payload, parse_arguments
 
 
+def fingerprint(args, context=None):
+    from hashlib import sha256
+
+    from compass_agent.llm.continuation import canonical
+
+    source = context.sources.get(args.get("source_query_id")) if context else None
+    if source is None or not isinstance(source.data, dict):
+        return None
+    data = {k: v for k, v in source.data.items() if k in {"columns", "rows"}}
+    value = {"tool": "python_analysis", "code": args["code"], "input": data}
+    return sha256(canonical(value)).hexdigest(), "effect"
+
+
 def python_analysis_tool() -> RegisteredTool:
     def authorize(args, context):
         if not isinstance(args, dict) or not isinstance(args.get("code"), str):
@@ -49,6 +62,7 @@ def python_analysis_tool() -> RegisteredTool:
         bounded_payload,
         parallel_safe=True,
         evidence_adapter=calculation,
+        fingerprint=fingerprint,
     )
 
 
@@ -60,4 +74,5 @@ SPEC = ToolSpec(
     lambda context: context.sandbox,
     parallel_safe=True,
     factory=python_analysis_tool,
+    fingerprint=fingerprint,
 )

@@ -1,0 +1,174 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 1350"
+  class="agent-semantic-architecture"
+  role="img"
+  aria-labelledby="architecture-title architecture-desc"
+>
+  <title id="architecture-title">Agent 语义应用架构</title>
+  <desc id="architecture-desc">
+    前端通过自然语言提问、创建或修订指标。Run
+    受理时固定发布清单，识别任务后装配默认语义和工具声明。模型自主选择检索、受控指标查询、开放式
+    NL2SQL 或维护工具，Runtime 执行并回传结果。指标维护经过前端确认后由 Web 保存。
+  </desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#426e60" />
+    </marker>
+    <marker id="arrow-dashed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#807049" />
+    </marker>
+  </defs>
+  <style>
+    .agent-semantic-architecture text {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      fill: #203b31;
+      font-size: 15px;
+    }
+    .agent-semantic-architecture .heading {
+      font-size: 18px;
+      font-weight: 650;
+    }
+    .agent-semantic-architecture .small {
+      font-size: 13px;
+      fill: #536b60;
+    }
+    .agent-semantic-architecture .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+    }
+    .agent-semantic-architecture .node-title {
+      font-size: 16px;
+      font-weight: 650;
+    }
+    .agent-semantic-architecture .line {
+      fill: none;
+      stroke: #426e60;
+      stroke-width: 1.6;
+      marker-end: url(#arrow);
+    }
+    .agent-semantic-architecture .confirm {
+      fill: none;
+      stroke: #807049;
+      stroke-width: 1.7;
+      stroke-dasharray: 6 4;
+      marker-end: url(#arrow-dashed);
+    }
+  </style>
+  <rect width="1120" height="1350" fill="#fff" />
+
+  <rect x="24" y="16" width="1072" height="124" rx="10" fill="#f6f8f3" stroke="#d2ddd2" />
+  <text x="44" y="46" class="heading">前端 · 普通 Chat 与指标确认</text>
+  <rect x="44" y="64" width="470" height="56" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="60" y="87" class="node-title">自然语言输入</text>
+  <text x="60" y="108" class="">经营问题 / 创建指标 / 修订已有指标</text>
+  <rect x="650" y="64" width="426" height="56" rx="8" fill="#faf7ee" stroke="#d4c49c" />
+  <text x="668" y="87" class="node-title">指标预览与确认</text>
+  <text x="668" y="108" class="">确认公式、来源或字段差异，恢复原 Run</text>
+  <path d="M280 120 V169" class="line" />
+  <text x="295" y="159" class="small">提交问题与可信身份</text>
+  <rect x="24" y="180" width="720" height="342" rx="10" fill="#f1f6f3" stroke="#bdd1c4" />
+  <text x="44" y="211" class="heading">① 系统准备 · 自动执行</text>
+  <rect x="44" y="228" width="680" height="64" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="60" y="251" class="node-title">Run 受理 · 固定本次版本</text>
+  <text x="60" y="275" class="">manifest 读取发布 ID / 摘要，连同 PromptOps 版本写入 Run 快照</text>
+  <path d="M384 292 V306" class="line" />
+  <rect x="44" y="308" width="680" height="52" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="60" y="331" class="node-title">identify · 识别任务与场景</text>
+  <text x="366" y="331" class="small">路由提示词、可信组织、受理时刻与时区</text>
+  <path d="M384 360 V376" class="line" />
+  <rect x="44" y="378" width="680" height="124" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="60" y="402" class="node-title">首次业务模型调用前 · Context Runtime 装配</text>
+  <text x="60" y="426" class="">system 任务 Prompt + 命中场景 SOP + 语义 / 执行约束</text>
+  <text x="60" y="450" class="">user 默认语义 + 问题 / 历史 + Agent 库的获准结果</text>
+  <text x="60" y="474" class="">tools 按执行阶段、当前权限和已启用能力筛选工具</text>
+  <rect x="776" y="180" width="320" height="342" rx="10" fill="#edf3e7" stroke="#a9c29d" />
+  <text x="794" y="211" class="heading">Web 语义服务</text>
+  <text x="794" y="239" class="small">内部 HTTP → Web PostgreSQL</text>
+  <text x="794" y="272" class="node-title">manifest · 选择可用发布清单</text>
+  <text x="794" y="299" class="small">读取发布指针、清单及当前授权</text>
+  <text x="794" y="351" class="node-title">context · 生成默认语义包</text>
+  <text x="794" y="380" class="">全部可见术语的名称、别名、释义</text>
+  <text x="794" y="404" class="">问题命中 / 相关的实体和指标</text>
+  <text x="794" y="428" class="">实体与指标合计最多 8 项</text>
+  <text x="794" y="452" class="">附初步解析与明确请求的指标</text>
+  <path d="M776 263 H724" class="line" />
+  <path d="M776 435 H724" class="line" />
+  <text x="794" y="496" class="small">按固定清单读取，复核当前可见范围</text>
+  <path d="M280 502 V564" class="line" />
+  <text x="295" y="550" class="small">准备好的 messages + tools</text>
+  <rect x="24" y="570" width="1072" height="186" rx="10" fill="#f6f8f3" stroke="#d2ddd2" />
+  <text x="44" y="600" class="heading">② Agent Runtime · 模型自主决策与工具循环</text>
+  <rect x="44" y="616" width="450" height="116" rx="8" fill="#edf4e8" stroke="#aac39f" />
+  <text x="62" y="642" class="node-title">模型选择下一步</text>
+  <text x="62" y="668" class="">结合上下文与已有工具结果</text>
+  <text x="62" y="691" class="">自主选择工具、填写参数，或结束回答</text>
+  <text x="62" y="714" class="">查询与维护都在这条循环中推进</text>
+  <rect x="650" y="616" width="426" height="116" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="668" y="642" class="node-title">Runtime 统一调度</text>
+  <text x="668" y="668" class="">校验参数、能力与权限，调用对应工具</text>
+  <text x="668" y="691" class="">将工具结果回填为模型观察</text>
+  <text x="668" y="714" class="">遇到待确认动作，持久等待用户决定</text>
+  <path d="M494 650 H650" class="line" />
+  <text x="527" y="640" class="small">tool call</text>
+  <path d="M650 708 H494" class="line" />
+  <text x="522" y="698" class="small">工具结果</text>
+  <path d="M850 732 V790" class="line" />
+  <rect x="24" y="798" width="1072" height="358" rx="10" fill="#f6f8f3" stroke="#d2ddd2" />
+  <text x="44" y="828" class="heading">③ 按需调用 · 工具可见性由阶段与权限控制</text>
+  <path d="M560 840 H205 V856" class="line" />
+  <path d="M560 840 V856" class="line" />
+  <path d="M560 840 H935 V856" class="line" />
+  <rect x="44" y="858" width="322" height="278" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="60" y="884" class="node-title">语义检索与受控指标查询</text>
+  <text x="60" y="912" class="code">search_semantics</text>
+  <text x="60" y="933" class="code">get_metric_definition</text>
+  <text x="60" y="961" class="small">按需检索，读取完整定义与维度</text>
+  <text x="60" y="993" class="code">resolve_semantics</text>
+  <text x="60" y="1015" class="code">↓ query_ref</text>
+  <text x="60" y="1037" class="code">query_metric</text>
+  <text x="60" y="1073" class="">按已发布绑定执行受控聚合</text>
+  <text x="60" y="1095" class="">或已核准的参数化 SQL</text>
+  <rect x="399" y="858" width="322" height="278" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="415" y="884" class="node-title">开放式 NL2SQL</text>
+  <text x="415" y="916" class="code">database_query</text>
+  <text x="415" y="957" class="">模型按需发现连接、表与字段</text>
+  <text x="415" y="983" class="">生成只读 SQL 并提交执行</text>
+  <text x="415" y="1009" class="">适用于明细查询与临时算法</text>
+  <text x="415" y="1060" class="small">明确口径缺少正式绑定时，</text>
+  <text x="415" y="1084" class="small">可按授权明细计算并说明算法</text>
+  <rect x="754" y="858" width="322" height="278" rx="8" fill="#fff" stroke="#bdcfc2" />
+  <text x="770" y="884" class="node-title">自然语言指标维护</text>
+  <text x="770" y="912" class="code">discover_semantic_candidates</text>
+  <text x="770" y="935" class="code">review_semantic_change</text>
+  <text x="770" y="958" class="code">submit_semantic_change</text>
+  <text x="770" y="1000" class="small">创建 · 从素材或同会话结果建草稿</text>
+  <text x="770" y="1026" class="small">修订 · 定位已有指标，生成差异</text>
+  <text x="770" y="1052" class="small">保存前展示预览并等待本人确认</text>
+  <text x="770" y="1078" class="small">校验、送审按请求与授权执行</text>
+  <rect x="44" y="1186" width="322" height="116" rx="8" fill="#edf3e7" stroke="#a9c29d" />
+  <text x="60" y="1212" class="node-title">Agent 语义执行适配器</text>
+  <text x="60" y="1238" class="small">经 Web API 读取定义与绑定</text>
+  <text x="60" y="1261" class="small">校验计划、模板摘要与当前授权</text>
+  <text x="60" y="1284" class="small">执行已核准模板或受控聚合</text>
+  <rect x="399" y="1186" width="322" height="116" rx="8" fill="#edf3e7" stroke="#a9c29d" />
+  <text x="415" y="1212" class="node-title">授权只读业务连接</text>
+  <text x="415" y="1238" class="small">订单、支付、退款等业务事实</text>
+  <text x="415" y="1261" class="small">两种查询模式复用访问边界</text>
+  <text x="415" y="1284" class="small">结果与引用返回 Runtime</text>
+  <rect x="754" y="1186" width="322" height="116" rx="8" fill="#edf3e7" stroke="#a9c29d" />
+  <text x="770" y="1212" class="node-title">Web 语义 API</text>
+  <text x="770" y="1238" class="small">确认后保存草稿或修订版本</text>
+  <text x="770" y="1261" class="small">校验来源、摘要和请求键</text>
+  <text x="770" y="1284" class="small">后续发布供新 Run 读取</text>
+  <path d="M205 1136 V1186" class="line" />
+  <path d="M560 1136 V1186" class="line" />
+  <path d="M915 1136 V1186" class="line" />
+  <path d="M366 1244 H399" class="line" />
+  <path d="M1076 1030 H1108 V92 H1076" class="confirm" />
+  <path d="M760 120 V548 H863 V616" class="confirm" />
+  <text x="780" y="541" class="small">确认后恢复原任务</text>
+  <text x="44" y="1333" class="small">
+    实线 · 数据与执行关系 虚线 · 前端确认与恢复 工具调用顺序由模型结合任务和返回结果决定
+  </text>
+</svg>

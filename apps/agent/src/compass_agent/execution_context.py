@@ -24,7 +24,17 @@ def execution_scope(name, *, absolute=False):
         execution_path.reset(token)
 
 
-async def recorded(kind, key, inputs, operation, result_type, *, definition=None, budget=None):
+async def recorded(
+    kind,
+    key,
+    inputs,
+    operation,
+    result_type,
+    *,
+    definition=None,
+    budget=None,
+    settled_on_return=False,
+):
     journal = current_execution.get()
     if journal is None:
         return await operation()
@@ -36,4 +46,5 @@ async def recorded(kind, key, inputs, operation, result_type, *, definition=None
         result_type,
         definition=definition,
         budget=budget,
+        settled_on_return=settled_on_return,
     )

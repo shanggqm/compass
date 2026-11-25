@@ -114,6 +114,19 @@ class RegistryTools:
                 raise ToolRejected("semantic_reference_expired")
             return self.store.private.open(row.run_id, row.kind, row.private_payload)
 
+    def query_identity(self, ref):
+        """Read the immutable plan while the caller may already own the session lock."""
+        with self.store.transaction() as tx:
+            row = tx.get(SemanticMetricOffer, UUID(ref))
+            if (
+                not row
+                or row.kind != "plan"
+                or row.run_id != self.journal.run_id
+                or row.owner_id != self.trusted.actor_user_id
+            ):
+                raise ToolRejected("semantic_reference_expired")
+            return self.store.private.open(row.run_id, row.kind, row.private_payload)
+
     def open_result(self, ref):
         try:
             return ref, self.get(ref, "open", session_scope=True)
@@ -343,6 +356,11 @@ class RegistryTools:
             restrict_connections(targets, getattr(self.journal, "search_snapshot", None)),
             info["binding"],
         )
+        if (
+            getattr(execution, "connection_ids", None) is not None
+            and str(conn.connection_id or conn.workspace_id) not in execution.connection_ids
+        ):
+            raise ToolRejected("delegation_out_of_scope")
         parameters = dict(args.get("parameters") or plan["parameters"])
         requested_cutoff = parameters.get("as_of")
         expected_cutoff = plan["parameters"]["as_of"]
@@ -562,6 +580,16 @@ def read_sources(store, trusted, refs):
 
 
 def open_digest(result):
+    if result.context_result:
+        manifest = result.context_result
+        return digest(
+            {
+                "columns": list(result.columns),
+                "sha256": manifest["sha256"],
+                "count": manifest["returnedCount"],
+                "complete": manifest["complete"],
+            }
+        )
     return digest(
         {"columns": list(result.columns), "rows": result.rows, "truncated": result.truncated}
     )
@@ -603,8 +631,11 @@ def remember_open(journal, context, args, result, binding):
             "connection": str(binding.connection_id or binding.workspace_id),
             "revision": binding.revision,
             "fingerprint": open_digest(result),
+            "fingerprint_format": "jsonl" if result.context_result else "inline",
             "definition_hash": signature,
-            "complete": not result.truncated,
+            "complete": result.context_result["complete"]
+            if result.context_result
+            else not result.truncated,
             "proposal": proposal,
             "question": question[:320],
         },
@@ -653,7 +684,11 @@ async def verify_open(store, trusted, ref):
     # must not advance the Run's deterministic ID sequence or open a journal attempt.
     token = current_execution.set(None)
     try:
-        result = await control.perform(lambda: query_database_live(call, binding, control))
+        result = await control.perform(
+            lambda: query_database_live(
+                call, binding, control, fingerprint_only=data.get("fingerprint_format") == "jsonl"
+            )
+        )
     finally:
         current_execution.reset(token)
     return isinstance(result, DatabaseResult) and open_digest(result) == data.get("fingerprint")

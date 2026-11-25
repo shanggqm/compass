@@ -1,0 +1,37 @@
+{
+  "lesson": 25,
+  "title": "长任务上下文治理",
+  "subtitle": "用目标控制器跨轮推进，用进度账本不丢不重做，用双向 Handoff 管住子任务的输入与交付。",
+  "brand": "Compass",
+  "label": "第 25 课 · 技术方案",
+  "source": "../TECH_DESIGN.md",
+  "guide": "guide.md",
+  "output": "../TECH_DESIGN.html",
+  "code": {
+    "delegation": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class DelegationTask(RunContractModel):",
+      "language": "python"
+    },
+    "child-return": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ChildReturn(RunContractModel):",
+      "language": "python"
+    },
+    "child-budget": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def can_slice(self, steps: int) -> bool:",
+      "language": "diff"
+    },
+    "admit": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def _admit(self, tx, goal, session) -> None:",
+      "language": "python"
+    },
+    "gate": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def request_completion(",
+      "language": "python"
+    }
+  }
+}

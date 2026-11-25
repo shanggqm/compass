@@ -97,9 +97,16 @@ def after_tool_batch(journal, step, results, registry, trusted):
             }
             if entry and entry.evidence_adapter and result.status in {"ok", "empty"}:
                 try:
-                    items = list(
-                        entry.evidence_adapter(
-                            json.loads(call.function.arguments), result.payload, refs
+                    items = (
+                        [
+                            {"importEvidenceId": identifier}
+                            for identifier in result.payload["evidenceIds"]
+                        ]
+                        if isinstance(result.payload, dict) and result.payload.get("reused")
+                        else list(
+                            entry.evidence_adapter(
+                                json.loads(call.function.arguments), result.payload, refs
+                            )
                         )
                     )
                 except (ValueError, KeyError, TypeError):
@@ -159,6 +166,19 @@ def after_tool_batch(journal, step, results, registry, trusted):
                             "record": item["record"],
                         }
                     )
+            from compass_agent.goal.ledger import Ledger
+
+            context = getattr(journal, "goal_tool_contexts", {}).get((str(step.id), call.id))
+            Ledger(journal.store).remember(
+                tx,
+                run,
+                journal,
+                call,
+                result,
+                entry,
+                [evidence[v["evidenceId"]] for v in observed["evidence"]],
+                context,
+            )
             observations.append(observed)
         journal.answer_evidence = ledger
         save_private(

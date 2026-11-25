@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pglast import ast, parse_sql
+from pglast.enums import SetOperation
 from pglast.stream import RawStream
 from psycopg import sql
 
@@ -38,6 +39,33 @@ async def retail_projection(cursor, binding, query):
     if not isinstance(binding.scope_check, LegacyScopeCheck):
         return None
     stmt = parse_sql(query)[0].stmt
+    if isinstance(stmt, ast.SelectStmt) and stmt.op == SetOperation.SETOP_UNION:
+        # Certify every branch with the ordinary single-SELECT rules. Collecting
+        # all branch inputs also covers UNION DISTINCT and outer ORDER/LIMIT.
+        branches = []
+
+        def collect(node):
+            if not isinstance(node, ast.SelectStmt) or node.withClause:
+                return False
+            if node.op == SetOperation.SETOP_UNION:
+                return collect(node.larg) and collect(node.rarg)
+            branches.append(node)
+            return len(branches) <= 4
+
+        if not collect(stmt):
+            return None
+        projections = []
+        columns = {}
+        for branch in branches:
+            projection = await retail_projection(cursor, binding, RawStream()(branch))
+            if projection is None:
+                return None
+            projections.append("(" + projection[0] + ")")
+            for relation, used in projection[1].items():
+                columns.setdefault(relation, set()).update(used)
+        if len(columns) > 4:
+            return None
+        return " UNION ".join(projections), {k: sorted(v) for k, v in columns.items()}
     if not isinstance(stmt, ast.SelectStmt) or not stmt.fromClause:
         return None
     nodes = list(_nodes(stmt))

@@ -202,3 +202,25 @@ async def test_shared_cleanup_confirmation_releases_only_sandbox_quarantine():
     assert slots.pending("sandbox") == set() and slots.pending("mcp") == {identifier}
     await slots.confirm_cleanup(identifier, environment="mcp")
     assert slots.active == 0
+
+
+@pytest.mark.anyio
+async def test_unknown_input_returns_durable_rejection_before_allocating():
+    from dataclasses import asdict
+    from uuid import uuid4
+
+    from compass_agent.tools.contracts import SandboxBinding
+
+    backend = SandboxBackend(cast(Any, None), domain="unused", api_key="unit", image="unit")
+    context = SimpleNamespace(
+        call_id="chart", sources={}, owner=(uuid4(), uuid4(), uuid4()), run_id=uuid4()
+    )
+    receipt = await backend.execute(
+        SandboxBinding(environment="sandbox", runtime_profile="python"),
+        {"source_query_id": "unknown-result", "code": "result = {}"},
+        cast(Any, context),
+    )
+    assert receipt.status == "rejected"
+    assert receipt.cleanup == "not_started"
+    assert receipt.reason_code == "sandbox_source_denied"
+    assert asdict(receipt)["cleanup"] == "not_started"

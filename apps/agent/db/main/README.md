@@ -1,6 +1,6 @@
 # Agent / main 数据库
 
-Owner 为 `agent/main`，PostgreSQL 17。迁移唯一源为 [Alembic revisions](../../migrations/versions/)，受管工具为 [database.py](../../scripts/database.py)。当前版本 `0018`：保留 `0001` 的演示数据，0002 增加 `model_provider`、`model_change`、`model_call`，0003 将已有 `aliyun_decision` 绑定迁移为通用 `systemone_decision`，保持 ID、型号、凭据、配置版本和历史记录。0004 为调用表追加可空 `execution` JSON，记录至多两次尝试的安全摘要；旧行保持 null。0005 新增每个工作区一行的 `retail_connection`，配置密码加密，更新按 revision 比较。0006 将旧 Retail 记录复制为工作区默认连接，保留密码密文和 revision，再移除原表。新 `data_connection` 同时支持普通 PostgreSQL 与 MySQL。0007 追加 `workflow_asset`，保存工作区个人的 JS 源码、摘要与运行契约。0008 增加 MCP 配置和 Sandbox 租约。0009 增加持久运行实体及物理模型尝试，扩展调用表的加密输入/输出。0010 增加运行调度。`0011` 增加会话标题状态、任务领取信息与软删除时间。0012 给工作流资产增加工具说明和参数 JSON Schema。0013 为 Provider 增加可空的模型容量元数据和生成默认值。0014 新增工作流软删除。0015 新增计划、触发、角色控制及回收和发布租约。0016 保存 PromptOps 代次与运行上下文。Run 快照保存 Registry 发布引用；0018 核对清单与摘要并清理重复存储。Provider 凭据与 Runtime 内容使用不同用途的密文。
+Owner 为 `agent/main`，PostgreSQL 17。迁移唯一源为 [Alembic revisions](../../migrations/versions/)，受管工具为 [database.py](../../scripts/database.py)。当前版本 `0019`：保留 `0001` 的演示数据，0002 增加 `model_provider`、`model_change`、`model_call`，0003 将已有 `aliyun_decision` 绑定迁移为通用 `systemone_decision`，保持 ID、型号、凭据、配置版本和历史记录。0004 为调用表追加可空 `execution` JSON，记录至多两次尝试的安全摘要；旧行保持 null。0005 新增每个工作区一行的 `retail_connection`，配置密码加密，更新按 revision 比较。0006 将旧 Retail 记录复制为工作区默认连接，保留密码密文和 revision，再移除原表。新 `data_connection` 同时支持普通 PostgreSQL 与 MySQL。0007 追加 `workflow_asset`，保存工作区个人的 JS 源码、摘要与运行契约。0008 增加 MCP 配置和 Sandbox 租约。0009 增加持久运行实体及物理模型尝试，扩展调用表的加密输入/输出。0010 增加运行调度。`0011` 增加会话标题状态、任务领取信息与软删除时间。0012 给工作流资产增加工具说明和参数 JSON Schema。0013 为 Provider 增加可空的模型容量元数据和生成默认值。0014 新增工作流软删除。0015 新增计划、触发、角色控制及回收和发布租约。0016 保存 PromptOps 代次与运行上下文。Run 快照保存 Registry 发布引用；0018 核对清单与摘要并清理重复存储。Provider 凭据与 Runtime 内容使用不同用途的密文。
 
 ## 配置与执行
 
@@ -24,11 +24,11 @@ pnpm db:sql:check -F agent
 
 ## SQL 交付
 
-[manifest.json](sql/manifest.json) 登记工具版本、源路径、SHA-256 和固定区间。清单 sources 相对本目录，files 相对 sql/。[bootstrap.sql](sql/bootstrap.sql) 从空库安装 0018，受管增量覆盖 0001～0018。已有历史增量保留原字节。使用受管入口安装：
+[manifest.json](sql/manifest.json) 登记工具版本、源路径、SHA-256 和固定区间。清单 sources 相对本目录，files 相对 sql/。[bootstrap.sql](sql/bootstrap.sql) 从空库安装 0019，受管增量覆盖 0001～0019。已有历史增量保留原字节。使用受管入口安装：
 
 ```bash
-pnpm db:apply-sql -F agent -- --from empty --to 0018
-# 旧库按当前版本填写 --from，0016 升级示例使用 --from 0016 --to 0018。
+pnpm db:apply-sql -F agent -- --from empty --to 0019
+# 旧库按当前版本填写 --from，0016 升级示例使用 --from 0016 --to 0019。
 ```
 
 先完成供应与备份，停止模型写入，迁移 Agent 到 0017。按部署需要使用运行账号执行 seed 导入默认 Retail 连接，再发布两端应用。准备服务令牌、加密密钥与端点允许列表。数据库各自独立事务；任一步失败保留实际版本并停止功能开放。
@@ -94,3 +94,11 @@ Agent 独占提示词草稿、不可变正文版本、版本清单、快照、�
 ## 0018 经营语义与查询回执
 
 Run 在 `agent_run.config_snapshot.contextRuntime.registry` 固定发布 ID 和摘要。会话私有回执继续保存在 `semantic_metric_offer`。从 0017 升级时核对每行既有清单与所属 Run 快照。出现差异会回滚，修复快照并复核后重试。升级前暂停旧 Agent 和 Scheduler，备份数据库与私有状态密钥。需要恢复时以原应用版本连接还原的独立库。[迁移源](../../migrations/versions/0018_semantic_cleanup.py) · [增量 SQL](sql/upgrades/0017__0018.sql)
+
+## 0019 目标与进度账本
+
+`agent/main` 独占 `agent_goal` 与 `agent_goal_entry`，目标属于 Session，来源内容使用 Runtime 私有状态密钥加密。每个会话最多一个未结束目标；账本由 `(goal_id, entry_key)` 唯一定位。运行角色仅获 SELECT / INSERT / UPDATE，保留历史目标与账本。
+
+升级前暂停接收并排空旧策略 Run，停止 Agent / Scheduler，备份 Agent 数据库与私有状态密钥。执行 `pnpm db:migrate -F agent`，或 `pnpm db:apply-sql -F agent -- --from 0018 --to 0019`，再启动新版服务并发布本课提示词。恢复时停止新版，将备份还原到独立库并用旧应用版本连接；保留升级后的库供核对。迁移不自动降级删除已产生的目标数据。
+
+[迁移源](../../migrations/versions/0019_goal_ledger.py) · [0018→0019 SQL](sql/upgrades/0018__0019.sql) · [完整 SQL](sql/bootstrap.sql)。原区间 SQL 保持不可变。空库、旧库、生成一致性、受限角色和独立库恢复由 `test_database_tools_integration.py` 与 Feature 983 的数据库验收覆盖。

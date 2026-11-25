@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from compass_agent.context_runtime.optimization_calls import auxiliary_call
@@ -44,9 +45,16 @@ def recent_turns(groups, selected_ids, budget):
 
 
 def summary_request(prompt, question, previous, material, output):
+    target = min(768, max(1, output // 2))
     return GenerateInput(
         messages=[
-            ChatMessage(role="system", content=prompt),
+            ChatMessage(
+                role="system",
+                content=prompt
+                + f"\n本次交接正文以 {target} tokens 为目标，必须在 {output} tokens 内完整结束。"
+                "优先写下一步必需的约定、已执行动作、关键结论和回读定位；"
+                "大量明细保留回读位置，不逐项复制。合并上一份摘要后仍遵守同一长度目标。",
+            ),
             ChatMessage(
                 role="user",
                 content=canonical(
@@ -112,7 +120,7 @@ def fragments(group, recoverable=(), seen=None):
         }
 
 
-def split_material(item, fits):
+def split_material(item: dict, fits: Callable[[list[dict]], bool]) -> list[dict]:
     """Only the summarizer receives text fragments; main tool exchanges stay atomic."""
     if fits([item]):
         return [item]
@@ -232,14 +240,20 @@ async def summarize(
     )
     if not pending and reuse and previous:
         return previous
+    # A model's large input window does not make a 2K-token handoff capable of
+    # summarizing an entire long tool history in one response. Bound each merge
+    # by its output budget too, preserving every original range across batches.
+    batch_limit: int = min(
+        limit,
+        max(output * 12, request_size(summary_request(prompt, question, text, [], output)) + 1024),
+    )
+    default_batch_limit = batch_limit
+    truncated_retries = 0
+
+    def fits(items: list[dict]) -> bool:
+        return request_size(summary_request(prompt, question, text, items, output)) <= batch_limit
+
     while pending:
-
-        def fits(items, previous_text=text):
-            return (
-                request_size(summary_request(prompt, question, previous_text, items, output))
-                <= limit
-            )
-
         if not fits([]):
             raise ModelError("context_summary_input_too_large", 422)
         # The current handoff occupies input space too. Split against that exact request.
@@ -272,8 +286,23 @@ async def summarize(
             or result.finish_reason == "length"
             or not result.text.strip()
         ):
+            if result.finish_reason == "length" or result.error_code == "output_truncated":
+                floor = request_size(summary_request(prompt, question, text, [], output)) + 512
+                smaller: int = max(floor, batch_limit // 2)
+                if truncated_retries < 2 and smaller < batch_limit:
+                    # Never reuse a truncated summary or mark its ranges covered.
+                    # Retry smaller original material through normal journal/budget
+                    # accounting; a new request fingerprint gives it a distinct call.
+                    pending = material + pending
+                    batch_limit = smaller
+                    truncated_retries += 1
+                    continue
             raise ModelError(result.error_code or "context_summary_unavailable", 503)
         text = result.text
+        # A smaller retry applies to that failed merge only. Carrying it forward
+        # lets the rolling summary crowd out all subsequent original material.
+        batch_limit = default_batch_limit
+        truncated_retries = 0
         attempts.append(str(journal.last_attempt))
     refs = []
     for group in groups:

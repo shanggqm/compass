@@ -140,6 +140,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analysis/runs/{run_id}/children/{child_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Child Trace */
+        get: operations["child_trace_v1_analysis_runs__run_id__children__child_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analysis/runs/{run_id}/citations": {
         parameters: {
             query?: never;
@@ -480,6 +497,40 @@ export interface paths {
         put?: never;
         /** Reset */
         post: operations["reset_v1_analysis_sessions__session_id__context_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analysis/sessions/{session_id}/goal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Goal */
+        get: operations["read_goal_v1_analysis_sessions__session_id__goal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analysis/sessions/{session_id}/goal/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Goal Action */
+        post: operations["goal_action_v1_analysis_sessions__session_id__goal_actions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1889,6 +1940,20 @@ export interface components {
              */
             tool_calls: components["schemas"]["ToolCall"][] | null;
         };
+        /** ChildTraceSnapshot */
+        ChildTraceSnapshot: {
+            /**
+             * Answer
+             * @default null
+             */
+            answer: string | null;
+            /** Childrunid */
+            childRunId: string;
+            /** Nodes */
+            nodes: components["schemas"]["RunExecutionNode"][];
+            /** Seq */
+            seq: string;
+        };
         /** CitationAnchor */
         CitationAnchor: {
             /** Citationid */
@@ -2377,8 +2442,12 @@ export interface components {
         ExecutionSubAgent: {
             /** Childrunid */
             childRunId?: string | null;
+            /** Deliverystatus */
+            deliveryStatus?: ("completed" | "partial" | "blocked" | "failed") | null;
             /** Name */
             name: string;
+            /** Taskname */
+            taskName?: string | null;
         };
         /** ExecutionSummary */
         ExecutionSummary: {
@@ -2639,6 +2708,124 @@ export interface components {
                 [key: string]: "override" | "litellm" | "unknown";
             };
             limits?: components["schemas"]["ModelTokenLimits"];
+        };
+        /** GoalAcceptance */
+        GoalAcceptance: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+        };
+        /** GoalAction */
+        GoalAction: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "pause" | "resume" | "cancel" | "interrupt";
+            /** Expectedrevision */
+            expectedRevision: number;
+            /**
+             * Requestid
+             * Format: uuid
+             */
+            requestId: string;
+        };
+        /** GoalBudget */
+        GoalBudget: {
+            /**
+             * Costmicrousd
+             * @default 20000000
+             */
+            costMicrousd: number;
+            /**
+             * Maxrounds
+             * @default 12
+             */
+            maxRounds: number;
+            /**
+             * Tokens
+             * @default 2000000
+             */
+            tokens: number;
+        };
+        /** GoalContract */
+        GoalContract: {
+            /** Acceptance */
+            acceptance: components["schemas"]["GoalAcceptance"][];
+            /** Constraints */
+            constraints?: string[];
+            /** Objective */
+            objective: string;
+        };
+        /** GoalCounts */
+        GoalCounts: {
+            /** Conflicts */
+            conflicts: number;
+            /** Opentodos */
+            openTodos: number;
+            /** Reusedcalls */
+            reusedCalls: number;
+            /** Stale */
+            stale: number;
+        };
+        /** GoalProposal */
+        GoalProposal: {
+            budget?: components["schemas"]["GoalBudget"];
+            contract: components["schemas"]["GoalContract"];
+            /**
+             * Expectedrevision
+             * @default null
+             */
+            expectedRevision: number | null;
+            /**
+             * Goalid
+             * @default null
+             */
+            goalId: string | null;
+        };
+        /** GoalUsage */
+        GoalUsage: {
+            /** Costmicrousd */
+            costMicrousd: number;
+            /** Costpct */
+            costPct: number;
+            /** Overrun */
+            overrun: boolean;
+            /** Rounds */
+            rounds: number;
+            /** Tokens */
+            tokens: number;
+            /** Tokenspct */
+            tokensPct: number;
+        };
+        /** GoalView */
+        GoalView: {
+            budget: components["schemas"]["GoalBudget"];
+            contract: components["schemas"]["GoalContract"];
+            counts: components["schemas"]["GoalCounts"];
+            /** Goalid */
+            goalId: string;
+            /**
+             * Reason
+             * @default null
+             */
+            reason: string | null;
+            /**
+             * Reasoncode
+             * @default null
+             */
+            reasonCode: string | null;
+            /** Revision */
+            revision: number;
+            /** Satisfied */
+            satisfied?: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "blocked" | "budget_limited" | "completed" | "canceled";
+            usage: components["schemas"]["GoalUsage"];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3851,6 +4038,8 @@ export interface components {
             decisionId: string | null;
             /** Expiresat */
             expiresAt: string | null;
+            /** @default null */
+            goal: components["schemas"]["GoalProposal"] | null;
             /**
              * Kind
              * @enum {string}
@@ -5091,6 +5280,15 @@ export interface components {
             /** Sessionid */
             sessionId: string;
         };
+        /** SessionGoal */
+        SessionGoal: {
+            goal: components["schemas"]["GoalView"] | null;
+            /**
+             * Runid
+             * @default null
+             */
+            runId: string | null;
+        };
         /** SessionList */
         SessionList: {
             /** Items */
@@ -5514,6 +5712,8 @@ export interface components {
              * @default null
              */
             connectionRevision: number | null;
+            /** @default null */
+            goal: components["schemas"]["GoalProposal"] | null;
             /** Proposalid */
             proposalId: string;
             /**
@@ -5867,6 +6067,8 @@ export interface components {
             fields: {
                 [key: string]: components["schemas"]["JsonValue"];
             } | null;
+            /** @default null */
+            goal: components["schemas"]["GoalProposal"] | null;
             /**
              * Kind
              * @enum {string}
@@ -6491,6 +6693,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    child_trace_v1_analysis_runs__run_id__children__child_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path: {
+                run_id: string;
+                child_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChildTraceSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7463,6 +7700,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ControlReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_goal_v1_analysis_sessions__session_id__goal_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionGoal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    goal_action_v1_analysis_sessions__session_id__goal_actions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionGoal"];
                 };
             };
             /** @description Validation Error */

@@ -6,6 +6,7 @@ import {
   Bot,
   BrainCircuit,
   ChevronDown,
+  ChevronRight,
   Database,
   GitFork,
   LoaderCircle,
@@ -16,6 +17,11 @@ import {
   Wrench,
 } from "lucide-react";
 import { executionActive, type ExecutionNode } from "@/contracts/execution-node";
+import { ApiError } from "@/client/request-scope";
+import type { ChildTraceLoader } from "@/client/child-trace";
+import { AnalysisMarkdown } from "../analysis-markdown";
+import { Modal } from "./dialog";
+import { UiButton } from "./button";
 import { UiCodeBlock } from "./code-block";
 import { withDatabaseQuerySummary } from "./database-query-summary";
 
@@ -40,6 +46,13 @@ const statuses = {
 } satisfies Record<ExecutionNode["status"], string>;
 
 export type ExecutionEntry = Pick<ExecutionNode, "id" | "kind" | "status" | "title" | "summary"> & {
+  parentId?: string | null;
+  childRunId?: string | null;
+  deliveryStatus?: string | null;
+  revision?: number;
+  startedAtMs?: number;
+  endedAtMs?: number | null;
+  children?: ExecutionEntry[];
   context?: string[];
   input?: string | null;
   output?: string | null;
@@ -55,7 +68,7 @@ export function executionEntries(
   active: boolean,
 ): ExecutionEntry[] {
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
-  return [...nodes]
+  const entries = [...nodes]
     .filter(
       (node) =>
         node.kind !== "model" ||
@@ -104,6 +117,12 @@ export function executionEntries(
       const narration = node.detail?.narration;
       const entry: ExecutionEntry = {
         id: node.id,
+        parentId: node.parentId,
+        childRunId: node.subagent?.childRunId,
+        deliveryStatus: node.subagent?.deliveryStatus,
+        revision: node.revision,
+        startedAtMs: node.startedAtMs,
+        endedAtMs: node.endedAtMs,
         kind: node.kind,
         status: !active && executionActive(node) ? "incomplete" : node.status,
         title:
@@ -127,6 +146,20 @@ export function executionEntries(
         ? withDatabaseQuerySummary(entry)
         : entry;
     });
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const roots: ExecutionEntry[] = [];
+  for (const entry of entries) {
+    let ancestor = entry.parentId ? nodesById.get(entry.parentId) : undefined;
+    const visited = new Set<string>();
+    while (ancestor && !ancestor.subagent?.childRunId && !visited.has(ancestor.id)) {
+      visited.add(ancestor.id);
+      ancestor = ancestor.parentId ? nodesById.get(ancestor.parentId) : undefined;
+    }
+    const parent = ancestor ? byId.get(ancestor.id) : undefined;
+    if (parent?.childRunId) (parent.children ??= []).push(entry);
+    else roots.push(entry);
+  }
+  return roots;
 }
 
 const toolKinds = {
@@ -144,6 +177,12 @@ function entryKind(entry: ExecutionEntry) {
 
 function entryText(entry: ExecutionEntry) {
   return entry.thinking ?? entry.narration ?? entry.title;
+}
+
+function entryStatus(entry: ExecutionEntry) {
+  if (entry.deliveryStatus === "partial") return "部分完成";
+  if (entry.deliveryStatus === "blocked") return "受阻";
+  return statuses[entry.status];
 }
 
 function EntryLine({ entry }: { entry: ExecutionEntry }) {
@@ -168,13 +207,161 @@ function EntryLine({ entry }: { entry: ExecutionEntry }) {
         {spinning && (
           <LoaderCircle className="analysis-loading-spinner" size={13} aria-hidden="true" />
         )}
-        {statuses[entry.status]}
+        {entryStatus(entry)}
       </span>
     </>
   );
 }
 
-function ExecutionRow({ entry }: { entry: ExecutionEntry }) {
+function ChildDrawer({
+  entry,
+  loadChild,
+  onClose,
+  returnFocus,
+}: {
+  entry: ExecutionEntry;
+  loadChild?: ChildTraceLoader;
+  onClose: () => void;
+  returnFocus: () => HTMLElement | null;
+}) {
+  const [snapshot, setSnapshot] = useState<{ root: ExecutionEntry; answer?: string | null }>();
+  const [state, setState] = useState<"loading" | "ready" | "error" | "denied">("loading");
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!loadChild || !entry.childRunId) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const read = async () => {
+      try {
+        const result = await loadChild(entry.childRunId!, controller.signal);
+        if (controller.signal.aborted) return;
+        const root = executionEntries(result.nodes, true).find(
+          (node) => node.childRunId === entry.childRunId,
+        );
+        if (!root) throw new Error("Missing child execution");
+        setSnapshot({ root, answer: result.answer });
+        setState("ready");
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setSnapshot(undefined);
+        setState(
+          error instanceof ApiError && [403, 404].includes(error.status) ? "denied" : "error",
+        );
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(read, 5000);
+      }
+    };
+    void read();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [loadChild, entry.childRunId, retry]);
+  const ready = !loadChild || state === "ready";
+  const root = loadChild ? snapshot?.root : entry;
+  const answer = loadChild ? snapshot?.answer : entry.output;
+  const running = root?.status === "running" || root?.status === "preparing";
+  return (
+    <Modal
+      title={entry.title}
+      description="子 Agent · 执行过程与回答"
+      open
+      placement="right"
+      onClose={onClose}
+      returnFocus={returnFocus}
+    >
+      <div className="ui-child-execution">
+        {!ready && state === "loading" && <p role="status">正在加载执行过程…</p>}
+        {!ready && state === "denied" && <p role="status">此执行过程不可访问</p>}
+        {!ready && state === "error" && (
+          <div role="alert">
+            <p>暂时无法加载执行过程</p>
+            <UiButton
+              variant="secondary"
+              onClick={() => {
+                setState("loading");
+                setRetry(retry + 1);
+              }}
+            >
+              重试
+            </UiButton>
+          </div>
+        )}
+        {ready && root && (
+          <>
+            <UiExecutionTimeline
+              entries={root.children ?? []}
+              label={entryStatus(root)}
+              running={running}
+              completed={root.status === "completed"}
+              submittedAtMs={root.startedAtMs}
+              durationMs={
+                root.endedAtMs != null && root.startedAtMs != null
+                  ? Math.max(0, root.endedAtMs - root.startedAtMs)
+                  : undefined
+              }
+              loadChild={loadChild}
+              defaultExpanded
+            />
+            <section className="analysis-final-answer" aria-label="子任务回答">
+              <h3>回答</h3>
+              {answer ? (
+                <AnalysisMarkdown source={answer} />
+              ) : (
+                <p className="ui-child-answer-empty">
+                  {running ? "子任务执行中，回答将在完成后显示。" : "此子任务尚未生成回答。"}
+                </p>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function ChildRow({ entry, loadChild }: { entry: ExecutionEntry; loadChild?: ChildTraceLoader }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  return (
+    <li data-node-id={entry.id} data-kind="subagent" data-status={entry.status}>
+      <button
+        ref={trigger}
+        type="button"
+        className="ui-timeline-row ui-child-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <EntryLine entry={entry} />
+        <ChevronRight size={15} aria-hidden="true" />
+      </button>
+      {open && (
+        <ChildDrawer
+          entry={entry}
+          loadChild={loadChild}
+          onClose={() => setOpen(false)}
+          returnFocus={() => {
+            const button = trigger.current;
+            return button?.closest("[hidden]")
+              ? (button
+                  .closest(".analysis-process")
+                  ?.querySelector<HTMLButtonElement>(".analysis-process-toggle") ?? null)
+              : button;
+          }}
+        />
+      )}
+    </li>
+  );
+}
+
+function ExecutionRow({
+  entry,
+  loadChild,
+}: {
+  entry: ExecutionEntry;
+  loadChild?: ChildTraceLoader;
+}) {
   const detailId = useId();
   const [open, setOpen] = useState(false);
   const hasDetail = Boolean(
@@ -185,6 +372,7 @@ function ExecutionRow({ entry }: { entry: ExecutionEntry }) {
     entry.summary ||
     entry.context?.length,
   );
+  if (entry.childRunId) return <ChildRow entry={entry} loadChild={loadChild} />;
   if (!hasDetail) {
     return (
       <li data-node-id={entry.id} data-kind={entry.kind} data-status={entry.status}>
@@ -250,6 +438,8 @@ export function UiExecutionTimeline({
   submittedAtMs,
   durationMs,
   action,
+  loadChild,
+  defaultExpanded = false,
 }: {
   entries: readonly ExecutionEntry[];
   latestId?: string;
@@ -259,13 +449,15 @@ export function UiExecutionTimeline({
   submittedAtMs?: number;
   durationMs?: number;
   action?: ReactNode;
+  defaultExpanded?: boolean;
+  loadChild?: ChildTraceLoader;
 }) {
   const listId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLOListElement>(null);
   const followLatest = useRef(true);
   const wasCompleted = useRef(completed);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [now, setNow] = useState(() => Date.now());
   const ticking = running && submittedAtMs !== undefined;
   const elapsed = ticking ? Math.max(0, now - submittedAtMs) : durationMs;
@@ -371,7 +563,7 @@ export function UiExecutionTimeline({
           }}
         >
           {entries.map((entry) => (
-            <ExecutionRow key={entry.id} entry={entry} />
+            <ExecutionRow key={entry.id} entry={entry} loadChild={loadChild} />
           ))}
         </ol>
       )}

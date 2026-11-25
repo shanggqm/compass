@@ -4,10 +4,12 @@ import { useState } from "react";
 import type { ExecutionNode } from "@/contracts/execution-node";
 import { UiButton } from "./button";
 import { executionEntries, UiExecutionTimeline } from "./execution-timeline";
+import { AnalysisGoalPanel } from "../analysis-goal-panel";
+import type { Goal } from "@/client/analysis-goal";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
-function executionExample(status: ExecutionNode["status"]): ExecutionNode[] {
+function executionExample(status: ExecutionNode["status"], startedAt: number): ExecutionNode[] {
   const node = (
     n: number,
     kind: ExecutionNode["kind"],
@@ -21,13 +23,16 @@ function executionExample(status: ExecutionNode["status"]): ExecutionNode[] {
     kind,
     title,
     status: "completed",
-    startedAtMs: 1000,
-    endedAtMs: 2400,
+    startedAtMs: startedAt,
+    endedAtMs: startedAt + 1400,
     dependsOn: [],
     display: { policy: "summary", language: "text" },
     ...fields,
   });
-  const state = { status, endedAtMs: status === "running" || status === "preparing" ? null : 5200 };
+  const state = {
+    status,
+    endedAtMs: status === "running" || status === "preparing" ? null : startedAt + 4200,
+  };
   return [
     node(1, "workflow", "渠道异动归因", null, {
       ...state,
@@ -48,8 +53,12 @@ function executionExample(status: ExecutionNode["status"]): ExecutionNode[] {
       dependsOn: [id(2)],
     }),
     node(5, "subagent", "商品贡献分析", 4, {
-      subagent: { name: "product_breakdown", childRunId: id(105) },
+      subagent: { name: "product_breakdown", childRunId: id(105), deliveryStatus: "completed" },
       summary: "已取得前三项商品贡献。",
+      detail: {
+        output:
+          "已完成商品贡献分析。\n\n| 商品 | 变化金额 |\n| --- | ---: |\n| 商品 A | +1,200 |\n| 商品 B | +800 |\n| 商品 C | −300 |\n\n三项合计变化 **+1,700**。以上为组件演示数据。",
+      },
     }),
     node(6, "model", "分析商品贡献", 5, {
       detail: {
@@ -76,7 +85,17 @@ function executionExample(status: ExecutionNode["status"]): ExecutionNode[] {
     }),
     node(8, "subagent", "独立口径复核", 4, {
       ...state,
-      subagent: { name: "scope_review", childRunId: id(108) },
+      subagent: {
+        name: "scope_review",
+        childRunId: id(108),
+        deliveryStatus: status === "incomplete" ? "partial" : undefined,
+      },
+      detail: {
+        output:
+          status === "completed"
+            ? "已核对日期范围与金额变化方向。查询共返回 **128** 笔订单。"
+            : undefined,
+      },
       summary:
         status === "failed" ? "复核未完成，可检查数据范围后重试。" : "核对日期范围与金额变化方向。",
     }),
@@ -106,6 +125,9 @@ function executionExample(status: ExecutionNode["status"]): ExecutionNode[] {
 
 export function UiExecutionExample() {
   const [status, setStatus] = useState<ExecutionNode["status"]>("running");
+  const [startedAt] = useState(() => Date.now());
+  const [goalStatus, setGoalStatus] = useState<Goal["status"]>("active");
+  const [editingGoal, setEditingGoal] = useState(false);
   const variants = [
     ["running", "进行中"],
     ["completed", "成功"],
@@ -132,7 +154,7 @@ export function UiExecutionExample() {
         ))}
       </div>
       <UiExecutionTimeline
-        entries={executionEntries(executionExample(status), status === "running")}
+        entries={executionEntries(executionExample(status, startedAt), status === "running")}
         label={
           {
             running: "正在分析",
@@ -149,6 +171,46 @@ export function UiExecutionExample() {
         completed={status === "completed"}
         durationMs={status === "completed" ? 138000 : undefined}
       />
+      <AnalysisGoalPanel
+        goal={{
+          goalId: id(200),
+          revision: 1,
+          status: goalStatus,
+          reason: null,
+          reasonCode: null,
+          contract: {
+            objective: "完成月度销售与库存复盘",
+            acceptance: [
+              { id: "a1", text: "销售结论附来源" },
+              { id: "a2", text: "库存结论附来源" },
+            ],
+            constraints: ["仅查询当前获准数据"],
+          },
+          budget: { tokens: 2000000, costMicrousd: 20000000, maxRounds: 12 },
+          usage: {
+            rounds: 2,
+            tokens: 10000,
+            costMicrousd: 10000,
+            tokensPct: 0.5,
+            costPct: 0.05,
+            overrun: false,
+          },
+          counts: { openTodos: 1, conflicts: 0, stale: 0, reusedCalls: 1 },
+          satisfied: ["a1"],
+        }}
+        busy={false}
+        error=""
+        action={async (action) =>
+          setGoalStatus(action === "pause" ? "paused" : action === "resume" ? "active" : "canceled")
+        }
+        edit={() => setEditingGoal(true)}
+      />
+      {editingGoal && (
+        <label>
+          修改目标
+          <textarea autoFocus defaultValue="修改目标：" />
+        </label>
+      )}
     </div>
   );
 }

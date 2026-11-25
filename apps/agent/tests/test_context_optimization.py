@@ -653,3 +653,173 @@ def test_summary_removes_tail_when_original_turn_exceeds_message_limit(monkeypat
     assert len(result["input"]["request"]["messages"]) == 3
     assert result["receipt"]["contextOptimization"]["compacted"]
     assert result["receipt"]["contextOptimization"]["tail"] == 0
+
+
+def long_tool_history():
+    from compass_agent.schemas import ToolCall, ToolCallFunction
+
+    messages = [ChatMessage(role="user", content="经营诊断，继续未完成工作")]
+    for n in range(29):
+        messages.extend(
+            [
+                ChatMessage(
+                    role="assistant",
+                    tool_calls=[
+                        ToolCall(id=str(n), function=ToolCallFunction(name="query", arguments="{}"))
+                    ],
+                ),
+                ChatMessage(role="tool", tool_call_id=str(n), content=f"结果{n}：" + "明细" * 1100),
+            ]
+        )
+    return TurnGroup("history", uuid4(), 1, tuple(messages), tuple(f"r/{n}" for n in range(59)))
+
+
+def test_large_59_fragment_history_compacts_with_bounded_2048_token_merges(monkeypatch):
+    from compass_agent.context_runtime.compaction import request_size
+
+    journal, models, control, budget = setup()
+    optimizer, draft, frame = optimizer_frame(
+        journal,
+        [
+            ChatMessage(role="system", content="固定规则" * 2500),
+            ChatMessage(role="user", content="当前问题"),
+        ],
+    )
+    original = long_tool_history()
+    optimizer.groups = [original]
+    requests = []
+    seen = set()
+
+    async def call(*args, request, **kwargs):
+        requests.append(request)
+        material = json.loads(request.messages[1].content)
+        seen.update(x["range"] for x in material["selectedHistory"])
+        assert request.max_tokens == 2048
+        assert request_size(request) <= 2048 * 12
+        return reply(journal, request, text="已完成查询；尚待归因及图表。回读原始 r/0 至 r/58。")
+
+    monkeypatch.setattr("compass_agent.context_runtime.compaction.auxiliary_call", call)
+    result = asyncio.run(
+        optimizer.optimize(
+            frame,
+            models,
+            None,
+            control,
+            budget,
+            SimpleNamespace(provider_id=journal.provider, binding_version=1),
+            ModelTokenLimits(max_input_tokens=262144, max_output_tokens=2048),
+            draft,
+        )
+    )
+    assert len(requests) > 1
+    assert len(seen) == 59
+    assert result["receipt"]["contextOptimization"]["compacted"]
+    assert result["receipt"]["budget"]["after"] <= 192 * 1024
+    assert (original.messages[-1].content or "").endswith("明细" * 1100)
+
+
+def test_truncated_summary_retries_smaller_original_material_without_using_partial(monkeypatch):
+    journal, models, control, budget = setup()
+    requests = []
+    seen = set()
+
+    async def call(*args, request, **kwargs):
+        material = json.loads(request.messages[1].content)
+        requests.append(material)
+        assert "截断摘要不可复用" not in material["previousSummary"]
+        if len(requests) == 1:
+            return reply(journal, request, text="截断摘要不可复用").model_copy(
+                update={
+                    "status": "incomplete",
+                    "finish_reason": "length",
+                    "error_code": "output_truncated",
+                }
+            )
+        seen.update(x["range"] for x in material["selectedHistory"])
+        return reply(journal, request, text="完整交接，明细回读原始记录。")
+
+    monkeypatch.setattr("compass_agent.context_runtime.compaction.auxiliary_call", call)
+    result = asyncio.run(
+        summarize(
+            journal,
+            models,
+            None,
+            control,
+            budget,
+            SimpleNamespace(provider_id=journal.provider, binding_version=1),
+            ModelTokenLimits(max_input_tokens=262144, max_output_tokens=2048),
+            [long_tool_history()],
+            "继续",
+        )
+    )
+    assert len(requests[1]["selectedHistory"]) < len(requests[0]["selectedHistory"])
+    assert max(len(r["selectedHistory"]) for r in requests[2:]) > len(
+        requests[1]["selectedHistory"]
+    )
+    assert set(result.covered_ranges) == seen
+    assert result.text == "完整交接，明细回读原始记录。"
+
+
+def test_repeated_summary_truncation_is_bounded_and_keeps_original_history(monkeypatch):
+    import pytest
+    from compass_agent.models.errors import ModelError
+
+    journal, models, control, budget = setup()
+    original = long_tool_history()
+    calls = []
+
+    async def call(*args, request, **kwargs):
+        calls.append(request)
+        return reply(journal, request, text="不完整").model_copy(
+            update={
+                "status": "incomplete",
+                "finish_reason": "length",
+                "error_code": "output_truncated",
+            }
+        )
+
+    monkeypatch.setattr("compass_agent.context_runtime.compaction.auxiliary_call", call)
+    with pytest.raises(ModelError, match="output_truncated"):
+        asyncio.run(
+            summarize(
+                journal,
+                models,
+                None,
+                control,
+                budget,
+                SimpleNamespace(provider_id=journal.provider, binding_version=1),
+                ModelTokenLimits(max_input_tokens=262144, max_output_tokens=2048),
+                [original],
+                "继续",
+            )
+        )
+    assert len(calls) == 3
+    assert len(original.messages) == 59
+
+    from compass_agent.harness.context import ContextLimit
+
+    optimizer, draft, frame = optimizer_frame(
+        journal,
+        [
+            ChatMessage(role="system", content="固定规则" * 2500),
+            ChatMessage(role="user", content="当前问题"),
+        ],
+    )
+    optimizer.groups = [original]
+    calls.clear()
+    with pytest.raises(ContextLimit):
+        asyncio.run(
+            optimizer.optimize(
+                frame,
+                models,
+                None,
+                control,
+                budget,
+                SimpleNamespace(provider_id=journal.provider, binding_version=1),
+                ModelTokenLimits(max_input_tokens=262144, max_output_tokens=2048),
+                draft,
+            )
+        )
+    assert len(calls) == 3
+    assert optimizer.summary is None
+    assert optimizer.groups == [original]
