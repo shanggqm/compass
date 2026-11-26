@@ -8,6 +8,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from compass_agent.api.contextops import router as contextops_router
 from compass_agent.api.goals import router as goal_router
 from compass_agent.api.mcp import router as mcp_router
 from compass_agent.api.models import ModelBoundaryMiddleware, create_model_service, error_response
@@ -24,6 +25,7 @@ from compass_agent.api.semantic import router as semantic_router
 from compass_agent.api.sessions import internal_router
 from compass_agent.api.sessions import router as session_router
 from compass_agent.api.workflows import router as workflow_asset_router
+from compass_agent.context_ops.mcp_server import router as contextops_mcp_router
 from compass_agent.data_connections.entities import DataConnection
 from compass_agent.database import Base, DemoSale, get_engine, get_session
 from compass_agent.llm.admission import ExecutionGate
@@ -233,6 +235,8 @@ def demo_overview(
 app.add_middleware(ModelBoundaryMiddleware)
 app.include_router(model_router)
 app.include_router(promptops_router)
+app.include_router(contextops_router)
+app.include_router(contextops_mcp_router)
 app.include_router(starter_router)
 app.include_router(mcp_router)
 app.include_router(run_router)
@@ -258,6 +262,7 @@ async def request_validation_handler(request, error):
         (
             "/v1/models",
             "/v1/promptops",
+            "/v1/contextops",
             "/v1/prompt-starters",
             "/v1/analysis",
             "/v1/data/",

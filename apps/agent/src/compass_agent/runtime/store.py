@@ -178,6 +178,9 @@ class RuntimeStore:
         self.ready = False
         self.distributed = False
         self.scheduler: RunScheduler | None = None
+        from compass_agent.context_ops.recorder import ContextOpsRecorder
+
+        self.contextops: ContextOpsRecorder | None = None
 
     @contextmanager
     def transaction(self, *, admission=False):

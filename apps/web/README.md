@@ -168,3 +168,13 @@ Chat 中的数字角标可用键盘或鼠标打开。详情展示结论、适用
 子任务在主流程显示为带 Bot 图标的独立节点，点击打开右侧抽屉。抽屉复用主 Agent 的执行时间线与 Markdown 回答组件，读取获授权子树和完整交付回答，打开期间轮询更新并复核权限。短暂失败可重试，失权时清除过程与回答；关闭取消请求，Esc 与关闭按钮返回入口。桌面使用侧边抽屉，窄屏使用全宽抽屉。组件示例位于 `/guide#ui-execution`。
 
 `tests/e2e/long-task-goal.spec.ts` 使用独立 Agent/Web PostgreSQL、Redis 和模型上游，设置 `COMPASS_GOAL_E2E=true` 执行。`apps/agent/tests/goal_e2e_app.py` 仅把测试凭据 `isolated-fixture` 转到本地受控上游，其余已配置 Provider 使用真实服务；追加 `COMPASS_GOAL_REAL_E2E=true` 执行真实模型的普通查询、目标确认与完成。`apps/agent/tests/goal_prompt_probe.py` 运行七项真实模型决策评测，报告写到 `work/983-real-prompt-report.json`。环境与验收范围见 [Feature 983 测试计划](../../mai-specs/983-lesson-25-long-task-context/test/TEST_PLAN.md)。
+
+## 第 26 课 ContextOps
+
+工作区 `/t/<tenant>/w/<workspace>/contextops` 提供上下文洞察。管理员在管理导航中进入，普通成员查看「我的运行轨迹」；普通 Chat 回答底部「上下文洞察」直接定位本次 Run。
+
+顶部保留运行统计与时间、成员、场景、策略筛选。全链路页提供通用三轨和业务阶段分段两种瀑布视图、时长/轮次/Token 尺度、节点搜索与四类详情；其它标签显示意图分布、阶段耗时、管理员安全审计与 Badcase 局部回放。缺失数据用 `—`，历史 Run 显示已有记录并标注 Context 投影缺失。
+
+`/api/web/v1/contextops/*` 复用集中 BFF 路由、数据库会话鉴权、CSRF、生成 Schema 校验与 `no-store`。普通成员只读本人运行，平台管理员限定当前租户/工作区；快照打开和回放在 Agent 复核来源权限。详情弹窗关闭清除正文，打开期间定期重新核验，失败清除已显示内容。
+
+Langfuse 跳转使用 Web 服务端的 `COMPASS_LANGFUSE_PROJECT_URL`，填写公开项目地址，例如 `http://127.0.0.1:8104/project/<project-id>`；BFF 按本次 Trace ID 生成详情链接。未配置有效公开地址或 Agent 导出不可用时，页面禁用跳转并显示原因。

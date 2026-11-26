@@ -352,6 +352,8 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             support_paths=support,
             fit_budget=optimizer is None,
             goal_anchor=goal_anchor,
+            security_mode=journal.store.source_settings.compass_context_security_mode,
+            reviewing=getattr(journal, "answer_turn", {}).get(path, {}).get("purpose") == "verify",
         )
         data = value.request.model_dump(mode="json", exclude={"continuation_token"})
         return {
@@ -385,6 +387,9 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             model_limits(route, budget),
             draft,
         )
+        from compass_agent.context_ops.integration import secure_optimized_frame
+
+        compiled = secure_optimized_frame(compiled, trusted, journal)
 
         def frozen_frame(tx):
             return compiled
@@ -505,9 +510,19 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
 
     async def invoke():
         assert step.prepared_request is not None
-        return await executor._invoke_model_live(
-            step, step.prepared_request, route, trusted, control, budget, emit, publish_text=False
-        )
+        from compass_agent.context_ops.recorder import capture
+
+        with capture(journal, trusted, frame["receipt"]):
+            return await executor._invoke_model_live(
+                step,
+                step.prepared_request,
+                route,
+                trusted,
+                control,
+                budget,
+                emit,
+                publish_text=False,
+            )
 
     from compass_agent.harness.context import ContextLimit
     from compass_agent.promptops.errors import PromptError

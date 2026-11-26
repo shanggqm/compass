@@ -57,7 +57,20 @@ async def call_classifier(
             limits = model_limits(route, budget)
             limit = min(limit, input_budget(limits, 0))
             method = "utf8_upper_bound"
-        original = command.input.messages
+        from dataclasses import asdict
+        from time import perf_counter
+
+        from compass_agent.context_ops.compiler import freeze, secure_items
+        from compass_agent.context_runtime.pipeline import collect
+
+        started = perf_counter()
+
+        candidates, security_events, blocked = secure_items(
+            collect(command.input.messages),
+            context,
+            mode=journal.store.source_settings.compass_context_security_mode,
+        )
+        original = [i.message for i in candidates]
         offset = 0
         transforms = []
         before = None
@@ -98,7 +111,20 @@ async def call_classifier(
                 offset = following
 
         routing_groups: list = getattr(journal, "context_routing_groups", [])
+        frozen = freeze(
+            candidates,
+            candidates[offset:],
+            overhead=max(0, (before or 0) - sum(i.byte_bound for i in candidates)),
+            limit=limit,
+        )
         receipt = {
+            "contextOps": {
+                "frozen": frozen,
+                "blocked": blocked,
+                "security_events": [asdict(e) for e in security_events],
+                "duration_ms": round((perf_counter() - started) * 1000),
+            },
+            "policyDigest": binding["policyDigest"],
             "generation": binding["generation"],
             "phase": "identify",
             "scene": None,
@@ -183,18 +209,21 @@ async def call_classifier(
 
     async def dispatch():
         prepared = type(value).model_validate(frame["input"]["request"])
-        return await service._dispatch(
-            command,
-            context,
-            role,
-            provider_id,
-            prepared,
-            deadline,
-            "classifier",
-            view.binding_version,
-            None,
-            budget,
-        )
+        from compass_agent.context_ops.recorder import capture
+
+        with capture(journal, context, frame["receipt"]):
+            return await service._dispatch(
+                command,
+                context,
+                role,
+                provider_id,
+                prepared,
+                deadline,
+                "classifier",
+                view.binding_version,
+                None,
+                budget,
+            )
 
     try:
         return await journal.call(

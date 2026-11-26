@@ -47,6 +47,47 @@ async def auxiliary_call(
     deadline=None,
     source_refs=(),
 ):
+    from dataclasses import asdict, replace
+    from time import perf_counter
+
+    started = perf_counter()
+    from compass_agent.context_ops.compiler import freeze, secure_items
+    from compass_agent.context_ops.recorder import capture
+    from compass_agent.context_runtime.pipeline import canonical, collect
+    from compass_agent.schemas import ChatMessage, GenerateInput
+
+    is_generate = isinstance(request, GenerateInput)
+    messages = (
+        request.messages
+        if is_generate
+        else [ChatMessage(role="user", content=canonical(request.state).decode())]
+    )
+    candidates = [
+        replace(i, trust="observation") if i.message.role != "system" else i
+        for i in collect(messages)
+    ]
+    candidates, events, blocked = secure_items(
+        candidates, trusted, mode=journal.store.source_settings.compass_context_security_mode
+    )
+    if is_generate:
+        request = request.model_copy(update={"messages": [i.message for i in candidates]})
+    else:
+        request = request.model_copy(update={"state": candidates[0].message.content})
+    size = sum(i.byte_bound for i in candidates)
+    receipt = {
+        "contextOps": {
+            "frozen": freeze(candidates, candidates, overhead=0, limit=max(1, size)),
+            "blocked": blocked,
+            "security_events": [asdict(e) for e in events],
+            "duration_ms": round((perf_counter() - started) * 1000),
+        },
+        "phase": "context_selection" if kind == "ctx_select" else "context_compaction",
+        "stepKey": key,
+        "policyDigest": journal.context_binding["policyDigest"],
+        "generation": journal.context_binding["generation"],
+        "sourceDeps": list(source_refs),
+        "budget": {"before": size, "after": size, "limit": max(1, size)},
+    }
     call_id = uuid5(journal.run_id, key)
     wire = request.model_dump(mode="json", exclude_none=True)
 
@@ -69,19 +110,20 @@ async def auxiliary_call(
         from compass_agent.models.errors import ModelError
 
         try:
-            prepared = await models.prepare(
-                call_id,
-                provider_id,
-                request,
-                trusted,
-                deadline=min(
-                    control.deadline_at, deadline or (asyncio.get_running_loop().time() + 25)
-                ),
-                grant=RoutingGrant(
-                    trusted.actor_user_id, trusted.scope, call_id, provider_id, request.kind
-                ),
-                expected_binding_version=binding_version,
-            )
+            with capture(journal, trusted, receipt):
+                prepared = await models.prepare(
+                    call_id,
+                    provider_id,
+                    request,
+                    trusted,
+                    deadline=min(
+                        control.deadline_at, deadline or (asyncio.get_running_loop().time() + 25)
+                    ),
+                    grant=RoutingGrant(
+                        trusted.actor_user_id, trusted.scope, call_id, provider_id, request.kind
+                    ),
+                    expected_binding_version=binding_version,
+                )
         except ModelError as error:
             # A pre-dispatch failure is a completed optional decision, with no
             # provider side effect to leave in the unknown-execution state.

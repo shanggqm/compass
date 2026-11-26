@@ -101,13 +101,13 @@ flowchart TB
 
 2. **`context_snapshot`**（加密上下文快照）
    - 主键：`snapshot_ref VARCHAR(64) PRIMARY KEY`（格式 `csnp_<uuid4_hex>`）
-   - 归属与血缘：`tenant_id UUID NOT NULL`、`workspace_id UUID NOT NULL`、`run_id UUID NOT NULL`、`step_id UUID NOT NULL`、`content_sha256 VARCHAR(64) NOT NULL`、`min_trust_level VARCHAR(16) NOT NULL`（派生最低信任等级）、`access_scope_json JSONB NOT NULL`（派生最严格访问范围交集）、`data_classification VARCHAR(32) NOT NULL`
-   - 加密载荷：`ciphertext BYTEA NOT NULL`（HKDF 派生子密钥 + Fernet 认证加密，内含脱敏后候选条目与装配结果 JSON）、`expires_at TIMESTAMPTZ NOT NULL`、`created_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+   - 归属与血缘：`tenant_id UUID NOT NULL`、`workspace_id UUID NOT NULL`、`run_id UUID NOT NULL`、`step_id UUID NOT NULL`、`content_sha256 VARCHAR(64) NOT NULL`、`min_trust_level VARCHAR(16) NOT NULL`（派生最低信任等级）、`access_scope_json JSONB NOT NULL`（全部受限源 `AccessRef` 并集，逻辑 AND）、`data_classification VARCHAR(32) NOT NULL`
+   - 加密载荷：`ciphertext BYTEA NOT NULL`（HKDF 派生子密钥 + gzip + Fernet 认证加密，内含 100% 不可逆脱敏后的候选与装配 JSON）、`expires_at TIMESTAMPTZ NOT NULL`（默认 14 天，由同镜像 Scheduler 每日清理过期且未被 `context_badcase` 引用的快照）、`created_at TIMESTAMPTZ NOT NULL DEFAULT now()`
    - 索引：`idx_ctx_snapshot_tenant_run (tenant_id, workspace_id, run_id)`、`idx_ctx_snapshot_expires (expires_at)`
 
 3. **`context_security_event`**（上下文安全拦截与快照读取审计，append-only）
    - 主键：`id UUID PRIMARY KEY`
-   - 字段：`tenant_id UUID NOT NULL`、`workspace_id UUID NOT NULL`、`actor_id UUID NULL`、`run_id UUID NULL`、`step_id UUID NULL`、`trace_id VARCHAR(64) NULL`、`event_type VARCHAR(32) NOT NULL`（`injection_blocked` / `tenant_mismatch_rejected` / `pii_redacted` / `trust_downgraded` / `snapshot_viewed` / `mcp_queried`）、`action VARCHAR(16) NOT NULL`（`block` / `redact` / `isolate` / `deny` / `allow_audit`）、`rule_code VARCHAR(64) NOT NULL`、`source_kind VARCHAR(32) NULL`、`trust_level VARCHAR(16) NULL`、`target_ref VARCHAR(128) NULL`、`metadata_json JSONB NOT NULL`（严禁含明文敏感值）、`created_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+   - 字段：`tenant_id UUID NOT NULL`、`workspace_id UUID NOT NULL`、`actor_id UUID NULL`、`run_id UUID NULL`、`step_id UUID NULL`、`trace_id VARCHAR(64) NULL`、`event_type VARCHAR(32) NOT NULL`（`injection_blocked` / `injection_stripped` / `tenant_mismatch_rejected` / `pii_redacted` / `trust_downgraded` / `snapshot_viewed` / `mcp_queried`）、`action VARCHAR(16) NOT NULL`（`block` / `strip` / `redact` / `isolate` / `deny` / `allow_audit`）、`rule_code VARCHAR(64) NOT NULL`、`hit_count INT NOT NULL DEFAULT 1`（同编译步按事件/规则聚合计数，避免高频脱敏逐条插库）、`source_kind VARCHAR(32) NULL`、`trust_level VARCHAR(16) NULL`、`target_ref VARCHAR(128) NULL`、`metadata_json JSONB NOT NULL`（严禁含明文敏感值）、`created_at TIMESTAMPTZ NOT NULL DEFAULT now()`
    - 索引：`idx_ctx_sec_tenant_time (tenant_id, workspace_id, created_at DESC)`、`idx_ctx_sec_event_type (tenant_id, event_type, created_at DESC)`
 
 4. **`context_badcase`**（脱敏 Badcase 与局部回放基线）
@@ -117,19 +117,20 @@ flowchart TB
 
 #### 2.1.2 数据流设计
 
-1. **主链路（同步安全 + 异步观测）**：
+1. **主链路（同步安全 + 聚合异步观测）**：
    - `context_runtime/pipeline.py` 收集完候选 `ContextItem` 后，首先同步调用 `ContextSecurityGuard.enforce()`：
-     - 校验每个 `ContextItem.access` 是否匹配当前 `TrustedContext` 的 `tenant_id`/`workspace_id`/授权范围；不匹配则直接踢出并记 `tenant_mismatch_rejected`。
-     - 对 `observation` / `actor` 条目运行注入规则与结构检测；命中高危规则则拦截踢出并记 `injection_blocked`；未命中但属 `observation` 的条目显式加上不可信数据边界封装，防止升权。
-     - 对候选文本执行 PII / 密钥脱敏，记录 `pii_redacted` 计数。
-     - 若后续发生压缩/摘要，调用 `derive_lineage()` 计算派生结果的 `min_trust_level`（按 `managed > dictionary > actor > observation` 取最低）与 `access_scope` 交集，确保摘要既不洗白低信任指令、也不丢失权限边界。
+     - 校验每个 `ContextItem.access` 是否匹配当前 `TrustedContext` 的 `tenant_id`/`workspace_id`；不匹配则同步剔除并记 `tenant_mismatch_rejected`（在任何模式下均不可关闭）。
+     - 分级注入防护：对 `actor` 仅拦截明确系统提示提取与角色标记伪造（放行日常“忽略之前口径重算”等业务纠偏）；对 `observation` 命中高危确凿攻击则整条阻断，中危疑似语句剥离可疑句后保留正常正文。
+     - 防逃逸与保缓存边界封装：对 `observation` 正文内出现的 `</untrusted_context` 做确定性转义（`&lt;/untrusted_context`）后再包裹固定 `<untrusted_context>` 标签，兼顾防标签逃逸与 LLM Prefix Cache 命中率；明确下游工具执行前硬鉴权为最终防线。
+     - 两道精准脱敏：密钥/Token 在进模型窗口与落快照两道均 100% 强制脱敏；PII（严格边界手机号、校验码身份证、邮箱）在落加密快照、审计、Trace 与 MCP 出口 100% 不可逆脱敏，进模型窗口时放行用户主动提供的合法业务查询主键，且 `managed`/`dictionary` 跳过通用数字扫描防误伤公式与订单号。
+     - 派生数据血缘：压缩摘要按受限域分段（避免受限财务表“滚雪球污染”整段公开对话），并调用 `derive_lineage()` 取最低 `min_trust_level` 与全部受限源 `AccessRef` **并集（逻辑 AND）**。
    - 编译完成后：
      - 通过 `observability/context_spans.py` 在父级 `Observation` 下挂载 `compass.context.retrieve`（`retriever`）、`compass.context.guardrail`（`guardrail`）、`compass.context.compile`（`chain`），仅写闭集白名单标量与 `snapshot_ref`。
-     - 调用 `ContextOpsRecorder.record()` 将摘要、加密快照与安全审计写入 `agent/main`。其中安全审计写入失败记录告警计数，观测摘要/快照写入采用独立事务和异常捕获，绝不阻塞模型调用返回。
-2. **查询与回放链路**：
-   - Web 前端请求 `/api/web/v1/contextops/*` → BFF 验会话与权限并注入 `TrustedContext` → Agent `/v1/contextops/*` 按 `tenant_id`/`workspace_id` 强制过滤返回。
-   - 读取加密快照（`GET /v1/contextops/snapshots/{snapshot_ref}`）时，校验 `snapshot.tenant_id == context.tenant_id`、`snapshot.workspace_id == context.workspace_id` 且权限满足 `access_scope_json`，通过后先写入一条 `snapshot_viewed` 审计再返回解密后的脱敏快照。
-   - 触发 Context-only Replay（`POST /v1/contextops/badcases/{id}/replay`）时，从 `context_snapshot` 解密冻结候选集，在纯内存中以相同输入分别运行基准策略与候选策略参数（仅运行过滤/排序/压缩/预算逻辑，零外部工具调用、零写副作用），返回确定性 Diff。
+     - 调用 `ContextOpsRecorder.record()` 将摘要、加密快照与按步聚合后的安全事件（`hit_count`）异步批量写入 `agent/main`；普通摘要投影走 **fail-open**（异常降级不阻塞主链路），在线拦截事件落库失败时同步输出结构化安全日志（JSON stderr）兜底。
+2. **查询、鉴权快照与回放链路**：
+   - 轨迹列表、漏斗统计与瀑布图仅查 `agent/main` 读模型，不探活外部业务数据库，避免业务库抖动拖慢控制台。
+   - 读取加密快照（`GET /v1/contextops/snapshots/{snapshot_ref}`）与触发回放前，依次校验 `tenant_id`/`workspace_id` 并复用既有 `source_access.py` 复核细粒度源数据绑定与撤权状态（区分无权限 403、源数据已失效 `snapshot_expired_or_revoked` 与校验服务暂不可用 503）。
+   - 解密返回快照前采用 **fail-closed 审计**：同步写入 `snapshot_viewed` 审计记录，写入失败直接返回 503 拒绝返回快照。
 
 #### 2.1.3 接口设计
 
@@ -156,19 +157,39 @@ flowchart TB
 | 配置项 | 当前用途与来源 | 默认值/缺失行为 | 生效时机 |
 | --- | --- | --- | --- |
 | `COMPASS_CONTEXT_SNAPSHOT_TTL_DAYS` | 加密 Context Snapshot 保留天数 | `14`（天） | 新快照写入时计算 `expires_at` |
-| `COMPASS_CONTEXT_SECURITY_MODE` | 上下文安全拦截模式（`enforce` / `audit_only`） | `enforce`（默认硬拦截） | 进程启动加载 |
+| `COMPASS_CONTEXT_SECURITY_MODE` | 上下文注入拦截模式（`enforce` / `audit_only`，后者仅限本地压测与调优，租户不可动态降级；多租户与 `source_access` 权限复核在任何模式下强制生效） | `enforce`（默认硬拦截） | 进程启动加载 |
 | `COMPASS_CONTEXTOPS_MCP_ENABLED` | 是否开放只读 `/v1/contextops/mcp` 端点 | `true`（受鉴权保护） | 路由处理校验 |
 
 加密密钥直接从既有 `COMPASS_MODEL_ENCRYPTION_KEY` 通过 HKDF-SHA256（固定 info `b"compass-context-snapshot-v1"`）派生，不新增额外必填环境变量。
 
 ### 2.3 分模块详细设计
 
-#### 2.3.1 在线上下文安全拦截引擎（`apps/agent/src/compass_agent/context_security/`）
+#### 2.3.1 上下文纵深安全体系与在线拦截引擎（`apps/agent/src/compass_agent/context_security/`）
 
-- **`policy.py`**：定义信任等级严格偏序 `TRUST_RANK = {"observation": 0, "actor": 1, "dictionary": 2, "managed": 3}`；提供 `derive_lineage(items)` 返回最低信任等级与 `AccessRef` 交集，确保任何派生摘要/快照绝不高于最弱输入源。
-- **`detector.py`**：定义 `InjectionDetector` 协议与默认 `RuleBasedInjectionDetector`，覆盖典型 Indirect Prompt Injection 规则（如指令覆盖声明、系统提示词提取诱导、角色伪装标记、越权工具/跨租户查询诱导）；仅扫描 `observation` 与 `actor` 级条目，不误伤 `managed` 系统指令。
-- **`redactor.py`**：基于预编译正则识别手机号、身份证号、邮箱、Bearer/API Key、常见数据库 DSN 密码，统一替换为 `[REDACTED:<KIND>]` 并统计脱敏次数。
-- **`guard.py`**：作为 `pipeline.py` 的同步前置拦截器，输出净化后的 `ContextItem` 列表、安全决策明细和 `SecurityEventRecord` 列表。
+安全机制贯穿“**入窗前同步拦截 → 出窗/落库精准脱敏 → 密文存储与实时复权 → fail-closed 审计 → 下游工具硬鉴权兜底**”五层纵深防线，明确提示词隔离为前置减损防线，下游工具执行前的权限复核与审批为最终防线。核心由 5 个模块协同落地：
+
+1. **信任分级与派生血缘继承（`policy.py`）**：
+   - 定义严格四级信任偏序：`observation (0) < actor (1) < dictionary (2) < managed (3)`，并将 `review` 与 `summary` 等派生材料归入不可信 `observation`（同时记录 `trust_downgraded / source_lineage` 审计），防止派生内容被误提升为可信指令。
+   - `derive_lineage(items)` 对所有输入源取最低 `min_trust_level` 与全部受限源 `AccessRef` 的**并集（Union，逻辑 AND 语义）**，并标记 `data_classification`（存在受限源即为 `restricted`，否则 `internal`）；上游压缩摘要同步按受限域分段，避免单个受限财务表“滚雪球污染”整段公开对话。
+   - 统一维护 13 条闭集规则码（`tenant_workspace_mismatch`、`role_forgery`、`system_prompt_extraction`、`instruction_override`、`suspicious_instruction`、`secret`、`phone`、`email`、`identity_number`、`source_revoked`、`snapshot_read`、`mcp_read`、`source_lineage`）与 `aggregate_events()` 按步聚合机制，避免高频脱敏造成写放大。
+2. **多租户与工作区硬校验（`guard.py`）**：
+   - 在任何运行模式（包括本地压测 `audit_only`）下强制校验每条 `ContextItem.access` 的 `(tenant_id, workspace_id)` 与当前 `TrustedContext` 一致；不匹配即刻判定 `tenant_mismatch_rejected / deny`，绝不放行原文。
+3. **四类分级注入检测与保协议隔离（`detector.py`、`guard.py`、`structured.py`）**：
+   - 定义可扩展 `InjectionDetector` 协议与默认确定性 `RuleDetector`（零外部依赖，实测 50 条混合候选 P95 5.415 ms）：
+     - `managed` / `dictionary` 跳过扫描，永不误伤系统指令与指标口径。
+     - `actor` 与 `observation` 共同拦截两类高危攻击：`role_forgery`（`<|im_start|>system`、`[INST] <<SYS>>`、`</?system>` 等角色标记伪造）与 `system_prompt_extraction`（中英文系统/开发者提示词提取诱导）；`actor` 放行“忽略之前口径重算”等日常业务纠偏。
+     - `observation` 额外拦截两类间接提示词注入（Indirect Prompt Injection）：`instruction_override`（高危：指令覆盖、绕过安全校验、扮演系统管理员）整条隔离；`suspicious_instruction`（中危：按句号/问号/感叹号/换行切句，仅剥离命中的可疑句如“不要告诉用户”/“忽略之前要求”，保留同条上下文中其余正常数据）。
+   - **保协议安全隔离**：命中 `deny` 或 `block` 时不粗暴删除整条消息（防止破坏 LLM `tool_call`/`tool_result` 配对或丢失最新用户轮次），而是用固定安全占位符 `ISOLATED`（`[该条上下文已由安全策略隔离，内容不可用于回答或执行。]`）替换正文，确保被拒字节绝不进入编译窗口。
+   - **结构化叶值与工具参数防护**：`structured.py` 针对 `review`（`purpose == "verify"`）递归净化 `candidate` 与 `evidence` 内每个字符串叶值，保持外层验证 JSON 协议完整；`guard.py` 同步对 `tool_calls[].function.arguments` 与 `reasoning_content` 执行密钥脱敏（无需脱敏的 JSON 参数保持原字节不变）。
+4. **两道精准脱敏与业务 ID 防误伤（`redactor.py`）**：
+   - 覆盖 4 类敏感模式：`secret`（API Key / Access Token / Password / `Bearer` / `sk-` / `ghp_` / `github_pat_` / Postgres·MySQL·Redis DSN 密码）、`email`、`identity_number`（18 位身份证须同时通过合法出生日期与 GB 11643-1999 加权模 11 校验位校验）、`phone`（严格边界大陆手机号），统一替换为 `[REDACTED:<RULE>]` 且幂等防重复计数。
+   - **业务 ID 豁免与表格语义感知**：识别 `order_id`、`order_no`、`sku_id`、`product_id`、`tracking_no`、`订单号`、`商品编号`、`运单号` 等字段名或前文 60 字符业务前缀，避免误伤订单号与公式；遇到工具返回的 `{"columns": [...], "rows": [...]}` 表格 JSON 时，按列名语义逐单元格脱敏（包括纯整数类型的手机号/身份证列）并保持合法 JSON 语法。
+   - **双出口差异策略**：进模型窗口时对所有来源强制脱敏密钥，仅对 `observation` 脱敏 PII，放行 `actor` 主动输入的合法查询主键；落库快照、审计、Trace 与 MCP 出口统一走 `storage_value()` 执行 100% 不可逆脱敏。
+5. **确定性防逃逸封装与 Prefix Cache 保护（`guard.py`）**：
+   - 对所有 `observation` 正文先将任意大小写/空格变体的 `<\s*/?\s*untrusted_context\b` 确定性转义为 `&lt;/untrusted_context`，再包裹固定 `<untrusted_context source="..." trust="observation">` 边界标签；重复编译已封装前缀时先剥离再幂等封装，保证字节完全一致，避免引入随机 nonce 破坏多轮 Prefix Cache 命中率。
+6. **存储加密、实时复权、fail-closed 审计与最小权限闭环（`crypto.py`、`snapshots.py`、`mcp_server.py`）**：
+   - 快照正文经 `HKDF-SHA256 → gzip → Fernet` 加密存储并校验 `content_sha256` 完整性；读取前依次校验租户作用域（跨租户/不存在统一返回 `403`，不泄露存在性并记 `snapshot_denied`）、TTL 有效期（过期返回 `409`）与 `source_access.allows()` 实时源权限（撤权 `403`、授权源不可用 `503`）。
+   - 解密前在数据库事务内强制先写入并提交 `snapshot_viewed` 审计（**fail-closed**），审计写失败直接返回 `503` 拒绝返回载荷；数据库角色遵循最小权限（Runtime 对四张新表仅 `SELECT/INSERT`，Scheduler 仅清理过期且未被 Badcase 引用的快照）；只读 MCP 使用 1 小时作用域凭据，每次调用实时复核 Web 权限并记 `mcp_queried` 审计，永不暴露快照原文。
 
 #### 2.3.2 OTel + Langfuse 零二开观测扩展（`apps/agent/src/compass_agent/observability/`）
 

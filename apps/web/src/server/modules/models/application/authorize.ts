@@ -13,6 +13,8 @@ export type ModelScope =
         | "data_manage"
         | "mcp_manage"
         | "runtime_usage"
+        | "contextops_read"
+        | "contextops_admin"
         | "schedule_manage";
       tenantId: string;
       workspaceId: string;
@@ -40,7 +42,11 @@ export function createModelAuthorizer(ctx: ModelAccessContext) {
     if (workspace.tenantId !== request.tenantId || workspace.status !== "active")
       reject("forbidden");
     const scope = { tenantId: request.tenantId, workspaceId: request.workspaceId };
-    if (request.purpose === "runtime_usage") {
+    if (request.purpose === "contextops_admin") {
+      if (!actor.isPlatformAdmin) reject("forbidden");
+    } else if (request.purpose === "contextops_read") {
+      requirePermission(access, "module.analysis", scope);
+    } else if (request.purpose === "runtime_usage") {
       if (access.role !== "admin" || !access.memberId) reject("forbidden");
     } else if (request.purpose === "schedule_manage") {
       requirePermission(access, "module.automations", scope);

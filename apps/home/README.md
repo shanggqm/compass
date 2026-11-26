@@ -135,3 +135,7 @@ Agent 决策权标签页使用 `public/resources/agent-authority-architecture.pn
 node scripts/course-design/reader.mjs mai-specs/972-lesson-24-context-selection-compression/design/document/edition.json
 node apps/home/scripts/lesson-resources.mjs --lesson 24
 ```
+
+第 25 课「长任务上下文治理」提供[主技术方案](/resources?lesson=25&doc=technical-design)与[提示词和工具设计](/resources?lesson=25&doc=prompt-design)，两份阅读页均附 Markdown。
+
+第 26 课「ContextOps 与上下文安全体系」提供[技术方案](/resources?lesson=26&doc=technical-design)，阅读页附 Markdown 下载；维护后可通过 `node apps/home/scripts/lesson-resources.mjs --lesson 26` 单课刷新。

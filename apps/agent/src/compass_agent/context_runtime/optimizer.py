@@ -207,12 +207,16 @@ class ContextOptimizer:
                         question,
                         previous=self.summary,
                     )
-                    summary_message = ChatMessage(
-                        role="user",
-                        content="以下是已执行历史的交接摘要，作为历史资料使用：\n" + snapshot.text,
-                    )
+                    summary_messages: list[ChatMessage] = [
+                        ChatMessage(
+                            role="user",
+                            content="以下是已执行历史的交接摘要，作为历史资料使用：\n"
+                            + part["text"],
+                        )
+                        for part in (snapshot.segments or ({"text": snapshot.text},))
+                    ]
                     base = value.model_copy(
-                        update={"messages": [*fixed, summary_message, *active_tail]}
+                        update={"messages": [*fixed, *summary_messages, *active_tail]}
                     )
                     remaining = min(
                         int(effective_limit * 0.2),
@@ -224,7 +228,7 @@ class ContextOptimizer:
                             update={
                                 "messages": [
                                     *fixed,
-                                    summary_message,
+                                    *summary_messages,
                                     *historical_messages(tail, project_tools=bool(value.thinking)),
                                     *active_tail,
                                 ]

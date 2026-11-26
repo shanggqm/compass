@@ -154,3 +154,26 @@ JEV 复用平台启用的 decision Provider；可通过 `COMPASS_ROUTING_JEV_PRO
 目标控制接口为 `GET /v1/analysis/sessions/{id}/goal` 和 `POST /v1/analysis/sessions/{id}/goal/actions`。子任务详情通过 `GET /v1/analysis/runs/{id}/children/{childId}` 按当前权限读取独立执行子树与完整交付回答（`answer`）；回答从已接受的私有回执读取，并在每次请求复核来源权限。尚未交付时 `answer` 为 `null`，主 SSE 契约保持兼容。
 
 升级至 [agent/main 0019](db/main/README.md#0019-目标与进度账本)，导入并发布随包 Goal、委派与子任务回传提示词。Goal 需要调度消费者、受控自主预算和答案协议 2 同时启用。课程对比实验见[三种上下文策略](../../examples/showcases/lesson25_context_strategies/README.md)。
+
+## 第 26 课 ContextOps
+
+每次普通 Chat、意图分类、历史选择、摘要及答案复核在模型入口同步执行 Context PEP：信任分层、来源权限校验、注入拦截与出口脱敏。工具调用参数保留 JSON 结构，用户合法查询键可进入模型；快照和审计统一脱敏。摘要按来源权限域分段，派生读取要求满足全部受限来源。
+
+`agent/main` 升级至 [0020](db/main/README.md#0020-contextops)。四张表保存无正文决策摘要、加密脱敏快照、只追加安全事件和 Badcase。投影使用有界后台队列，写入失败计数并降级；快照查看先实时复核来源，再同步提交审计，审计失败返回 503。快照密钥从 `COMPASS_MODEL_ENCRYPTION_KEY` 以独立 HKDF 用途派生，备份恢复需保留同一主密钥。
+
+- `COMPASS_CONTEXT_SNAPSHOT_TTL_DAYS=14`：Scheduler 每日清理到期且未被 Badcase 引用的快照；到期的引用快照保留记录，拒绝读取。
+- `COMPASS_CONTEXT_SECURITY_MODE=enforce`：`audit_only` 仅供 local/test，跨租户检查始终拒绝。
+- `COMPASS_CONTEXTOPS_MCP_ENABLED=true`：开放鉴权后的 `/v1/contextops/mcp`，提供四个只读工具。
+
+REST 位于 `/v1/contextops`，由 Web BFF 传递当前身份。内部用途 `contextops_read` 使用已有分析权限并限制本人；`contextops_admin` 复核平台管理员身份，查询仍限定当前租户与工作区。原运行用量鉴权保持独立。Badcase 写入与回放限管理员；回放使用冻结输入和纯装配器，不发起模型或工具执行。
+
+外部 MCP 客户端使用专用一小时令牌。管理员在已注入 Agent 环境的受控终端执行以下命令，把输出保存在客户端秘密配置中。每次使用仍复核当前账户、工作区和权限，`--administrator` 仅对当前平台管理员有效：
+
+```bash
+uv run --locked --package compass-agent python -m compass_agent.context_ops.mcp_token \
+  --actor <user-uuid> --tenant <tenant-uuid> --workspace <workspace-uuid> --administrator
+```
+
+连接 `<Agent 地址>/v1/contextops/mcp`，设置 `Authorization: Bearer <专用令牌>`。协议版本为 `2025-06-18`，支持 initialize、tools/list、tools/call 与 ping；GET 返回 405。工具为 `contextops_list_runs`、`contextops_get_run_flow`、`contextops_get_stats`、`contextops_list_badcases`，不暴露快照解密或写操作。调用落 `mcp_queried` 审计；浏览器 Origin 须与 Agent 地址同源。
+
+Context spans 使用 `compass.context.retrieve` / `compass.context.guardrail` / `compass.context.compile`，挂在真实 `compass.logical` 下，遵循字段白名单，Context 调用关闭正文采集。Langfuse 导出不可用时，本地摘要与统计继续可用。

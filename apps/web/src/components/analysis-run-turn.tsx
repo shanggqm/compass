@@ -14,6 +14,7 @@ import type {
 import type { RunView } from "@/contracts/agent-response";
 import { CitedAnswer } from "./cited-answer";
 import { DurableRunActions } from "./durable-run-actions";
+import { AppLink } from "./shell/app-link";
 import { WorkflowSaveCard } from "./workflow-save-card";
 import { withDatabaseQuerySummary } from "./ui/database-query-summary";
 import {
@@ -394,6 +395,7 @@ export const AnalysisRunTurn = memo(function AnalysisRunTurn({
   partialText,
   retry,
   durable,
+  contextOpsHref,
 }: {
   turn: AnalysisTurnView;
   onDownload: (file: ReadyFile) => void;
@@ -403,6 +405,7 @@ export const AnalysisRunTurn = memo(function AnalysisRunTurn({
   saved?: boolean;
   partialText?: string;
   retry?: () => void;
+  contextOpsHref?: string;
   durable?: {
     run: RunView;
     sessionId: string;
@@ -573,6 +576,11 @@ export const AnalysisRunTurn = memo(function AnalysisRunTurn({
             <UiExecutionTimeline {...timeline} />
             {answer}
           </>
+        )}
+        {contextOpsHref && (
+          <AppLink href={contextOpsHref} className="secondary">
+            上下文洞察
+          </AppLink>
         )}
       </div>
     </article>

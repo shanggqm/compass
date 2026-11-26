@@ -26,6 +26,9 @@ function group(
 group("analysis", "分析", "workspace", "module.analysis", [
   ["analysis-new", "新建分析", "analysis"],
 ]);
+group("contextops", "ContextOps", "workspace", "module.analysis", [
+  ["contextops", "ContextOps", "contextops", "implemented"],
+]);
 group("reports", "报告空间", "workspace", "module.reports", [
   ["reports-all", "全部产物", "reports"],
   ["reports-documents", "分析报告", "reports/reports"],
@@ -127,7 +130,14 @@ for (const page of pages) {
   if (page.id === "admin-overview") page.readPermission = "overview.read";
 }
 export const PAGE_CATALOG: readonly PageSpec[] = pages;
-export const PRIMARY_SECTIONS = ["analysis", "reports", "plugins", "automations", "boards"];
+export const PRIMARY_SECTIONS = [
+  "analysis",
+  "contextops",
+  "reports",
+  "plugins",
+  "automations",
+  "boards",
+];
 export const ADMIN_SECTIONS = [
   "admin-overview",
   "data",

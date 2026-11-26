@@ -2,9 +2,9 @@ id: compass
 title: Compass 电商经营分析 Agent
 status: active
 version: 0.0.1
-updated: 2026-11-21
+updated: 2026-11-25
 scope: cross-course-learner-project
-implementation_stage: lesson-23-agentic-search-acceptance
+implementation_stage: lesson-26-context-ops
 repository_url: https://github.com/shanggqm/compass
 scaffold_release: v0.0.1
 course_submodule_path: learner-kit/code/compass
@@ -29,6 +29,7 @@ canonical:
   production_runtime: docs/lesson-20-production-runtime.md
   context_runtime: mai-specs/975-lesson-21-context-runtime-promptops/design/TECH_DESIGN.md
   promptops: mai-specs/975-lesson-21-context-runtime-promptops/design/PROMPTOPS_TECH_DESIGN.md
+  context_ops: mai-specs/971-lesson-26-context-ops/BRIEF.md
   lesson_resources: apps/home/src/lib/lesson-resources.json
   learner_data: data/retail/README.md
   semantic_governance: mai-specs/974-lesson-22-enterprise-semantic-governance/BRIEF.md
@@ -73,7 +74,7 @@ related_apps:
     status: review
   agent:
     path: apps/agent
-    responsibility: context-runtime-promptops-semantic-execution-and-durable-schedule-delivery
+    responsibility: context-runtime-contextops-promptops-semantic-execution-and-durable-schedule-delivery
     port: 8102
     status: review
   memory:

@@ -80,7 +80,9 @@ def test_question_and_native_receipts_survive_context_compaction_together():
     )
     packed, *_ = fit(GenerateInput(messages=questions), 1600)
     assert [m.role for m in packed.messages] == ["user", "assistant", "tool"]
+    assert packed.messages[0].content is not None
     assert "本期实收多少" in packed.messages[0].content
+    assert packed.messages[-2].tool_calls is not None
     assert packed.messages[-1].tool_call_id == packed.messages[-2].tool_calls[0].id
 
 

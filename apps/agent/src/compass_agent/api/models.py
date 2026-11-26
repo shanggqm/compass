@@ -458,6 +458,7 @@ class ModelBoundaryMiddleware:
             (
                 "/v1/models",
                 "/v1/promptops",
+                "/v1/contextops",
                 "/v1/prompt-starters",
                 "/v1/analysis",
                 "/v1/internal/analysis",

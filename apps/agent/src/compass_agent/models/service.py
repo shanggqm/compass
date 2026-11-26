@@ -144,6 +144,17 @@ class ModelService:
         )
         if observation:
             self.observations[call_id] = observation
+        from compass_agent.context_ops.recorder import active_capture, record_logical
+
+        if active_capture.get() is not None:
+            if observation:
+                observation.content_enabled = False
+            try:
+                record_logical(observation, call_id)
+            except Exception:
+                # Observability must never become a prerequisite for provider execution.
+                if observation:
+                    observation.owner.instrumentation_errors += 1
         try:
             prepared = await self._prepare(
                 call_id,

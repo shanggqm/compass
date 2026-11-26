@@ -9,10 +9,10 @@ import { prepareLessonResources } from "../scripts/lesson-resources.mjs";
 const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lessons = JSON.parse(await readFile(path.join(app, "src/lib/lesson-resources.json"), "utf8"));
 
-test("course resources list lessons 11–24 in order", () => {
+test("course resources list lessons 11–26 in order", () => {
   assert.deepEqual(
     lessons.map((lesson) => lesson.number),
-    [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+    [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
   );
 });
 

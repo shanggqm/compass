@@ -156,7 +156,11 @@ export async function authorizeRuntime(
     )
       throw new ApplicationError("forbidden", "当前权限不足。");
     const scope = { tenantId: context.scope.tenant_id, workspaceId: context.scope.workspace_id };
-    if (context.purpose === "runtime_usage") {
+    if (context.purpose === "contextops_admin") {
+      if (!actor.isPlatformAdmin) throw new ApplicationError("forbidden", "当前权限不足。");
+    } else if (context.purpose === "contextops_read") {
+      requirePermission(current, "module.analysis", scope);
+    } else if (context.purpose === "runtime_usage") {
       if (current.role !== "admin" || !current.memberId)
         throw new ApplicationError("forbidden", "当前权限不足。");
     } else {

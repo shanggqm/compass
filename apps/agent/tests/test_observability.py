@@ -21,6 +21,7 @@ from compass_agent.schemas import ModelUsage
 from compass_agent.settings import Settings
 from opentelemetry.sdk.trace.export import SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from pydantic import SecretStr
 
 from .test_models import CHAT, TEST, create, generate, headers, invoke
@@ -46,6 +47,40 @@ def spans(owner, export):
     assert owner.provider is not None
     owner.provider.force_flush()
     return cast(list[Any], list(export.get_finished_spans()))
+
+
+@pytest.mark.parametrize(
+    ("status", "level", "otel_status"),
+    [
+        (status, "DEFAULT", StatusCode.UNSET)
+        for status in (
+            "created",
+            "accepted",
+            "running",
+            "waiting",
+            "paused",
+            "cancelling",
+            "completed",
+        )
+    ]
+    + [
+        ("canceled", "WARNING", StatusCode.UNSET),
+        ("failed", "ERROR", StatusCode.ERROR),
+        ("incomplete", "ERROR", StatusCode.ERROR),
+    ],
+)
+def test_run_boundary_status_preserves_actual_error_level(status, level, otel_status):
+    owner, export = observer()
+    try:
+        root = owner.root(uuid4(), CONTEXT)
+        root.complete(status)
+        root.end()
+        record = spans(owner, export)[0]
+        assert record.attributes["langfuse.observation.metadata.status"] == status
+        assert record.attributes["langfuse.observation.level"] == level
+        assert record.status.status_code == otel_status
+    finally:
+        owner.shutdown()
 
 
 @pytest.mark.parametrize("ratio", [0, 1])

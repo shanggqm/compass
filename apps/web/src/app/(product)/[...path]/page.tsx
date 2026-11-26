@@ -64,6 +64,12 @@ export default async function Page({
         "toLocal",
       ]);
       const pageId = matchPage(path)?.page.id;
+      if (pageId === "contextops") {
+        for (const key of ["session", "run", "run_id"]) {
+          allowed.add(key);
+          if (search[key]) uuid.parse(search[key]);
+        }
+      }
       if (pageId === "data-metrics") {
         allowed.add("asset");
         if (search.asset !== undefined) uuid.parse(search.asset);

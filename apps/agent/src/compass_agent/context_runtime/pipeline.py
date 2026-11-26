@@ -4,17 +4,16 @@ import hashlib
 import json
 from dataclasses import asdict
 from datetime import date
+from time import perf_counter
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
 from compass_agent.context_runtime.contracts import (
     AccessRef,
-    Compaction,
     ContextItem,
     ContextRequest,
     PreparedContext,
-    Selection,
     SourceRef,
 )
 from compass_agent.context_runtime.profiles import (
@@ -24,9 +23,8 @@ from compass_agent.context_runtime.profiles import (
     scope_profile,
 )
 from compass_agent.data_connections.entities import DataConnection
-from compass_agent.harness.context import ContextLimit
 from compass_agent.models.errors import ModelError
-from compass_agent.schemas import RUN_CONTEXT_MESSAGES, ChatMessage
+from compass_agent.schemas import ChatMessage
 
 if TYPE_CHECKING:
     from compass_agent.schemas import ModelTokenLimits
@@ -142,7 +140,7 @@ def collect(messages, required_positions=(), metric_access=(), organization_posi
             if m.role == "tool" or m.tool_calls
             else "conversation"
         )
-        trust = "managed" if m.role == "system" else "observation" if kind == "tool" else "actor"
+        trust = "managed" if m.role == "system" else "actor" if m.role == "user" else "observation"
         if i == organization_position:
             required, kind, trust = True, "organization", "observation"
         elif i in required_positions:
@@ -175,51 +173,31 @@ def fit(
     required_positions=(),
     metric_access=(),
     organization_position=None,
+    candidates=None,
 ):
-    items = collect(value.messages, required_positions, metric_access, organization_position)
-    selected = list(items)
-    decisions = []
+    from compass_agent.context_ops.compiler import compile_candidates
 
-    def frame():
-        result = value.model_copy(update={"messages": [i.message for i in selected]})
-        # UTF-8 byte bound includes tool arguments, schemas and per-message framing.
-        payload = result.model_dump(mode="json", exclude_none=True, exclude={"continuation_token"})
-        size = len(canonical(payload)) + len(result.messages) * 8 + continuation_extra
-        return result, size
-
-    result, size = frame()
-    before = size
-    for group in dict.fromkeys(i.group for i in selected if not i.required):
-        if size <= limit and len(selected) <= RUN_CONTEXT_MESSAGES:
-            break
-        if value.continuation_token:
-            break
-        group_items = [i for i in selected if i.group == group]
-        if any(i.required for i in group_items):
-            continue
-        old = size
-        selected = [i for i in selected if i.group != group]
-        result, size = frame()
-        decisions.append(Compaction(group, old, size))
-    if size > limit or len(selected) > RUN_CONTEXT_MESSAGES:
-        raise ContextLimit()
-    kept = {i.item_id for i in selected}
-    selections = tuple(
-        Selection(
-            i.item_id,
-            "selected" if i.item_id in kept else "omitted",
-            "required" if i.required else "in_budget" if i.item_id in kept else "budget",
-            kind=i.kind,
-            trust=i.trust,
-            source=i.source,
-            group=i.group,
-            role=i.message.role,
-            byte_bound=i.byte_bound,
-            access=i.access,
-        )
-        for i in items
+    items = (
+        candidates
+        if candidates is not None
+        else collect(value.messages, required_positions, metric_access, organization_position)
     )
-    return result, before, size, selections, tuple(decisions)
+    payload = value.model_dump(mode="json", exclude_none=True, exclude={"continuation_token"})
+    size = len(canonical(payload)) + len(value.messages) * 8 + continuation_extra
+    overhead = max(0, size - sum(i.byte_bound for i in items))
+    selected, before, after, decisions, transforms = compile_candidates(
+        items,
+        limit,
+        overhead=overhead,
+        continuation=bool(value.continuation_token),
+    )
+    return (
+        value.model_copy(update={"messages": [i.message for i in selected]}),
+        before,
+        after,
+        decisions,
+        transforms,
+    )
 
 
 def prepare_input(
@@ -244,9 +222,12 @@ def prepare_input(
     run_facts=None,
     fit_budget=True,
     goal_anchor=None,
+    security_mode="enforce",
+    reviewing=False,
 ):
     from compass_agent.promptops.template import render
 
+    started = perf_counter()
     native_continuation_extra = continuation_extra
     current = sources(tx, trusted.scope)
     search = binding.get("search")
@@ -441,11 +422,34 @@ def prepare_input(
         by_path = {f.path: f.body.rstrip("\n") for f in protocol_files}
         receipts.extend(f.receipt() for f in protocol_files)
         continuation_extra += len(canonical(output_message(value, by_path.__getitem__))) + 8
+    from compass_agent.context_ops.compiler import freeze, secure_items
+
+    candidates = collect(
+        value.messages,
+        required_positions,
+        tuple(
+            AccessRef(ctx.tenant_id, ctx.workspace_id, key, str(rev))
+            for key, rev in used_sources.items()
+        ),
+        organization_position,
+    )
+    if reviewing:
+        from dataclasses import replace
+
+        candidates = [
+            replace(i, kind="review", trust="observation")
+            if i.message.role == "user" and i.kind == "conversation"
+            else i
+            for i in candidates
+        ]
+    candidates, security_events, blocked = secure_items(candidates, trusted, mode=security_mode)
+    value = value.model_copy(update={"messages": [i.message for i in candidates]})
     limit = min(FRAME_BYTE_LIMIT, input_budget(limits, value.max_tokens))
     value, before, after, selections, transforms = (
         fit(
             value,
             limit,
+            candidates=candidates,
             continuation_extra=continuation_extra,
             required_positions=required_positions,
             organization_position=organization_position,
@@ -467,8 +471,28 @@ def prepare_input(
             (),
         )
     )
+    kept = (
+        {s.item for s in selections if s.decision == "selected"}
+        if fit_budget
+        else {i.item_id for i in candidates}
+    )
+    selected_items = [i for i in candidates if i.item_id in kept]
+    frozen = freeze(
+        candidates,
+        selected_items,
+        overhead=max(0, before - sum(i.byte_bound for i in candidates)),
+        limit=limit,
+        continuation=bool(value.continuation_token),
+    )
     receipt = {
         "schemaVersion": 1,
+        "contextOps": {
+            "frozen": frozen,
+            "reviewing": reviewing,
+            "security_events": [asdict(e) for e in security_events],
+            "blocked": blocked,
+            "duration_ms": round((perf_counter() - started) * 1000),
+        },
         "generation": ctx.generation,
         "stepKey": ctx.step_key,
         "runId": ctx.run_id,

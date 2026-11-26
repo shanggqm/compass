@@ -32,7 +32,10 @@ class Frame:
         self.context_receipts = {}
         self.context_questions = {}
         self.capabilities = None
-        self.store = SimpleNamespace(metric_catalog={})
+        self.store = SimpleNamespace(
+            metric_catalog={},
+            source_settings=SimpleNamespace(compass_context_security_mode="enforce"),
+        )
         self.saved = None
 
     def has_step(self, key):

@@ -77,15 +77,22 @@ export function AppShell({
   const sidebarRef = useRef<HTMLElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const isPromptOps = page.id === "platform-promptops";
-  const isAdmin = ADMIN_SECTIONS.includes(page.section),
+  const isAdmin =
+      ADMIN_SECTIONS.includes(page.section) ||
+      (page.id === "contextops" && session.isPlatformAdmin),
     currentSection = isAdmin ? "admin" : page.section,
     section = preview ?? currentSection;
   const navigation = session.navigation;
   const primary = PRIMARY_SECTIONS.flatMap((key) => {
+    if (key === "contextops" && session.isPlatformAdmin) return [];
     const entry = navigation.find((p) => p.section === key);
-    return entry ? [entry] : [];
+    return entry ? [{ ...entry, title: key === "contextops" ? "我的运行轨迹" : entry.title }] : [];
   });
-  const adminEntries = [...ADMIN_SECTIONS, "platform"].flatMap((key) => {
+  const adminEntries = [
+    ...ADMIN_SECTIONS,
+    ...(session.isPlatformAdmin ? ["contextops"] : []),
+    "platform",
+  ].flatMap((key) => {
     const entry = navigation.find((p) => p.section === key);
     return entry ? [entry] : [];
   });

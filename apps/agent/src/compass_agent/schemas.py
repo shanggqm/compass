@@ -65,6 +65,8 @@ class TrustedContext(StrictModel):
         "mcp_manage",
         "runtime_diagnostics",
         "runtime_usage",
+        "contextops_read",
+        "contextops_admin",
         "schedule_manage",
         "schedule_owner",
         "schedule_run",
@@ -2501,3 +2503,336 @@ class ChildTraceSnapshot(RunContractModel):
     seq: str = Field(pattern=r"^[0-9]+-[0-9]+$")
     nodes: list[RunExecutionNode]
     answer: str | None = None
+
+
+# Feature 971: content-free ContextOps read models and audited snapshot/replay contracts.
+ContextWindow = Literal["24h", "7d", "30d"]
+ContextRootCause = Literal[
+    "source_data",
+    "semantic",
+    "retrieval",
+    "ranking_cutoff",
+    "compression_loss",
+    "security_false_positive",
+    "model_reasoning",
+]
+
+
+class ContextOpsFilter(StrictModel):
+    window: ContextWindow = "24h"
+    actor_id: UUID | None = None
+    session_id: UUID | None = None
+    scene_id: str | None = Field(default=None, max_length=64)
+    policy_digest: str | None = Field(default=None, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    status: (
+        Literal[
+            "created",
+            "running",
+            "waiting",
+            "paused",
+            "cancelling",
+            "completed",
+            "failed",
+            "canceled",
+        ]
+        | None
+    ) = None
+    has_security_event: bool | None = None
+    failed_stage: str | None = Field(default=None, max_length=32)
+    limit: int = Field(default=50, ge=1, le=100)
+    cursor: UUID | None = None
+
+
+class ContextCount(StrictModel):
+    name: str
+    count: int = Field(ge=0)
+
+
+class ContextDuration(StrictModel):
+    name: str
+    count: int = Field(ge=0)
+    p50_ms: float | None
+    p95_ms: float | None
+    avg_ms: float | None
+    scene_id: str | None = None
+
+
+class ContextSourceShare(StrictModel):
+    source: str
+    candidate_tokens: int = Field(ge=0)
+    selected_tokens: int = Field(ge=0)
+
+
+class ContextTrendPoint(StrictModel):
+    start: datetime
+    run_count: int = Field(ge=0)
+    session_count: int = Field(ge=0)
+    omission_rate: float | None
+    p50_ms: float | None
+    anomaly_rate: float | None
+    security_event_count: int = Field(ge=0)
+    avg_turns: float | None
+    completion_rate: float | None
+    avg_search_turns: float | None
+
+
+class ContextOverview(StrictModel):
+    administrator: bool
+    window: ContextWindow
+    session_count: int = Field(ge=0)
+    run_count: int = Field(ge=0)
+    avg_turns: float | None
+    min_turns: int | None
+    max_turns: int | None
+    avg_search_turns: float | None
+    turn_completion_breakdown: list[ContextCount]
+    terminal_outcome_counts: list[ContextCount]
+    omission_rate: float | None
+    compaction_rate: float | None
+    context_duration_share: float | None
+    compressed_completion_rate: float | None
+    uncompressed_completion_rate: float | None
+    duration: ContextDuration
+    token_upper_bound: int | None
+    measured_tokens: int | None
+    failure_count: int | None
+    security_blocked_count: int | None
+    redacted_count: int | None
+    source_breakdown: list[ContextSourceShare]
+    security_distribution: list[ContextCount]
+    projection_errors: int = Field(ge=0)
+    projection_dropped: int = Field(ge=0)
+    trend: list[ContextTrendPoint] = Field(default_factory=list)
+    compaction_saving_rate: float | None = None
+    cache_hit_rate: float | None = None
+    anomaly_count: int | None = None
+    empty_result_count: int | None = None
+    short_session_rate: float | None = None
+    security_mode: Literal["enforce", "audit_only"] | None = None
+    langfuse_status: Literal["connected", "unavailable", "disabled"] = "disabled"
+    langfuse_url: str | None = None
+    policy_versions: list[ContextCount] = Field(default_factory=list)
+
+
+class ContextRunView(StrictModel):
+    run_id: UUID
+    session_id: UUID
+    actor_id: UUID
+    session_title: str
+    status: str
+    scene_id: str | None
+    scene_name: str | None = None
+    category_name: str | None = None
+    created_at: datetime
+    step_count: int = Field(ge=0)
+    duration_ms: int | None
+    total_tokens: int | None
+    token_upper_bound: int | None
+    omission_rate: float | None
+    compaction_applied: bool
+    security_blocked_count: int = Field(ge=0)
+    trace_id: str | None
+    historical: bool
+
+
+class ContextRuns(StrictModel):
+    items: list[ContextRunView]
+    next_cursor: UUID | None = None
+    administrator: bool
+
+
+class ContextFunnelStage(StrictModel):
+    stage: Literal["candidate", "filtered", "ranked", "compacted", "window"]
+    count: int = Field(ge=0)
+
+
+class ContextDecision(StrictModel):
+    item_id: str
+    kind: str
+    source: dict[str, str]
+    trust: str
+    decision: Literal["selected", "omitted"]
+    reason: str
+    byte_bound: int = Field(ge=0)
+    access: list[dict[str, str]]
+
+
+class ContextFlowNode(StrictModel):
+    id: str
+    step_id: UUID
+    label: str
+    track: Literal["input", "model", "tool"]
+    phase: Literal["identify", "research", "context", "answer"]
+    status: str
+    started_at: datetime
+    duration_ms: int | None
+    ordinal: int = Field(ge=0)
+    tokens: int | None
+    error_code: str | None = None
+    snapshot_ref: str | None = None
+    policy_digest: str | None = None
+    prompt_generation: int | None = None
+    semantic_version: str | None = None
+    security_blocked_count: int = 0
+    redacted_count: int = 0
+    funnel: list[ContextFunnelStage] = Field(default_factory=list)
+    source_breakdown: list[ContextSourceShare] = Field(default_factory=list)
+    decisions: list[ContextDecision] = Field(default_factory=list)
+
+
+class ContextRunFlow(StrictModel):
+    run: ContextRunView
+    nodes: list[ContextFlowNode]
+    langfuse_url: str | None
+    langfuse_reason: str | None
+    budget_method: Literal["utf8_upper_bound"] = "utf8_upper_bound"
+
+
+class ContextIntentRecord(StrictModel):
+    run_id: UUID
+    scene_id: str
+    scene_name: str | None = None
+    category_id: str | None = None
+    category_name: str | None = None
+    source: Literal["jev", "flash", "fallback", "unknown"]
+    duration_ms: int | None
+    created_at: datetime
+    semantic_version: str | None = None
+
+
+class ContextIntentBreakdown(StrictModel):
+    scene_id: str
+    name: str
+    category_id: str | None = None
+    category_name: str | None = None
+    count: int = Field(ge=0)
+    jev: int = Field(default=0, ge=0)
+    flash: int = Field(default=0, ge=0)
+    fallback: int = Field(default=0, ge=0)
+    unknown: int = Field(default=0, ge=0)
+
+
+class ContextIntents(StrictModel):
+    distribution: list[ContextCount]
+    sources: list[ContextCount]
+    durations: list[ContextDuration]
+    recent: list[ContextIntentRecord]
+    breakdown: list[ContextIntentBreakdown] = Field(default_factory=list)
+    excluded_historical_count: int = Field(default=0, ge=0)
+
+
+class ContextAnomalyReason(StrictModel):
+    run_id: UUID
+    reasons: list[Literal["run_failed", "empty_result", "compaction_truncated", "node_failed"]]
+    failed_labels: list[str] = Field(default_factory=list)
+    phase: Literal["identify", "research", "context", "answer"] | None = None
+
+
+class ContextAnomalies(StrictModel):
+    failures: list[ContextCount]
+    empty_retrieval_count: int
+    truncation_count: int
+    phase_durations: list[ContextDuration]
+    runs: list[ContextRunView]
+    reasons: list[ContextAnomalyReason] = Field(default_factory=list)
+
+
+class ContextSnapshotView(StrictModel):
+    snapshot_ref: str
+    content_sha256: str
+    min_trust_level: str
+    data_classification: str
+    expires_at: datetime
+    payload: dict[str, Any]
+    audited: Literal[True] = True
+
+
+class ContextSecurityEventView(StrictModel):
+    id: UUID
+    run_id: UUID | None
+    actor_id: UUID | None
+    event_type: str
+    action: str
+    rule_code: str
+    hit_count: int
+    source_kind: str | None
+    trust_level: str | None
+    target_ref: str | None
+    created_at: datetime
+
+
+class ContextSecurityEvents(StrictModel):
+    items: list[ContextSecurityEventView]
+    next_cursor: UUID | None = None
+
+
+class ContextBadcaseInput(StrictModel):
+    run_id: UUID
+    step_id: UUID
+    root_cause_category: ContextRootCause
+    title: str = Field(min_length=1, max_length=160)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ContextBadcaseView(StrictModel):
+    id: UUID
+    run_id: UUID
+    step_id: UUID
+    snapshot_ref: str
+    scene_id: str
+    root_cause_category: ContextRootCause
+    title: str
+    note: str | None
+    policy_digest: str
+    prompt_generation: int
+    semantic_version: str | None
+    status: Literal["open", "snapshot_expired_or_revoked", "authorization_unavailable"]
+    created_at: datetime
+
+
+class ContextBadcases(StrictModel):
+    items: list[ContextBadcaseView]
+
+
+class ContextReplayOverride(StrictModel):
+    max_input_tokens: int | None = Field(default=None, ge=1, le=1048576)
+    protect_dictionary: bool = False
+    compaction_threshold: float | None = Field(default=None, ge=0.1, le=1)
+    max_observation_items: int | None = Field(default=None, ge=0, le=512)
+
+
+class ContextReplayInput(StrictModel):
+    override: ContextReplayOverride = Field(default_factory=ContextReplayOverride)
+
+
+class ContextReplayResult(StrictModel):
+    selected_ids: list[str]
+    tokens: int
+    dictionary_preserved: bool
+    funnel: list[ContextFunnelStage]
+    assembly_sha256: str
+    security_blocked_count: int
+
+
+class ContextReplayComparison(StrictModel):
+    baseline: ContextReplayResult
+    candidate: ContextReplayResult
+    baseline_matches_snapshot: bool
+    newly_included_ids: list[str]
+    newly_omitted_ids: list[str]
+    token_delta: int
+    frozen_model_outputs: bool
+
+
+class ContextMcpRequest(StrictModel):
+    jsonrpc: Literal["2.0"]
+    id: str | int | None = None
+    method: str = Field(max_length=100)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ContextMcpResponse(StrictModel):
+    jsonrpc: Literal["2.0"] = "2.0"
+    id: str | int | None
+    result: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None

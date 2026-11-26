@@ -17,6 +17,8 @@ const input = z.strictObject({
       "chat",
       "runtime_usage",
       "runtime_diagnostics",
+      "contextops_read",
+      "contextops_admin",
       "schedule_manage",
       "schedule_owner",
       "schedule_run",

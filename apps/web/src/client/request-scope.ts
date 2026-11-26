@@ -313,6 +313,7 @@ export class DocumentSession {
     method = "GET",
     body?: unknown,
     options?: {
+      retainOnForbidden?: boolean;
       retainOnNotFound?: boolean;
       signal?: AbortSignal;
       timeoutMs?: number;
@@ -348,7 +349,10 @@ export class DocumentSession {
         const error = await response.json();
         this.assertCurrent(generation);
         if (response.status === 401) this.retire("登录已失效。", "/login");
-        if (response.status === 403 || (response.status === 404 && !options?.retainOnNotFound))
+        if (
+          (response.status === 403 && !options?.retainOnForbidden) ||
+          (response.status === 404 && !options?.retainOnNotFound)
+        )
           this.retire("访问范围已变化，请重新加载。", locationKey());
         throw new ApiError(
           response.status,

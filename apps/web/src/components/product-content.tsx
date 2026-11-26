@@ -11,6 +11,7 @@ import { AutomationsPage } from "@/features/automations/page";
 import { KnowledgePage } from "@/features/knowledge/page";
 import { SemanticPage } from "@/features/semantic/page";
 import { PromptOpsPage } from "@/features/promptops/page";
+import { ContextOpsPage } from "@/features/contextops/page";
 import { ModelsPages } from "@/features/models/pages";
 import type { WorkflowAssetRef } from "@/client/analysis-run";
 import { isModelContract } from "@/contracts/model-contract";
@@ -37,7 +38,9 @@ export function ProductContent({ payload }: { payload: PagePayload }) {
   const { page, session } = payload;
   const { tenantId, workspaceId } = session.scope;
   const content =
-    page.section === "analysis" ? (
+    page.id === "contextops" && tenantId && workspaceId ? (
+      <ContextOpsPage payload={payload} scope={{ tenantId, workspaceId }} />
+    ) : page.section === "analysis" ? (
       <AnalysisComposer payload={payload} workflow={workflowSelection(payload.viewKey)} />
     ) : page.section === "automations" && tenantId && workspaceId ? (
       <AutomationsPage payload={payload} scope={{ tenantId, workspaceId }} />

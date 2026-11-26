@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from math import isfinite
 
 FIELDS = frozenset(
@@ -72,6 +73,17 @@ FIELDS = FIELDS | {
     "tool_status",
     "tool_operation",
     "tool_evidence",
+    "snapshot_ref",
+    "policy_digest",
+    "trust_level",
+    "guardrail_action",
+    "guardrail_rule",
+    "candidate_count",
+    "selected_count",
+    "security_blocked_count",
+    "redacted_count",
+    "compaction_ratio",
+    "funnel_stage",
 }
 # Only the Context Runtime emits structured span events. Give each event its own
 # schema so SDK exception messages and arbitrary payloads never reach OTLP.
@@ -83,6 +95,8 @@ EVENT_FIELDS = {
     "capability.excluded": {"reason"},
     "context.compacted": {"reason", "tokens_before", "tokens_after"},
     "context.rejected": {"reason"},
+    "context.guardrail": {"guardrail_action", "guardrail_rule", "trust_level"},
+    "context.funnel": {"funnel_stage", "candidate_count"},
 }
 
 META = "langfuse.observation.metadata."
@@ -147,6 +161,20 @@ def context_list_valid(key, values):
 
 def safe_attribute(span_name, key, value):
     name = key.removeprefix(META)
+    if name == "snapshot_ref":
+        return isinstance(value, str) and bool(re.fullmatch(r"csnp_[0-9a-f]{32}", value))
+    if name == "policy_digest":
+        return isinstance(value, str) and bool(re.fullmatch(r"[0-9a-f]{64}", value))
+    if name == "guardrail_rule":
+        from compass_agent.context_security.policy import RULES
+
+        return value in RULES
+    if name == "trust_level":
+        return value in {"managed", "dictionary", "actor", "observation"}
+    if name == "guardrail_action":
+        return value in {"block", "strip", "redact", "isolate", "deny", "allow_audit"}
+    if name == "funnel_stage":
+        return value in {"candidate", "filtered", "ranked", "compacted", "window"}
     if name in CONTEXT_LISTS:
         return span_name == "context.assemble" and context_list_valid(name, value)
     if name == "tool":
@@ -171,6 +199,8 @@ def safe_context_event(event):
     attrs = event.attributes or {}
     expected = {prefix + key for key in EVENT_FIELDS[event.name]}
     if set(attrs) != expected or any(scalar(v) is None for v in attrs.values()):
+        return False
+    if not all(safe_attribute("compass.context", key, value) for key, value in attrs.items()):
         return False
     reason = attrs.get(prefix + "reason")
     if reason is not None and reason not in {

@@ -449,6 +449,11 @@ export function AnalysisComposer({
               return (
                 <AnalysisRunTurn
                   key={turn.id}
+                  contextOpsHref={
+                    run
+                      ? `${payload.session.navigation.find((p) => p.id === "contextops")?.href ?? ""}?run=${run.runId}`
+                      : undefined
+                  }
                   turn={turn}
                   retry={
                     busy || question.trim()

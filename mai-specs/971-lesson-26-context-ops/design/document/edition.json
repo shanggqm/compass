@@ -1,0 +1,37 @@
+{
+  "lesson": 26,
+  "title": "ContextOps 与上下文安全体系",
+  "subtitle": "零二开复用观测底座，用在线 PEP 守住信任与权限边界，用轻量读模型、加密快照与确定性回放闭环上下文治理。",
+  "brand": "Compass",
+  "label": "第 26 课 · 技术方案",
+  "source": "../TECH_DESIGN.md",
+  "guide": "guide.md",
+  "output": "../TECH_DESIGN.html",
+  "code": {
+    "pep": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ContextSecurityGuard:",
+      "language": "python"
+    },
+    "spans": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def emit_context_spans(",
+      "language": "python"
+    },
+    "cipher": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class SnapshotCipher:",
+      "language": "python"
+    },
+    "replay": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ContextOnlyReplayEngine:",
+      "language": "python"
+    },
+    "mcp": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def dispatch_mcp_call(",
+      "language": "python"
+    }
+  }
+}

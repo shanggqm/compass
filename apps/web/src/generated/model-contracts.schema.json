@@ -1669,6 +1669,2181 @@
       "title": "ClassificationEvent",
       "type": "object"
     },
+    "ContextAnomalies": {
+      "additionalProperties": false,
+      "properties": {
+        "empty_retrieval_count": {
+          "title": "Empty Retrieval Count",
+          "type": "integer"
+        },
+        "failures": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Failures",
+          "type": "array"
+        },
+        "phase_durations": {
+          "items": {
+            "$ref": "#/$defs/ContextDuration"
+          },
+          "title": "Phase Durations",
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/ContextAnomalyReason"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/ContextRunView"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "truncation_count": {
+          "title": "Truncation Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "failures",
+        "empty_retrieval_count",
+        "truncation_count",
+        "phase_durations",
+        "runs"
+      ],
+      "title": "ContextAnomalies",
+      "type": "object"
+    },
+    "ContextAnomalyReason": {
+      "additionalProperties": false,
+      "properties": {
+        "failed_labels": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Failed Labels",
+          "type": "array"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "enum": [
+                "identify",
+                "research",
+                "context",
+                "answer"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
+        "reasons": {
+          "items": {
+            "enum": [
+              "run_failed",
+              "empty_result",
+              "compaction_truncated",
+              "node_failed"
+            ],
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "reasons"
+      ],
+      "title": "ContextAnomalyReason",
+      "type": "object"
+    },
+    "ContextBadcaseInput": {
+      "additionalProperties": false,
+      "properties": {
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "root_cause_category": {
+          "enum": [
+            "source_data",
+            "semantic",
+            "retrieval",
+            "ranking_cutoff",
+            "compression_loss",
+            "security_false_positive",
+            "model_reasoning"
+          ],
+          "title": "Root Cause Category",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "step_id": {
+          "format": "uuid",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "step_id",
+        "root_cause_category",
+        "title"
+      ],
+      "title": "ContextBadcaseInput",
+      "type": "object"
+    },
+    "ContextBadcaseView": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Note"
+        },
+        "policy_digest": {
+          "title": "Policy Digest",
+          "type": "string"
+        },
+        "prompt_generation": {
+          "title": "Prompt Generation",
+          "type": "integer"
+        },
+        "root_cause_category": {
+          "enum": [
+            "source_data",
+            "semantic",
+            "retrieval",
+            "ranking_cutoff",
+            "compression_loss",
+            "security_false_positive",
+            "model_reasoning"
+          ],
+          "title": "Root Cause Category",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scene_id": {
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "semantic_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Semantic Version"
+        },
+        "snapshot_ref": {
+          "title": "Snapshot Ref",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "snapshot_expired_or_revoked",
+            "authorization_unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "format": "uuid",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "step_id",
+        "snapshot_ref",
+        "scene_id",
+        "root_cause_category",
+        "title",
+        "note",
+        "policy_digest",
+        "prompt_generation",
+        "semantic_version",
+        "status",
+        "created_at"
+      ],
+      "title": "ContextBadcaseView",
+      "type": "object"
+    },
+    "ContextBadcases": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ContextBadcaseView"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ContextBadcases",
+      "type": "object"
+    },
+    "ContextCount": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "count"
+      ],
+      "title": "ContextCount",
+      "type": "object"
+    },
+    "ContextDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Access",
+          "type": "array"
+        },
+        "byte_bound": {
+          "minimum": 0,
+          "title": "Byte Bound",
+          "type": "integer"
+        },
+        "decision": {
+          "enum": [
+            "selected",
+            "omitted"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "source": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Source",
+          "type": "object"
+        },
+        "trust": {
+          "title": "Trust",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "kind",
+        "source",
+        "trust",
+        "decision",
+        "reason",
+        "byte_bound",
+        "access"
+      ],
+      "title": "ContextDecision",
+      "type": "object"
+    },
+    "ContextDuration": {
+      "additionalProperties": false,
+      "properties": {
+        "avg_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Ms"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "p50_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "P50 Ms"
+        },
+        "p95_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "P95 Ms"
+        },
+        "scene_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scene Id"
+        }
+      },
+      "required": [
+        "name",
+        "count",
+        "p50_ms",
+        "p95_ms",
+        "avg_ms"
+      ],
+      "title": "ContextDuration",
+      "type": "object"
+    },
+    "ContextFlowNode": {
+      "additionalProperties": false,
+      "properties": {
+        "decisions": {
+          "items": {
+            "$ref": "#/$defs/ContextDecision"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration Ms"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "funnel": {
+          "items": {
+            "$ref": "#/$defs/ContextFunnelStage"
+          },
+          "title": "Funnel",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "identify",
+            "research",
+            "context",
+            "answer"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "policy_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Digest"
+        },
+        "prompt_generation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Generation"
+        },
+        "redacted_count": {
+          "default": 0,
+          "title": "Redacted Count",
+          "type": "integer"
+        },
+        "security_blocked_count": {
+          "default": 0,
+          "title": "Security Blocked Count",
+          "type": "integer"
+        },
+        "semantic_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semantic Version"
+        },
+        "snapshot_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Ref"
+        },
+        "source_breakdown": {
+          "items": {
+            "$ref": "#/$defs/ContextSourceShare"
+          },
+          "title": "Source Breakdown",
+          "type": "array"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "format": "uuid",
+          "title": "Step Id",
+          "type": "string"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tokens"
+        },
+        "track": {
+          "enum": [
+            "input",
+            "model",
+            "tool"
+          ],
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "step_id",
+        "label",
+        "track",
+        "phase",
+        "status",
+        "started_at",
+        "duration_ms",
+        "ordinal",
+        "tokens"
+      ],
+      "title": "ContextFlowNode",
+      "type": "object"
+    },
+    "ContextFunnelStage": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "candidate",
+            "filtered",
+            "ranked",
+            "compacted",
+            "window"
+          ],
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "count"
+      ],
+      "title": "ContextFunnelStage",
+      "type": "object"
+    },
+    "ContextIntentBreakdown": {
+      "additionalProperties": false,
+      "properties": {
+        "category_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Id"
+        },
+        "category_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Name"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "fallback": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Fallback",
+          "type": "integer"
+        },
+        "flash": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Flash",
+          "type": "integer"
+        },
+        "jev": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Jev",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "scene_id": {
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "unknown": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Unknown",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "scene_id",
+        "name",
+        "count"
+      ],
+      "title": "ContextIntentBreakdown",
+      "type": "object"
+    },
+    "ContextIntentRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "category_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Id"
+        },
+        "category_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Name"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration Ms"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scene_id": {
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "scene_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scene Name"
+        },
+        "semantic_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semantic Version"
+        },
+        "source": {
+          "enum": [
+            "jev",
+            "flash",
+            "fallback",
+            "unknown"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "scene_id",
+        "source",
+        "duration_ms",
+        "created_at"
+      ],
+      "title": "ContextIntentRecord",
+      "type": "object"
+    },
+    "ContextIntents": {
+      "additionalProperties": false,
+      "properties": {
+        "breakdown": {
+          "items": {
+            "$ref": "#/$defs/ContextIntentBreakdown"
+          },
+          "title": "Breakdown",
+          "type": "array"
+        },
+        "distribution": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Distribution",
+          "type": "array"
+        },
+        "durations": {
+          "items": {
+            "$ref": "#/$defs/ContextDuration"
+          },
+          "title": "Durations",
+          "type": "array"
+        },
+        "excluded_historical_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Excluded Historical Count",
+          "type": "integer"
+        },
+        "recent": {
+          "items": {
+            "$ref": "#/$defs/ContextIntentRecord"
+          },
+          "title": "Recent",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "distribution",
+        "sources",
+        "durations",
+        "recent"
+      ],
+      "title": "ContextIntents",
+      "type": "object"
+    },
+    "ContextMcpRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "jsonrpc": {
+          "const": "2.0",
+          "title": "Jsonrpc",
+          "type": "string"
+        },
+        "method": {
+          "maxLength": 100,
+          "title": "Method",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method"
+      ],
+      "title": "ContextMcpRequest",
+      "type": "object"
+    },
+    "ContextMcpResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Id"
+        },
+        "jsonrpc": {
+          "const": "2.0",
+          "default": "2.0",
+          "title": "Jsonrpc",
+          "type": "string"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ContextMcpResponse",
+      "type": "object"
+    },
+    "ContextOpsFilter": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor Id"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        },
+        "failed_stage": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed Stage"
+        },
+        "has_security_event": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Has Security Event"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "policy_digest": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Digest"
+        },
+        "scene_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scene Id"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "created",
+                "running",
+                "waiting",
+                "paused",
+                "cancelling",
+                "completed",
+                "failed",
+                "canceled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "window": {
+          "default": "24h",
+          "enum": [
+            "24h",
+            "7d",
+            "30d"
+          ],
+          "title": "Window",
+          "type": "string"
+        }
+      },
+      "title": "ContextOpsFilter",
+      "type": "object"
+    },
+    "ContextOverview": {
+      "additionalProperties": false,
+      "properties": {
+        "administrator": {
+          "title": "Administrator",
+          "type": "boolean"
+        },
+        "anomaly_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anomaly Count"
+        },
+        "avg_search_turns": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Search Turns"
+        },
+        "avg_turns": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Turns"
+        },
+        "cache_hit_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Hit Rate"
+        },
+        "compaction_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Compaction Rate"
+        },
+        "compaction_saving_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compaction Saving Rate"
+        },
+        "compressed_completion_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Compressed Completion Rate"
+        },
+        "context_duration_share": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Context Duration Share"
+        },
+        "duration": {
+          "$ref": "#/$defs/ContextDuration"
+        },
+        "empty_result_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Empty Result Count"
+        },
+        "failure_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Failure Count"
+        },
+        "langfuse_status": {
+          "default": "disabled",
+          "enum": [
+            "connected",
+            "unavailable",
+            "disabled"
+          ],
+          "title": "Langfuse Status",
+          "type": "string"
+        },
+        "langfuse_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Langfuse Url"
+        },
+        "max_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Max Turns"
+        },
+        "measured_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Measured Tokens"
+        },
+        "min_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min Turns"
+        },
+        "omission_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Omission Rate"
+        },
+        "policy_versions": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Policy Versions",
+          "type": "array"
+        },
+        "projection_dropped": {
+          "minimum": 0,
+          "title": "Projection Dropped",
+          "type": "integer"
+        },
+        "projection_errors": {
+          "minimum": 0,
+          "title": "Projection Errors",
+          "type": "integer"
+        },
+        "redacted_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Redacted Count"
+        },
+        "run_count": {
+          "minimum": 0,
+          "title": "Run Count",
+          "type": "integer"
+        },
+        "security_blocked_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Security Blocked Count"
+        },
+        "security_distribution": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Security Distribution",
+          "type": "array"
+        },
+        "security_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "enforce",
+                "audit_only"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Security Mode"
+        },
+        "session_count": {
+          "minimum": 0,
+          "title": "Session Count",
+          "type": "integer"
+        },
+        "short_session_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Short Session Rate"
+        },
+        "source_breakdown": {
+          "items": {
+            "$ref": "#/$defs/ContextSourceShare"
+          },
+          "title": "Source Breakdown",
+          "type": "array"
+        },
+        "terminal_outcome_counts": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Terminal Outcome Counts",
+          "type": "array"
+        },
+        "token_upper_bound": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Token Upper Bound"
+        },
+        "trend": {
+          "items": {
+            "$ref": "#/$defs/ContextTrendPoint"
+          },
+          "title": "Trend",
+          "type": "array"
+        },
+        "turn_completion_breakdown": {
+          "items": {
+            "$ref": "#/$defs/ContextCount"
+          },
+          "title": "Turn Completion Breakdown",
+          "type": "array"
+        },
+        "uncompressed_completion_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Uncompressed Completion Rate"
+        },
+        "window": {
+          "enum": [
+            "24h",
+            "7d",
+            "30d"
+          ],
+          "title": "Window",
+          "type": "string"
+        }
+      },
+      "required": [
+        "administrator",
+        "window",
+        "session_count",
+        "run_count",
+        "avg_turns",
+        "min_turns",
+        "max_turns",
+        "avg_search_turns",
+        "turn_completion_breakdown",
+        "terminal_outcome_counts",
+        "omission_rate",
+        "compaction_rate",
+        "context_duration_share",
+        "compressed_completion_rate",
+        "uncompressed_completion_rate",
+        "duration",
+        "token_upper_bound",
+        "measured_tokens",
+        "failure_count",
+        "security_blocked_count",
+        "redacted_count",
+        "source_breakdown",
+        "security_distribution",
+        "projection_errors",
+        "projection_dropped"
+      ],
+      "title": "ContextOverview",
+      "type": "object"
+    },
+    "ContextReplayComparison": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/ContextReplayResult"
+        },
+        "baseline_matches_snapshot": {
+          "title": "Baseline Matches Snapshot",
+          "type": "boolean"
+        },
+        "candidate": {
+          "$ref": "#/$defs/ContextReplayResult"
+        },
+        "frozen_model_outputs": {
+          "title": "Frozen Model Outputs",
+          "type": "boolean"
+        },
+        "newly_included_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Newly Included Ids",
+          "type": "array"
+        },
+        "newly_omitted_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Newly Omitted Ids",
+          "type": "array"
+        },
+        "token_delta": {
+          "title": "Token Delta",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "baseline",
+        "candidate",
+        "baseline_matches_snapshot",
+        "newly_included_ids",
+        "newly_omitted_ids",
+        "token_delta",
+        "frozen_model_outputs"
+      ],
+      "title": "ContextReplayComparison",
+      "type": "object"
+    },
+    "ContextReplayInput": {
+      "additionalProperties": false,
+      "properties": {
+        "override": {
+          "$ref": "#/$defs/ContextReplayOverride"
+        }
+      },
+      "title": "ContextReplayInput",
+      "type": "object"
+    },
+    "ContextReplayOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "compaction_threshold": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compaction Threshold"
+        },
+        "max_input_tokens": {
+          "anyOf": [
+            {
+              "maximum": 1048576,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Input Tokens"
+        },
+        "max_observation_items": {
+          "anyOf": [
+            {
+              "maximum": 512,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Observation Items"
+        },
+        "protect_dictionary": {
+          "default": false,
+          "title": "Protect Dictionary",
+          "type": "boolean"
+        }
+      },
+      "title": "ContextReplayOverride",
+      "type": "object"
+    },
+    "ContextReplayResult": {
+      "additionalProperties": false,
+      "properties": {
+        "assembly_sha256": {
+          "title": "Assembly Sha256",
+          "type": "string"
+        },
+        "dictionary_preserved": {
+          "title": "Dictionary Preserved",
+          "type": "boolean"
+        },
+        "funnel": {
+          "items": {
+            "$ref": "#/$defs/ContextFunnelStage"
+          },
+          "title": "Funnel",
+          "type": "array"
+        },
+        "security_blocked_count": {
+          "title": "Security Blocked Count",
+          "type": "integer"
+        },
+        "selected_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Selected Ids",
+          "type": "array"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "selected_ids",
+        "tokens",
+        "dictionary_preserved",
+        "funnel",
+        "assembly_sha256",
+        "security_blocked_count"
+      ],
+      "title": "ContextReplayResult",
+      "type": "object"
+    },
+    "ContextRunFlow": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_method": {
+          "const": "utf8_upper_bound",
+          "default": "utf8_upper_bound",
+          "title": "Budget Method",
+          "type": "string"
+        },
+        "langfuse_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Langfuse Reason"
+        },
+        "langfuse_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Langfuse Url"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/ContextFlowNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "run": {
+          "$ref": "#/$defs/ContextRunView"
+        }
+      },
+      "required": [
+        "run",
+        "nodes",
+        "langfuse_url",
+        "langfuse_reason"
+      ],
+      "title": "ContextRunFlow",
+      "type": "object"
+    },
+    "ContextRunView": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "category_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Name"
+        },
+        "compaction_applied": {
+          "title": "Compaction Applied",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration Ms"
+        },
+        "historical": {
+          "title": "Historical",
+          "type": "boolean"
+        },
+        "omission_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Omission Rate"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scene_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Scene Id"
+        },
+        "scene_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scene Name"
+        },
+        "security_blocked_count": {
+          "minimum": 0,
+          "title": "Security Blocked Count",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "session_title": {
+          "title": "Session Title",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "step_count": {
+          "minimum": 0,
+          "title": "Step Count",
+          "type": "integer"
+        },
+        "token_upper_bound": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Token Upper Bound"
+        },
+        "total_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total Tokens"
+        },
+        "trace_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Trace Id"
+        }
+      },
+      "required": [
+        "run_id",
+        "session_id",
+        "actor_id",
+        "session_title",
+        "status",
+        "scene_id",
+        "created_at",
+        "step_count",
+        "duration_ms",
+        "total_tokens",
+        "token_upper_bound",
+        "omission_rate",
+        "compaction_applied",
+        "security_blocked_count",
+        "trace_id",
+        "historical"
+      ],
+      "title": "ContextRunView",
+      "type": "object"
+    },
+    "ContextRuns": {
+      "additionalProperties": false,
+      "properties": {
+        "administrator": {
+          "title": "Administrator",
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ContextRunView"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Cursor"
+        }
+      },
+      "required": [
+        "items",
+        "administrator"
+      ],
+      "title": "ContextRuns",
+      "type": "object"
+    },
+    "ContextSecurityEventView": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "actor_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Actor Id"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "event_type": {
+          "title": "Event Type",
+          "type": "string"
+        },
+        "hit_count": {
+          "title": "Hit Count",
+          "type": "integer"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "rule_code": {
+          "title": "Rule Code",
+          "type": "string"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Run Id"
+        },
+        "source_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Kind"
+        },
+        "target_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Ref"
+        },
+        "trust_level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Trust Level"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "actor_id",
+        "event_type",
+        "action",
+        "rule_code",
+        "hit_count",
+        "source_kind",
+        "trust_level",
+        "target_ref",
+        "created_at"
+      ],
+      "title": "ContextSecurityEventView",
+      "type": "object"
+    },
+    "ContextSecurityEvents": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ContextSecurityEventView"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Cursor"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ContextSecurityEvents",
+      "type": "object"
+    },
+    "ContextSnapshotView": {
+      "additionalProperties": false,
+      "properties": {
+        "audited": {
+          "const": true,
+          "default": true,
+          "title": "Audited",
+          "type": "boolean"
+        },
+        "content_sha256": {
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "data_classification": {
+          "title": "Data Classification",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "min_trust_level": {
+          "title": "Min Trust Level",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "snapshot_ref": {
+          "title": "Snapshot Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshot_ref",
+        "content_sha256",
+        "min_trust_level",
+        "data_classification",
+        "expires_at",
+        "payload"
+      ],
+      "title": "ContextSnapshotView",
+      "type": "object"
+    },
+    "ContextSourceShare": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_tokens": {
+          "minimum": 0,
+          "title": "Candidate Tokens",
+          "type": "integer"
+        },
+        "selected_tokens": {
+          "minimum": 0,
+          "title": "Selected Tokens",
+          "type": "integer"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "candidate_tokens",
+        "selected_tokens"
+      ],
+      "title": "ContextSourceShare",
+      "type": "object"
+    },
+    "ContextTrendPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "anomaly_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Anomaly Rate"
+        },
+        "avg_search_turns": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Search Turns"
+        },
+        "avg_turns": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Turns"
+        },
+        "completion_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Completion Rate"
+        },
+        "omission_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Omission Rate"
+        },
+        "p50_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "P50 Ms"
+        },
+        "run_count": {
+          "minimum": 0,
+          "title": "Run Count",
+          "type": "integer"
+        },
+        "security_event_count": {
+          "minimum": 0,
+          "title": "Security Event Count",
+          "type": "integer"
+        },
+        "session_count": {
+          "minimum": 0,
+          "title": "Session Count",
+          "type": "integer"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "run_count",
+        "session_count",
+        "omission_rate",
+        "p50_ms",
+        "anomaly_rate",
+        "security_event_count",
+        "avg_turns",
+        "completion_rate",
+        "avg_search_turns"
+      ],
+      "title": "ContextTrendPoint",
+      "type": "object"
+    },
     "ControlCommand": {
       "additionalProperties": false,
       "properties": {
@@ -12413,6 +14588,8 @@
             "mcp_manage",
             "runtime_diagnostics",
             "runtime_usage",
+            "contextops_read",
+            "contextops_admin",
             "schedule_manage",
             "schedule_owner",
             "schedule_run",

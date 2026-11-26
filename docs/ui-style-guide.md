@@ -81,6 +81,10 @@ Chat 和体验指南共用 `UiExecutionTimeline`。运行过程默认折叠，�
 
 查询口径用单选，最多列三个候选，另设「都不合适，我来补充算法」入口。保存建议用多选，最多三项。每项展示业务名称、统计口径、计算公式和复用场景。整卡共用底部操作区，用户主动勾选后可以保存到个人草稿。
 
+## 观测图表
+
+趋势迷你图、哑铃图等数据图表使用 ECharts（`echarts/core` 按需注册，SVG 渲染），颜色取设计变量与轨道色，遵循 `prefers-reduced-motion` 关闭动画。图表容器提供 `role="img"` 与包含关键数值的可访问名称，无数据时显示文字占位。可点击筛选的条形列表、瀑布轨道和表格保持原生按钮或可聚焦行，便于键盘操作。ContextOps 控制台的视觉以 [ContextOps 原型](../mai-specs/971-lesson-26-context-ops/spec/contextops-prototype.html) 为准。
+
 ## 技术方案 HTML 阅读版
 
 Compass 所有新增、修订的技术方案 HTML，默认以 Home 中已发布的[第 22 课主方案](../apps/home/public/resources/lessons/22/technical-design.html)和[专题阅读版](../apps/home/public/resources/lessons/22/retail-semantic-assets.html)为视觉样板。阅读器基础样式由项目离线渲染器提供，课程页头、目录、主题与窄屏布局使用[共用阅读版式](../scripts/course-design/reader.mjs)和[样式](../scripts/course-design/reader.css)。新方案默认运行 `node scripts/course-design/reader.mjs <edition.json>`。课程方案在 edition.json 登记数值课号 `lesson`，独立 Feature 可省略课号。已有专用生成器时，在产出 HTML 时调用同模块的 `applyCourseReader`。正文可按课程设计采用表格、时序图、代码和案例。

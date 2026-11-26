@@ -1,4 +1,5 @@
 import "server-only";
+import { publicLangfuseProjectUrl } from "./langfuse-url";
 import { z } from "zod";
 import { uuid } from "../../contracts/web";
 import { isModelContract } from "../../contracts/model-contract";
@@ -184,24 +185,8 @@ export async function handleModelRequest(request: Request, token: string): Promi
       onStreamFailure: audit,
     });
     if (route === "platform/models/observability") {
-      let projectUrl: string | null = null;
-      try {
-        const candidate = new URL(process.env.COMPASS_LANGFUSE_PROJECT_URL ?? "");
-        if (
-          (candidate.protocol === "https:" ||
-            (candidate.protocol === "http:" &&
-              ["127.0.0.1", "localhost"].includes(candidate.hostname))) &&
-          !candidate.username &&
-          !candidate.password &&
-          !candidate.search &&
-          !candidate.hash
-        )
-          projectUrl = candidate.href;
-      } catch {
-        /* Missing configuration leaves the external entry disabled. */
-      }
       return Response.json(
-        { ...(await response.json()), project_url: projectUrl },
+        { ...(await response.json()), project_url: publicLangfuseProjectUrl() },
         { headers: response.headers },
       );
     }

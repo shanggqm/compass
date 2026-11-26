@@ -230,11 +230,11 @@ class Observation:
             if self.span:
                 try:
                     level = (
-                        "DEFAULT"
-                        if status == "completed"
+                        "ERROR"
+                        if status in {"failed", "incomplete"}
                         else "WARNING"
                         if status == "canceled"
-                        else "ERROR"
+                        else "DEFAULT"
                     )
                     self.native("level", level)
                     if code:

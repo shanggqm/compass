@@ -57,6 +57,17 @@ class Settings(BaseSettings):
     compass_routing_jev_provider_id: UUID | None = None
     compass_routing_flash_provider_id: UUID | None = None
     compass_routing_pro_provider_id: UUID | None = None
+
+    @field_validator(
+        "compass_routing_jev_provider_id",
+        "compass_routing_flash_provider_id",
+        "compass_routing_pro_provider_id",
+        mode="before",
+    )
+    @classmethod
+    def optional_routing_provider(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
     compass_routing_mode: str = "jev_with_flash"
     compass_controlled_autonomy_enabled: bool = False
     compass_autonomy_model_profiles: list[AutonomyModelProfile] = Field(
@@ -69,8 +80,20 @@ class Settings(BaseSettings):
     compass_observability_enabled: bool = False
     compass_context_runtime_enabled: bool = True
     compass_context_optimization_enabled: bool = True
+    compass_context_snapshot_ttl_days: int = Field(default=14, ge=1, le=365)
+    compass_context_security_mode: Literal["enforce", "audit_only"] = "enforce"
+    compass_contextops_mcp_enabled: bool = True
     compass_context_results_root: str = "work/runtime/tool-results"
     compass_context_scope_profiles: list[ScopeRule] = Field(default_factory=list, max_length=512)
+
+    @model_validator(mode="after")
+    def context_security_environment(self):
+        if (
+            self.compass_context_security_mode == "audit_only"
+            and self.compass_observability_environment not in {"local", "test"}
+        ):
+            raise ValueError("context audit_only requires a local or test environment")
+        return self
 
     compass_metric_dictionary_path: str = ""
     compass_observability_sample_ratio: float = Field(default=1, ge=0, le=1, allow_inf_nan=False)

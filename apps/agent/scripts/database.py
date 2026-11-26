@@ -15,6 +15,7 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
+from compass_agent.context_ops.entities import CONTEXTOPS_TABLES
 from compass_agent.data_connections.entities import DataConnection, RetailConnection
 from compass_agent.models import entities
 from compass_agent.promptops.entities import PROMPT_TABLES
@@ -63,8 +64,9 @@ REVISIONS = {
     "0017": "0017_semantic_runtime.py",
     "0018": "0018_semantic_cleanup.py",
     "0019": "0019_goal_ledger.py",
+    "0020": "0020_context_ops.py",
 }
-TARGET = "0019"
+TARGET = "0020"
 GOAL_TABLES = {"agent_goal", "agent_goal_entry"}
 SEMANTIC_TABLES = {
     semantic_entities.SemanticMetricOffer.__tablename__,
@@ -186,6 +188,8 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
         expected |= PROMPT_TABLES
     if revision >= "0019":
         expected |= GOAL_TABLES
+    if revision >= "0020":
+        expected |= CONTEXTOPS_TABLES
     views = inspect(connection).get_view_names(schema="public")
     if views != ([SUMMARY_VIEW] if revision >= "0015" else []):
         raise DatabaseError("Agent view drift at current revision")
@@ -230,6 +234,8 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
         if revision < TARGET:
             metadata = MetaData()
             for table in entities.Base.metadata.sorted_tables:
+                if revision < "0020" and table.name in CONTEXTOPS_TABLES:
+                    continue
                 if (revision < "0010" and table.name in SCHEDULER_TABLES) or (
                     revision < "0009" and table.name in RUNTIME_TABLES
                 ):
@@ -439,6 +445,14 @@ GRANT USAGE ON SEQUENCE prompt_generation_id_seq TO {RUNTIME};"""
         grants += f"\nGRANT UPDATE(status,private_payload) ON semantic_metric_offer TO {RUNTIME};"
     if target >= "0019":
         grants += f"\nGRANT SELECT, INSERT, UPDATE ON agent_goal, agent_goal_entry TO {RUNTIME};"
+    if target >= "0020":
+        grants += (
+            "\nGRANT SELECT, INSERT ON "
+            + ", ".join(sorted(CONTEXTOPS_TABLES))
+            + f" TO {RUNTIME};"
+            + f"\nGRANT SELECT ON context_snapshot, context_badcase TO {SCHEDULER};"
+            + f"\nGRANT DELETE ON context_snapshot TO {SCHEDULER};"
+        )
     return grants
 
 
@@ -471,6 +485,7 @@ def sql_delivery(start: str, target: str = TARGET) -> str:
         "0017": "974",
         "0018": "974",
         "0019": "983",
+        "0020": "971",
     }[target]
     change = "transactional Retail copy" if target == "0006" else "additive schema"
     if target == "0018":

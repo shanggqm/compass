@@ -440,6 +440,16 @@ export function createQueryService({ context: ctx, digest, newId }: Dependencies
         case "organization-members":
           pageData.members = await ctx.access.members(tenantId!, query);
           break;
+        case "contextops":
+          // Administrators filter ContextOps by member; display names stay inside Web.
+          if (view.isPlatformAdmin)
+            pageData.members = await ctx.access.members(tenantId!, {
+              ...query,
+              page: 1,
+              limit: 100,
+              q: "",
+            });
+          break;
         case "organization-roles":
           pageData.catalog = PERMISSION_CATALOG;
           pageData.templates = DEFAULT_TEMPLATES;

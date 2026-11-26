@@ -234,5 +234,49 @@
         }
       }
     ]
+  },
+  {
+    "number": 25,
+    "title": "长任务上下文治理",
+    "description": "目标账本、跨轮续接、并发子任务与授权轨迹下钻。",
+    "artifacts": [
+      {
+        "id": "technical-design",
+        "title": "长任务上下文治理 · 技术方案",
+        "source": "mai-specs/983-lesson-25-long-task-context/design/TECH_DESIGN.html",
+        "href": "/resources/lessons/25/technical-design.html",
+        "markdown": {
+          "source": "mai-specs/983-lesson-25-long-task-context/design/TECH_DESIGN.md",
+          "href": "/resources/lessons/25/technical-design.md"
+        }
+      },
+      {
+        "id": "prompt-design",
+        "title": "Goal 与 SubAgent · 提示词与工具设计",
+        "source": "mai-specs/983-lesson-25-long-task-context/design/PROMPT_DESIGN.html",
+        "href": "/resources/lessons/25/prompt-design.html",
+        "markdown": {
+          "source": "mai-specs/983-lesson-25-long-task-context/design/PROMPT_DESIGN.md",
+          "href": "/resources/lessons/25/prompt-design.md"
+        }
+      }
+    ]
+  },
+  {
+    "number": 26,
+    "title": "ContextOps 与上下文安全体系",
+    "description": "零二开复用观测底座，用在线 PEP 守住信任与权限边界，用轻量读模型、加密快照与确定性回放闭环上下文治理。",
+    "artifacts": [
+      {
+        "id": "technical-design",
+        "title": "ContextOps 与上下文安全体系 · 技术方案",
+        "source": "mai-specs/971-lesson-26-context-ops/design/TECH_DESIGN.html",
+        "href": "/resources/lessons/26/technical-design.html",
+        "markdown": {
+          "source": "mai-specs/971-lesson-26-context-ops/design/TECH_DESIGN.md",
+          "href": "/resources/lessons/26/technical-design.md"
+        }
+      }
+    ]
   }
 ]

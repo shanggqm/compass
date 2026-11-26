@@ -5,6 +5,7 @@ import { handleDurableAnalysis, isDurableAnalysisRoute } from "./durable-analysi
 import { handleKnowledge } from "./knowledge-handler";
 import { handleSemantic } from "./semantic-handler";
 import { handlePromptOps, isPromptOpsRoute } from "./promptops-handler";
+import { handleContextOps } from "./contextops-handler";
 import { handleModelRequest, isModelRoute } from "./model-handler";
 import { handleRetailConnection } from "./retail-connection-handler";
 import * as dto from "../../contracts/web";
@@ -60,6 +61,7 @@ async function dispatchWebRequest(request: Request): Promise<Response> {
     if (path[0] === "knowledge") return handleKnowledge(request, token, path.slice(1));
     if (path[0] === "semantic") return handleSemantic(request, path.slice(1));
     if (isPromptOpsRoute(route)) return handlePromptOps(request, token, route, queryValues(url));
+    if (path[0] === "contextops") return handleContextOps(request, token, route, queryValues(url));
     if (isDurableAnalysisRoute(route, request)) return handleDurableAnalysis(request, token);
     if (isAnalysisRunRoute(route)) return handleAnalysisRunRequest(request, token);
     if (isModelRoute(route)) return handleModelRequest(request, token);

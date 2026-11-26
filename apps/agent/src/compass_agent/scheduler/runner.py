@@ -65,6 +65,11 @@ class SchedulerRunner:
         count, age = await asyncio.to_thread(self.repository.waiting, lease)
         logger.info("schedule.queue pending=%d oldest_ms=%d", count, age * 1000)
 
+    async def purge_context_snapshots(self):
+        from compass_agent.context_ops.maintenance import purge_expired
+
+        await asyncio.to_thread(purge_expired, self.repository.engine)
+
     @staticmethod
     async def until(stop, interval, operation):
         while not stop.is_set():
@@ -99,6 +104,7 @@ class SchedulerRunner:
             asyncio.create_task(self.until(stop, 1, lambda: self.scan(lease))),
             asyncio.create_task(self.until(stop, 1, lambda: self.synchronize(lease))),
             asyncio.create_task(self.until(stop, 15, lambda: self.observe_queue(lease))),
+            asyncio.create_task(self.until(stop, 86400, self.purge_context_snapshots)),
         ]
         stop_wait = asyncio.create_task(stop.wait())
         exit_code = 0

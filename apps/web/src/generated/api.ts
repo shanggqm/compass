@@ -624,6 +624,178 @@ export interface paths {
         patch: operations["patch_asset_v1_analysis_workflows__asset_id__patch"];
         trace?: never;
     };
+    "/v1/contextops/anomalies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Anomalies */
+        get: operations["anomalies_v1_contextops_anomalies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/badcases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Badcases */
+        get: operations["badcases_v1_contextops_badcases_get"];
+        put?: never;
+        /** Create Badcase */
+        post: operations["create_badcase_v1_contextops_badcases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/badcases/{badcase_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replay */
+        post: operations["replay_v1_contextops_badcases__badcase_id__replay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Intents */
+        get: operations["intents_v1_contextops_intents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** No Stream */
+        get: operations["no_stream_v1_contextops_mcp_get"];
+        put?: never;
+        /** Mcp */
+        post: operations["mcp_v1_contextops_mcp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_v1_contextops_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Runs */
+        get: operations["runs_v1_contextops_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/runs/{run_id}/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Flow */
+        get: operations["flow_v1_contextops_runs__run_id__flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/security/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Events */
+        get: operations["events_v1_contextops_security_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contextops/snapshots/{snapshot_ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Snapshot */
+        get: operations["snapshot_v1_contextops_snapshots__snapshot_ref__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/data/connections": {
         parameters: {
             query?: never;
@@ -2024,6 +2196,793 @@ export interface components {
              * @constant
              */
             type: "classification_status";
+        };
+        /** ContextAnomalies */
+        ContextAnomalies: {
+            /** Empty Retrieval Count */
+            empty_retrieval_count: number;
+            /** Failures */
+            failures: components["schemas"]["ContextCount"][];
+            /** Phase Durations */
+            phase_durations: components["schemas"]["ContextDuration"][];
+            /** Reasons */
+            reasons?: components["schemas"]["ContextAnomalyReason"][];
+            /** Runs */
+            runs: components["schemas"]["ContextRunView"][];
+            /** Truncation Count */
+            truncation_count: number;
+        };
+        /** ContextAnomalyReason */
+        ContextAnomalyReason: {
+            /** Failed Labels */
+            failed_labels?: string[];
+            /**
+             * Phase
+             * @default null
+             */
+            phase: ("identify" | "research" | "context" | "answer") | null;
+            /** Reasons */
+            reasons: ("run_failed" | "empty_result" | "compaction_truncated" | "node_failed")[];
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
+        /** ContextBadcaseInput */
+        ContextBadcaseInput: {
+            /**
+             * Note
+             * @default null
+             */
+            note: string | null;
+            /**
+             * Root Cause Category
+             * @enum {string}
+             */
+            root_cause_category: "source_data" | "semantic" | "retrieval" | "ranking_cutoff" | "compression_loss" | "security_false_positive" | "model_reasoning";
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Step Id
+             * Format: uuid
+             */
+            step_id: string;
+            /** Title */
+            title: string;
+        };
+        /** ContextBadcaseView */
+        ContextBadcaseView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note */
+            note: string | null;
+            /** Policy Digest */
+            policy_digest: string;
+            /** Prompt Generation */
+            prompt_generation: number;
+            /**
+             * Root Cause Category
+             * @enum {string}
+             */
+            root_cause_category: "source_data" | "semantic" | "retrieval" | "ranking_cutoff" | "compression_loss" | "security_false_positive" | "model_reasoning";
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Semantic Version */
+            semantic_version: string | null;
+            /** Snapshot Ref */
+            snapshot_ref: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "snapshot_expired_or_revoked" | "authorization_unavailable";
+            /**
+             * Step Id
+             * Format: uuid
+             */
+            step_id: string;
+            /** Title */
+            title: string;
+        };
+        /** ContextBadcases */
+        ContextBadcases: {
+            /** Items */
+            items: components["schemas"]["ContextBadcaseView"][];
+        };
+        /** ContextCount */
+        ContextCount: {
+            /** Count */
+            count: number;
+            /** Name */
+            name: string;
+        };
+        /** ContextDecision */
+        ContextDecision: {
+            /** Access */
+            access: {
+                [key: string]: string;
+            }[];
+            /** Byte Bound */
+            byte_bound: number;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "selected" | "omitted";
+            /** Item Id */
+            item_id: string;
+            /** Kind */
+            kind: string;
+            /** Reason */
+            reason: string;
+            /** Source */
+            source: {
+                [key: string]: string;
+            };
+            /** Trust */
+            trust: string;
+        };
+        /** ContextDuration */
+        ContextDuration: {
+            /** Avg Ms */
+            avg_ms: number | null;
+            /** Count */
+            count: number;
+            /** Name */
+            name: string;
+            /** P50 Ms */
+            p50_ms: number | null;
+            /** P95 Ms */
+            p95_ms: number | null;
+            /**
+             * Scene Id
+             * @default null
+             */
+            scene_id: string | null;
+        };
+        /** ContextFlowNode */
+        ContextFlowNode: {
+            /** Decisions */
+            decisions?: components["schemas"]["ContextDecision"][];
+            /** Duration Ms */
+            duration_ms: number | null;
+            /**
+             * Error Code
+             * @default null
+             */
+            error_code: string | null;
+            /** Funnel */
+            funnel?: components["schemas"]["ContextFunnelStage"][];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Ordinal */
+            ordinal: number;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "identify" | "research" | "context" | "answer";
+            /**
+             * Policy Digest
+             * @default null
+             */
+            policy_digest: string | null;
+            /**
+             * Prompt Generation
+             * @default null
+             */
+            prompt_generation: number | null;
+            /**
+             * Redacted Count
+             * @default 0
+             */
+            redacted_count: number;
+            /**
+             * Security Blocked Count
+             * @default 0
+             */
+            security_blocked_count: number;
+            /**
+             * Semantic Version
+             * @default null
+             */
+            semantic_version: string | null;
+            /**
+             * Snapshot Ref
+             * @default null
+             */
+            snapshot_ref: string | null;
+            /** Source Breakdown */
+            source_breakdown?: components["schemas"]["ContextSourceShare"][];
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+            /**
+             * Step Id
+             * Format: uuid
+             */
+            step_id: string;
+            /** Tokens */
+            tokens: number | null;
+            /**
+             * Track
+             * @enum {string}
+             */
+            track: "input" | "model" | "tool";
+        };
+        /** ContextFunnelStage */
+        ContextFunnelStage: {
+            /** Count */
+            count: number;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "candidate" | "filtered" | "ranked" | "compacted" | "window";
+        };
+        /** ContextIntentBreakdown */
+        ContextIntentBreakdown: {
+            /**
+             * Category Id
+             * @default null
+             */
+            category_id: string | null;
+            /**
+             * Category Name
+             * @default null
+             */
+            category_name: string | null;
+            /** Count */
+            count: number;
+            /**
+             * Fallback
+             * @default 0
+             */
+            fallback: number;
+            /**
+             * Flash
+             * @default 0
+             */
+            flash: number;
+            /**
+             * Jev
+             * @default 0
+             */
+            jev: number;
+            /** Name */
+            name: string;
+            /** Scene Id */
+            scene_id: string;
+            /**
+             * Unknown
+             * @default 0
+             */
+            unknown: number;
+        };
+        /** ContextIntentRecord */
+        ContextIntentRecord: {
+            /**
+             * Category Id
+             * @default null
+             */
+            category_id: string | null;
+            /**
+             * Category Name
+             * @default null
+             */
+            category_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /**
+             * Scene Name
+             * @default null
+             */
+            scene_name: string | null;
+            /**
+             * Semantic Version
+             * @default null
+             */
+            semantic_version: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "jev" | "flash" | "fallback" | "unknown";
+        };
+        /** ContextIntents */
+        ContextIntents: {
+            /** Breakdown */
+            breakdown?: components["schemas"]["ContextIntentBreakdown"][];
+            /** Distribution */
+            distribution: components["schemas"]["ContextCount"][];
+            /** Durations */
+            durations: components["schemas"]["ContextDuration"][];
+            /**
+             * Excluded Historical Count
+             * @default 0
+             */
+            excluded_historical_count: number;
+            /** Recent */
+            recent: components["schemas"]["ContextIntentRecord"][];
+            /** Sources */
+            sources: components["schemas"]["ContextCount"][];
+        };
+        /** ContextMcpRequest */
+        ContextMcpRequest: {
+            /**
+             * Id
+             * @default null
+             */
+            id: string | number | null;
+            /**
+             * Jsonrpc
+             * @constant
+             */
+            jsonrpc: "2.0";
+            /** Method */
+            method: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
+        };
+        /** ContextMcpResponse */
+        ContextMcpResponse: {
+            /**
+             * Error
+             * @default null
+             */
+            error: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string | number | null;
+            /**
+             * Jsonrpc
+             * @default 2.0
+             * @constant
+             */
+            jsonrpc: "2.0";
+            /**
+             * Result
+             * @default null
+             */
+            result: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ContextOpsFilter */
+        ContextOpsFilter: {
+            /**
+             * Actor Id
+             * @default null
+             */
+            actor_id: string | null;
+            /**
+             * Cursor
+             * @default null
+             */
+            cursor: string | null;
+            /**
+             * Failed Stage
+             * @default null
+             */
+            failed_stage: string | null;
+            /**
+             * Has Security Event
+             * @default null
+             */
+            has_security_event: boolean | null;
+            /**
+             * Limit
+             * @default 50
+             */
+            limit: number;
+            /**
+             * Policy Digest
+             * @default null
+             */
+            policy_digest: string | null;
+            /**
+             * Scene Id
+             * @default null
+             */
+            scene_id: string | null;
+            /**
+             * Session Id
+             * @default null
+             */
+            session_id: string | null;
+            /**
+             * Status
+             * @default null
+             */
+            status: ("created" | "running" | "waiting" | "paused" | "cancelling" | "completed" | "failed" | "canceled") | null;
+            /**
+             * Window
+             * @default 24h
+             * @enum {string}
+             */
+            window: "24h" | "7d" | "30d";
+        };
+        /** ContextOverview */
+        ContextOverview: {
+            /** Administrator */
+            administrator: boolean;
+            /**
+             * Anomaly Count
+             * @default null
+             */
+            anomaly_count: number | null;
+            /** Avg Search Turns */
+            avg_search_turns: number | null;
+            /** Avg Turns */
+            avg_turns: number | null;
+            /**
+             * Cache Hit Rate
+             * @default null
+             */
+            cache_hit_rate: number | null;
+            /** Compaction Rate */
+            compaction_rate: number | null;
+            /**
+             * Compaction Saving Rate
+             * @default null
+             */
+            compaction_saving_rate: number | null;
+            /** Compressed Completion Rate */
+            compressed_completion_rate: number | null;
+            /** Context Duration Share */
+            context_duration_share: number | null;
+            duration: components["schemas"]["ContextDuration"];
+            /**
+             * Empty Result Count
+             * @default null
+             */
+            empty_result_count: number | null;
+            /** Failure Count */
+            failure_count: number | null;
+            /**
+             * Langfuse Status
+             * @default disabled
+             * @enum {string}
+             */
+            langfuse_status: "connected" | "unavailable" | "disabled";
+            /**
+             * Langfuse Url
+             * @default null
+             */
+            langfuse_url: string | null;
+            /** Max Turns */
+            max_turns: number | null;
+            /** Measured Tokens */
+            measured_tokens: number | null;
+            /** Min Turns */
+            min_turns: number | null;
+            /** Omission Rate */
+            omission_rate: number | null;
+            /** Policy Versions */
+            policy_versions?: components["schemas"]["ContextCount"][];
+            /** Projection Dropped */
+            projection_dropped: number;
+            /** Projection Errors */
+            projection_errors: number;
+            /** Redacted Count */
+            redacted_count: number | null;
+            /** Run Count */
+            run_count: number;
+            /** Security Blocked Count */
+            security_blocked_count: number | null;
+            /** Security Distribution */
+            security_distribution: components["schemas"]["ContextCount"][];
+            /**
+             * Security Mode
+             * @default null
+             */
+            security_mode: ("enforce" | "audit_only") | null;
+            /** Session Count */
+            session_count: number;
+            /**
+             * Short Session Rate
+             * @default null
+             */
+            short_session_rate: number | null;
+            /** Source Breakdown */
+            source_breakdown: components["schemas"]["ContextSourceShare"][];
+            /** Terminal Outcome Counts */
+            terminal_outcome_counts: components["schemas"]["ContextCount"][];
+            /** Token Upper Bound */
+            token_upper_bound: number | null;
+            /** Trend */
+            trend?: components["schemas"]["ContextTrendPoint"][];
+            /** Turn Completion Breakdown */
+            turn_completion_breakdown: components["schemas"]["ContextCount"][];
+            /** Uncompressed Completion Rate */
+            uncompressed_completion_rate: number | null;
+            /**
+             * Window
+             * @enum {string}
+             */
+            window: "24h" | "7d" | "30d";
+        };
+        /** ContextReplayComparison */
+        ContextReplayComparison: {
+            baseline: components["schemas"]["ContextReplayResult"];
+            /** Baseline Matches Snapshot */
+            baseline_matches_snapshot: boolean;
+            candidate: components["schemas"]["ContextReplayResult"];
+            /** Frozen Model Outputs */
+            frozen_model_outputs: boolean;
+            /** Newly Included Ids */
+            newly_included_ids: string[];
+            /** Newly Omitted Ids */
+            newly_omitted_ids: string[];
+            /** Token Delta */
+            token_delta: number;
+        };
+        /** ContextReplayInput */
+        ContextReplayInput: {
+            override?: components["schemas"]["ContextReplayOverride"];
+        };
+        /** ContextReplayOverride */
+        ContextReplayOverride: {
+            /**
+             * Compaction Threshold
+             * @default null
+             */
+            compaction_threshold: number | null;
+            /**
+             * Max Input Tokens
+             * @default null
+             */
+            max_input_tokens: number | null;
+            /**
+             * Max Observation Items
+             * @default null
+             */
+            max_observation_items: number | null;
+            /**
+             * Protect Dictionary
+             * @default false
+             */
+            protect_dictionary: boolean;
+        };
+        /** ContextReplayResult */
+        ContextReplayResult: {
+            /** Assembly Sha256 */
+            assembly_sha256: string;
+            /** Dictionary Preserved */
+            dictionary_preserved: boolean;
+            /** Funnel */
+            funnel: components["schemas"]["ContextFunnelStage"][];
+            /** Security Blocked Count */
+            security_blocked_count: number;
+            /** Selected Ids */
+            selected_ids: string[];
+            /** Tokens */
+            tokens: number;
+        };
+        /** ContextRunFlow */
+        ContextRunFlow: {
+            /**
+             * Budget Method
+             * @default utf8_upper_bound
+             * @constant
+             */
+            budget_method: "utf8_upper_bound";
+            /** Langfuse Reason */
+            langfuse_reason: string | null;
+            /** Langfuse Url */
+            langfuse_url: string | null;
+            /** Nodes */
+            nodes: components["schemas"]["ContextFlowNode"][];
+            run: components["schemas"]["ContextRunView"];
+        };
+        /** ContextRunView */
+        ContextRunView: {
+            /**
+             * Actor Id
+             * Format: uuid
+             */
+            actor_id: string;
+            /**
+             * Category Name
+             * @default null
+             */
+            category_name: string | null;
+            /** Compaction Applied */
+            compaction_applied: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** Historical */
+            historical: boolean;
+            /** Omission Rate */
+            omission_rate: number | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Scene Id */
+            scene_id: string | null;
+            /**
+             * Scene Name
+             * @default null
+             */
+            scene_name: string | null;
+            /** Security Blocked Count */
+            security_blocked_count: number;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Session Title */
+            session_title: string;
+            /** Status */
+            status: string;
+            /** Step Count */
+            step_count: number;
+            /** Token Upper Bound */
+            token_upper_bound: number | null;
+            /** Total Tokens */
+            total_tokens: number | null;
+            /** Trace Id */
+            trace_id: string | null;
+        };
+        /** ContextRuns */
+        ContextRuns: {
+            /** Administrator */
+            administrator: boolean;
+            /** Items */
+            items: components["schemas"]["ContextRunView"][];
+            /**
+             * Next Cursor
+             * @default null
+             */
+            next_cursor: string | null;
+        };
+        /** ContextSecurityEventView */
+        ContextSecurityEventView: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Type */
+            event_type: string;
+            /** Hit Count */
+            hit_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rule Code */
+            rule_code: string;
+            /** Run Id */
+            run_id: string | null;
+            /** Source Kind */
+            source_kind: string | null;
+            /** Target Ref */
+            target_ref: string | null;
+            /** Trust Level */
+            trust_level: string | null;
+        };
+        /** ContextSecurityEvents */
+        ContextSecurityEvents: {
+            /** Items */
+            items: components["schemas"]["ContextSecurityEventView"][];
+            /**
+             * Next Cursor
+             * @default null
+             */
+            next_cursor: string | null;
+        };
+        /** ContextSnapshotView */
+        ContextSnapshotView: {
+            /**
+             * Audited
+             * @default true
+             * @constant
+             */
+            audited: true;
+            /** Content Sha256 */
+            content_sha256: string;
+            /** Data Classification */
+            data_classification: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Min Trust Level */
+            min_trust_level: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Snapshot Ref */
+            snapshot_ref: string;
+        };
+        /** ContextSourceShare */
+        ContextSourceShare: {
+            /** Candidate Tokens */
+            candidate_tokens: number;
+            /** Selected Tokens */
+            selected_tokens: number;
+            /** Source */
+            source: string;
+        };
+        /** ContextTrendPoint */
+        ContextTrendPoint: {
+            /** Anomaly Rate */
+            anomaly_rate: number | null;
+            /** Avg Search Turns */
+            avg_search_turns: number | null;
+            /** Avg Turns */
+            avg_turns: number | null;
+            /** Completion Rate */
+            completion_rate: number | null;
+            /** Omission Rate */
+            omission_rate: number | null;
+            /** P50 Ms */
+            p50_ms: number | null;
+            /** Run Count */
+            run_count: number;
+            /** Security Event Count */
+            security_event_count: number;
+            /** Session Count */
+            session_count: number;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
         };
         /** ControlCommand */
         ControlCommand: {
@@ -6016,7 +6975,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "manage" | "test" | "chat" | "module_read" | "knowledge_manage" | "data_manage" | "mcp_manage" | "runtime_diagnostics" | "runtime_usage" | "schedule_manage" | "schedule_owner" | "schedule_run" | "promptops_manage";
+            purpose: "manage" | "test" | "chat" | "module_read" | "knowledge_manage" | "data_manage" | "mcp_manage" | "runtime_diagnostics" | "runtime_usage" | "contextops_read" | "contextops_admin" | "schedule_manage" | "schedule_owner" | "schedule_run" | "promptops_manage";
             /** Scope */
             scope: components["schemas"]["PlatformScope"] | components["schemas"]["TenantScope"];
         };
@@ -8032,6 +8991,913 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    anomalies_v1_contextops_anomalies_get: {
+        parameters: {
+            query?: {
+                window?: "24h" | "7d" | "30d";
+                actor_id?: string | null;
+                session_id?: string | null;
+                scene_id?: string | null;
+                policy_digest?: string | null;
+                status?: ("created" | "running" | "waiting" | "paused" | "cancelling" | "completed" | "failed" | "canceled") | null;
+                has_security_event?: boolean | null;
+                failed_stage?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextAnomalies"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    badcases_v1_contextops_badcases_get: {
+        parameters: {
+            query?: {
+                root_cause_category?: ("source_data" | "semantic" | "retrieval" | "ranking_cutoff" | "compression_loss" | "security_false_positive" | "model_reasoning") | null;
+                scene_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextBadcases"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    create_badcase_v1_contextops_badcases_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextBadcaseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextBadcaseView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    replay_v1_contextops_badcases__badcase_id__replay_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path: {
+                badcase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextReplayInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextReplayComparison"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    intents_v1_contextops_intents_get: {
+        parameters: {
+            query?: {
+                window?: "24h" | "7d" | "30d";
+                actor_id?: string | null;
+                session_id?: string | null;
+                scene_id?: string | null;
+                policy_digest?: string | null;
+                status?: ("created" | "running" | "waiting" | "paused" | "cancelling" | "completed" | "failed" | "canceled") | null;
+                has_security_event?: boolean | null;
+                failed_stage?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextIntents"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    no_stream_v1_contextops_mcp_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mcp_v1_contextops_mcp_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextMcpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextMcpResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_v1_contextops_overview_get: {
+        parameters: {
+            query?: {
+                window?: "24h" | "7d" | "30d";
+                actor_id?: string | null;
+                session_id?: string | null;
+                scene_id?: string | null;
+                policy_digest?: string | null;
+                status?: ("created" | "running" | "waiting" | "paused" | "cancelling" | "completed" | "failed" | "canceled") | null;
+                has_security_event?: boolean | null;
+                failed_stage?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextOverview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    runs_v1_contextops_runs_get: {
+        parameters: {
+            query?: {
+                window?: "24h" | "7d" | "30d";
+                actor_id?: string | null;
+                session_id?: string | null;
+                scene_id?: string | null;
+                policy_digest?: string | null;
+                status?: ("created" | "running" | "waiting" | "paused" | "cancelling" | "completed" | "failed" | "canceled") | null;
+                has_security_event?: boolean | null;
+                failed_stage?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextRuns"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    flow_v1_contextops_runs__run_id__flow_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextRunFlow"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    events_v1_contextops_security_events_get: {
+        parameters: {
+            query?: {
+                window?: "24h" | "7d" | "30d";
+                event_type?: string | null;
+                action?: string | null;
+                actor_id?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextSecurityEvents"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+        };
+    };
+    snapshot_v1_contextops_snapshots__snapshot_ref__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-compass-context"?: string | null;
+            };
+            path: {
+                snapshot_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextSnapshotView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelErrorResponse"];
                 };
             };
         };

@@ -33,7 +33,13 @@
         "$TURBO_ROOT$/mai-specs/973-lesson-23-agentic-search/design/VECTOR_SEARCH.html",
         "$TURBO_ROOT$/mai-specs/973-lesson-23-agentic-search/design/VECTOR_SEARCH.md",
         "$TURBO_ROOT$/mai-specs/972-lesson-24-context-selection-compression/design/TECH_DESIGN.html",
-        "$TURBO_ROOT$/mai-specs/972-lesson-24-context-selection-compression/design/TECH_DESIGN.md"
+        "$TURBO_ROOT$/mai-specs/972-lesson-24-context-selection-compression/design/TECH_DESIGN.md",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/TECH_DESIGN.html",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/TECH_DESIGN.md",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/PROMPT_DESIGN.html",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/PROMPT_DESIGN.md",
+        "$TURBO_ROOT$/mai-specs/971-lesson-26-context-ops/design/TECH_DESIGN.html",
+        "$TURBO_ROOT$/mai-specs/971-lesson-26-context-ops/design/TECH_DESIGN.md"
       ],
       "outputs": [
         ".next/**",
@@ -79,7 +85,13 @@
         "$TURBO_ROOT$/mai-specs/973-lesson-23-agentic-search/design/VECTOR_SEARCH.html",
         "$TURBO_ROOT$/mai-specs/973-lesson-23-agentic-search/design/VECTOR_SEARCH.md",
         "$TURBO_ROOT$/mai-specs/972-lesson-24-context-selection-compression/design/TECH_DESIGN.html",
-        "$TURBO_ROOT$/mai-specs/972-lesson-24-context-selection-compression/design/TECH_DESIGN.md"
+        "$TURBO_ROOT$/mai-specs/972-lesson-24-context-selection-compression/design/TECH_DESIGN.md",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/TECH_DESIGN.html",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/TECH_DESIGN.md",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/PROMPT_DESIGN.html",
+        "$TURBO_ROOT$/mai-specs/983-lesson-25-long-task-context/design/PROMPT_DESIGN.md",
+        "$TURBO_ROOT$/mai-specs/971-lesson-26-context-ops/design/TECH_DESIGN.html",
+        "$TURBO_ROOT$/mai-specs/971-lesson-26-context-ops/design/TECH_DESIGN.md"
       ],
       "outputs": []
     }

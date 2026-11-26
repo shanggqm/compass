@@ -201,6 +201,9 @@ class DurableRuntime:
             engine, settings.compass_runtime_state_key.get_secret_value(), settings=settings
         )
         self.store.distributed = distributed
+        from compass_agent.context_ops.recorder import ContextOpsRecorder
+
+        self.store.contextops = ContextOpsRecorder(engine, settings)
         self.streams = RedisStream(
             settings.compass_redis_url, settings.compass_redis_password.get_secret_value()
         )
@@ -823,6 +826,8 @@ class DurableRuntime:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
         await self.streams.close()
+        if self.store.contextops:
+            await asyncio.to_thread(self.store.contextops.close)
         if self.owner is not None:
             if not self.owner.invalidated:
                 unlock = (

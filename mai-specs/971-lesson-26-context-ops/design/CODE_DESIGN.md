@@ -9,12 +9,16 @@
 ## 1. 在线上下文安全拦截引擎（PEP）与派生权限继承
 
 **拟新增文件**：`apps/agent/src/compass_agent/context_security/{policy,detector,redactor,guard}.py`  
-**审查重点**：
-- 跨租户条目必须在进入模型前被同步剔除，且记录 `tenant_mismatch_rejected`；
-- 高危 Indirect Prompt Injection 仅扫描 `observation` 与 `actor`，`managed` 与 `dictionary` 不被误杀；
-- 派生数据（Summary / Snapshot）调用 `derive_lineage()` 强制取最低 `trust` 与最严格 `AccessRef` 交集，彻底杜绝“摘要洗白”与“权限扩大”。
+**审查重点（已按 Design Review P0/P1 与防误伤原则修订）**：
+- 跨租户条目必须在进入模型前同步剔除，在任何模式下不可降级；
+- 分级注入检测：`actor` 仅拦截明确系统提示提取与角色伪造（不误杀“忽略之前口径重算”等业务纠偏）；`observation` 高危确凿注入整条阻断，中危疑似语句局部剥离并隔离保留正常正文；
+- 确定性标签转义（`</untrusted_context` → `&lt;/untrusted_context`）+ 固定外层 `<untrusted_context>` 标签，防逃逸同时保住 LLM Prefix Cache 命中率；
+- 两道精准脱敏：密钥在进模型与落快照两道强制脱敏；PII 在落快照/审计/Trace/MCP 100% 不可逆脱敏，进模型窗口放行用户主动提供的合法查询主键；
+- `derive_lineage()` 取最低 `trust` 与全部受限源 `AccessRef` **并集（Union，逻辑 AND）**，彻底杜绝权限静默放大；同编译步安全事件按 `(event_type, rule_code, source_kind)` 聚合 `hit_count` 批量异步落库。
 
 ```python
+import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -34,17 +38,26 @@ TRUST_RANK: dict[TrustLevel, int] = {
 class SecurityEventRecord:
     event_type: Literal[
         "injection_blocked",
+        "injection_stripped",
         "tenant_mismatch_rejected",
         "pii_redacted",
         "trust_downgraded",
         "snapshot_viewed",
         "mcp_queried",
     ]
-    action: Literal["block", "redact", "isolate", "deny", "allow_audit"]
+    action: Literal["block", "strip", "redact", "isolate", "deny", "allow_audit"]
     rule_code: str
     source_kind: str | None
     trust_level: TrustLevel | None
+    hit_count: int = 1
     item_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DetectionHit:
+    severity: Literal["high", "medium"]
+    rule_code: str
+    stripped_text: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,12 +68,12 @@ class DerivedLineage:
 
 
 class InjectionDetector(Protocol):
-    def detect(self, text: str, trust: TrustLevel) -> str | None:
-        """命中高危注入返回 rule_code，未命中返回 None。"""
+    def detect(self, text: str, trust: TrustLevel) -> DetectionHit | None:
+        """actor 仅检测提示提取与角色伪造；observation 返回 high(阻断) 或 medium(剥离)。"""
 
 
 def derive_lineage(items: tuple[ContextItem, ...]) -> DerivedLineage:
-    """派生数据强制继承最低信任等级与最严格访问范围。"""
+    """派生数据强制继承最低信任等级与全部受限源 AccessRef 并集（逻辑 AND）。"""
     if not items:
         return DerivedLineage(
             min_trust_level="managed",
@@ -72,17 +85,16 @@ def derive_lineage(items: tuple[ContextItem, ...]) -> DerivedLineage:
         key=lambda t: TRUST_RANK[t],
     )
     scoped_sets = [set(item.access) for item in items if item.access]
-    if not scoped_sets:
-        strict_scope: tuple[AccessRef, ...] = ()
-    else:
-        # 保留所有受限源的最小交集；若无交集则保留全部约束以便服务端逐条复核
-        intersection = set.intersection(*scoped_sets)
-        strict_scope = tuple(
+    strict_scope: tuple[AccessRef, ...] = (
+        tuple(
             sorted(
-                intersection if intersection else set.union(*scoped_sets),
+                set.union(*scoped_sets),
                 key=lambda a: (a.tenant_id, a.workspace_id, a.binding, a.revision),
             )
         )
+        if scoped_sets
+        else ()
+    )
     classification: Literal["public", "internal", "confidential", "restricted"] = (
         "restricted" if strict_scope else "internal"
     )
@@ -90,6 +102,16 @@ def derive_lineage(items: tuple[ContextItem, ...]) -> DerivedLineage:
         min_trust_level=min_trust,
         access_scope=strict_scope,
         data_classification=classification,
+    )
+
+
+def wrap_untrusted_observation(text: str, source_kind: str) -> str:
+    """确定性转义闭合标签，防止标签逃逸且不破坏多轮 Prefix Cache。"""
+    escaped = re.sub(r"</?\s*untrusted_context\b", "&lt;/untrusted_context", text, flags=re.IGNORECASE)
+    return (
+        f'<untrusted_context source="{source_kind}" trust="observation">\n'
+        f"{escaped}\n"
+        "</untrusted_context>"
     )
 
 
@@ -104,9 +126,9 @@ class ContextSecurityGuard:
         items: list[ContextItem],
         ctx: TrustedContext,
     ) -> tuple[list[ContextItem], list[SecurityEventRecord], dict[str, str]]:
-        """同步在线 PEP：租户强校验 -> 注入阻断 -> PII 脱敏 -> 不可信边界封装。"""
+        """同步在线 PEP：租户强校验 -> 分级注入防护 -> 进窗密钥脱敏 -> 防逃逸边界封装。"""
         accepted: list[ContextItem] = []
-        events: list[SecurityEventRecord] = []
+        raw_events: list[SecurityEventRecord] = []
         blocked_reasons: dict[str, str] = {}
 
         for item in items:
@@ -117,7 +139,7 @@ class ContextSecurityGuard:
                 for acc in item.access
             ):
                 blocked_reasons[item.item_id] = "security_tenant_mismatch"
-                events.append(
+                raw_events.append(
                     SecurityEventRecord(
                         event_type="tenant_mismatch_rejected",
                         action="deny",
@@ -129,47 +151,56 @@ class ContextSecurityGuard:
                 )
                 continue
 
-            raw_text = item.message.content or ""
+            text = item.message.content or ""
 
-            # 2. 仅对低信任来源（observation / actor）执行 Indirect Prompt Injection 检测
+            # 2. 分级注入检测：actor 仅扫高危提取/伪造；observation 高危阻断、中危局部剥离
             if item.trust in {"observation", "actor"}:
-                rule_code = self._detector.detect(raw_text, item.trust)
-                if rule_code is not None:
-                    events.append(
-                        SecurityEventRecord(
-                            event_type="injection_blocked",
-                            action="block" if self._mode == "enforce" else "allow_audit",
-                            rule_code=rule_code,
-                            source_kind=item.source.kind,
-                            trust_level=item.trust,
-                            item_id=item.item_id,
+                hit = self._detector.detect(text, item.trust)
+                if hit is not None:
+                    if hit.severity == "high":
+                        raw_events.append(
+                            SecurityEventRecord(
+                                event_type="injection_blocked",
+                                action="block" if self._mode == "enforce" else "allow_audit",
+                                rule_code=hit.rule_code,
+                                source_kind=item.source.kind,
+                                trust_level=item.trust,
+                                item_id=item.item_id,
+                            )
                         )
-                    )
-                    if self._mode == "enforce":
-                        blocked_reasons[item.item_id] = f"security_injection:{rule_code}"
-                        continue
+                        if self._mode == "enforce":
+                            blocked_reasons[item.item_id] = f"security_injection:{hit.rule_code}"
+                            continue
+                    elif hit.stripped_text is not None and self._mode == "enforce":
+                        text = hit.stripped_text
+                        raw_events.append(
+                            SecurityEventRecord(
+                                event_type="injection_stripped",
+                                action="strip",
+                                rule_code=hit.rule_code,
+                                source_kind=item.source.kind,
+                                trust_level=item.trust,
+                                item_id=item.item_id,
+                            )
+                        )
 
-            # 3. 敏感字段检测与脱敏（先脱敏再入窗、再落快照）
-            sanitized_text, redacted_rules = self._redactor.redact(raw_text)
+            # 3. 进模型窗口脱敏：所有条目强制脱敏高确定性密钥；observation 额外脱敏非查询主键 PII
+            # （落库加密快照时另调用 redactor.redact_for_storage 做 100% 不可逆脱敏）
+            sanitized_text, redacted_rules = self._redactor.redact_for_model(text, trust=item.trust)
             for rule in redacted_rules:
-                events.append(
+                raw_events.append(
                     SecurityEventRecord(
                         event_type="pii_redacted",
                         action="redact",
                         rule_code=rule,
                         source_kind=item.source.kind,
                         trust_level=item.trust,
-                        item_id=item.item_id,
                     )
                 )
 
-            # 4. 不可信 observation 强制包裹数据边界，禁止升权为指令
+            # 4. 不可信 observation 确定性防逃逸封装（保住 Prefix Cache）
             if item.trust == "observation":
-                sanitized_text = (
-                    f"<untrusted_context source=\"{item.source.kind}\" trust=\"observation\">\n"
-                    f"{sanitized_text}\n"
-                    f"</untrusted_context>"
-                )
+                sanitized_text = wrap_untrusted_observation(sanitized_text, item.source.kind)
 
             updated_msg = item.message.model_copy(update={"content": sanitized_text})
             accepted.append(
@@ -187,7 +218,29 @@ class ContextSecurityGuard:
                 )
             )
 
-        return accepted, events, blocked_reasons
+        return accepted, aggregate_security_events(raw_events), blocked_reasons
+
+
+def aggregate_security_events(events: list[SecurityEventRecord]) -> list[SecurityEventRecord]:
+    """按步聚合高频脱敏/拦截计数，避免单次编译触发上百次 DB INSERT。"""
+    counts: Counter[tuple] = Counter()
+    sample: dict[tuple, SecurityEventRecord] = {}
+    for ev in events:
+        key = (ev.event_type, ev.action, ev.rule_code, ev.source_kind, ev.trust_level)
+        counts[key] += ev.hit_count
+        sample.setdefault(key, ev)
+    return [
+        SecurityEventRecord(
+            event_type=sample[k].event_type,
+            action=sample[k].action,
+            rule_code=sample[k].rule_code,
+            source_kind=sample[k].source_kind,
+            trust_level=sample[k].trust_level,
+            hit_count=cnt,
+            item_id=sample[k].item_id if cnt == 1 else None,
+        )
+        for k, cnt in counts.items()
+    ]
 ```
 
 ---

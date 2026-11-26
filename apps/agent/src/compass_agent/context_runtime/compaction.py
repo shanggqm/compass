@@ -22,6 +22,8 @@ class SummarySnapshot:
     source_deps: tuple[dict, ...]
     attempt_refs: tuple[str, ...]
     pruned_bytes: int = 0
+    min_trust_level: str = "observation"
+    segments: tuple[dict, ...] = ()
 
     def dump(self):
         from dataclasses import asdict
@@ -187,7 +189,7 @@ async def recoverable_refs(journal, trusted, groups):
     return accepted
 
 
-async def summarize(
+async def _summarize_segment(
     journal, models, trusted, control, budget, route, limits, groups, question, *, previous=None
 ):
     await asyncio.to_thread(journal.prefetch_prompts, ["support/context/compaction.md"])
@@ -311,4 +313,64 @@ async def summarize(
                 refs.append(ref)
     return SummarySnapshot(
         text, selected, ranges, query_hash, version, tuple(refs), tuple(attempts), pruned_bytes
+    )
+
+
+async def summarize(
+    journal, models, trusted, control, budget, route, limits, groups, question, *, previous=None
+):
+    """Summarize each restricted domain independently; public history stays separate."""
+    domains = {}
+    for group in groups:
+        key = canonical(sorted(group.source_deps, key=lambda r: canonical(r)))
+        domains.setdefault(key, []).append(group)
+    if len(domains) <= 1:
+        return await _summarize_segment(
+            journal,
+            models,
+            trusted,
+            control,
+            budget,
+            route,
+            limits,
+            groups,
+            question,
+            previous=previous if not previous or not previous.segments else None,
+        )
+    segments = []
+    prior = (
+        {
+            canonical(sorted(part["source_deps"], key=lambda r: canonical(r))): part
+            for part in previous.segments
+        }
+        if previous
+        else {}
+    )
+    for key, material in domains.items():
+        old = SummarySnapshot(**prior[key]) if key in prior else None
+        segment = await _summarize_segment(
+            journal,
+            models,
+            trusted,
+            control,
+            budget,
+            route,
+            limits,
+            material,
+            question,
+            previous=old,
+        )
+        segments.append(segment)
+    return SummarySnapshot(
+        text="\n\n".join(part.text for part in segments),
+        selected_ids=tuple(g.id for g in groups),
+        covered_ranges=tuple(r for p in segments for r in p.covered_ranges),
+        query_hash=digest(question),
+        prompt_version=digest([p.prompt_version for p in segments]),
+        source_deps=tuple(
+            {canonical(ref): ref for p in segments for ref in p.source_deps}.values()
+        ),
+        attempt_refs=tuple(ref for p in segments for ref in p.attempt_refs),
+        pruned_bytes=sum(p.pruned_bytes for p in segments),
+        segments=tuple(p.dump() for p in segments),
     )

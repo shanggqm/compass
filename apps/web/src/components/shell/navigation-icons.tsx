@@ -32,6 +32,7 @@ export type NavigationIconName = keyof typeof paths;
 
 export const primaryIcons: Record<string, NavigationIconName> = {
   analysis: "spark",
+  contextops: "chart",
   reports: "folder",
   plugins: "code",
   automations: "clock",
@@ -44,6 +45,7 @@ export const governanceIcons: Record<string, NavigationIconName> = {
   data: "database",
   models: "spark",
   promptops: "folder",
+  contextops: "chart",
   sandbox: "code",
   runs: "play",
   quality: "check",

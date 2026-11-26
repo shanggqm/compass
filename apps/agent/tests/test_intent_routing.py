@@ -50,6 +50,21 @@ def request(text="比较昨日销售额", provider=None, stream=False):
     )
 
 
+def test_empty_optional_provider_environment_is_unconfigured(monkeypatch):
+    for role in ("JEV", "FLASH", "PRO"):
+        monkeypatch.setenv(f"COMPASS_ROUTING_{role}_PROVIDER_ID", "")
+    settings = Settings()
+    assert settings.compass_routing_jev_provider_id is None
+    assert settings.compass_routing_flash_provider_id is None
+    assert settings.compass_routing_pro_provider_id is None
+    provider_id = uuid4()
+    monkeypatch.setenv("COMPASS_ROUTING_FLASH_PROVIDER_ID", str(provider_id))
+    assert Settings().compass_routing_flash_provider_id == provider_id
+    monkeypatch.setenv("COMPASS_ROUTING_JEV_PROVIDER_ID", "invalid")
+    with pytest.raises(ValidationError):
+        Settings()
+
+
 def test_intent_is_derived_from_scene_dictionary():
     assert len(catalog()[1]) == 40
     value = intent_for_scene("SC-02")

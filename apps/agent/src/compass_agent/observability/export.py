@@ -80,7 +80,13 @@ class GuardedExporter(SpanExporter):
                 or (
                     bool(span.events)
                     and (
-                        span.name not in {"context.assemble", "context.decisions"}
+                        span.name
+                        not in {
+                            "context.assemble",
+                            "context.decisions",
+                            "compass.context.guardrail",
+                            "compass.context.compile",
+                        }
                         or not all(safe_context_event(event) for event in span.events)
                     )
                 )
