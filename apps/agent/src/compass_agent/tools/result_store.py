@@ -190,6 +190,9 @@ class ToolResultStore:
             "status": status,
             "ref": manifest["ref"],
             "complete": manifest["complete"],
+            "originalComplete": manifest["complete"],
+            "truncated": not manifest["complete"],
+            "previewTruncated": True,
             "preview": [],
             "returnedRows" if manifest["format"] == "jsonl" else "returnedCount": manifest[
                 "returnedCount"
@@ -197,7 +200,7 @@ class ToolResultStore:
         }
         # Result identity and upstream errors remain meaningful after spilling.
         for key, value in (metadata or {}).items():
-            if key in {"resultId", "code", "semantic_result_ref", "calculation_mode", "truncated"}:
+            if key in {"resultId", "code", "semantic_result_ref", "calculation_mode"}:
                 candidate = {**result, key: value}
                 if self.count_tokens(json_bytes(candidate).decode()) <= RECEIPT_TOKENS:
                     result = candidate
@@ -214,6 +217,8 @@ class ToolResultStore:
             if self.count_tokens(json_bytes(candidate).decode()) > RECEIPT_TOKENS:
                 break
             result = candidate
+        if manifest["format"] == "jsonl":
+            result["previewTruncated"] = len(result["preview"]) < manifest["returnedCount"]
         return result
 
     def read(self, manifest: dict, *, offset=0, limit=None, cursor=None, budget=INLINE_TOKENS):
@@ -241,6 +246,9 @@ class ToolResultStore:
             else None,
             "complete": next_position is None,
             "sourceComplete": manifest["complete"],
+            "returnedRows" if manifest["format"] == "jsonl" else "returnedCount": manifest[
+                "returnedCount"
+            ],
         }
 
     def _read_rows(self, path, manifest, offset, limit, cursor, budget):

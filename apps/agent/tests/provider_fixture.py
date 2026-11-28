@@ -143,6 +143,8 @@ class ProviderFixture:
             scene = self.routing_scene(text)
             answer = json.dumps({"scene_id": scene})
         elif "用户本轮问题属于与业务数据分析无关" in text:
+            # This controlled response exercises the plain reply/partial-stream path.
+            tools = []
             answer = (
                 "我主要帮助处理经营与业务数据分析。你有没有想分析的销售、库存或其他业务数据任务？"
             )

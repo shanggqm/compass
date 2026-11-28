@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 from weakref import WeakValueDictionary
@@ -23,6 +24,7 @@ from compass_agent.runtime.stream_publication import (
 )
 
 PREFIX = "compass:agent:run:"
+logger = logging.getLogger(__name__)
 
 
 def redis_text(value) -> str:
@@ -188,6 +190,34 @@ class OutboxPublisher:
         self.require_owner = lambda: None
         self.concurrency = asyncio.Semaphore(8)
         self.fault: Callable[[str, UUID], Awaitable[None]] | None = None
+        self.requested: set[UUID] = set()
+        self.background: dict[UUID, asyncio.Task] = {}
+
+    def notify(self, run_id):
+        """Coalesce wakeups; committed outboxes are also retried by the existing ticker."""
+        self.requested.add(run_id)
+        if run_id not in self.background:
+            self.background[run_id] = asyncio.create_task(self._publish_requested(run_id))
+
+    async def _publish_requested(self, run_id):
+        try:
+            while run_id in self.requested:
+                self.requested.discard(run_id)
+                await self.flush(run_id)
+        except Exception as error:
+            logger.warning(
+                "runtime.publication_pending run_id=%s reason=%s",
+                run_id,
+                error.code if isinstance(error, ModelError) else type(error).__name__,
+            )
+        finally:
+            self.requested.discard(run_id)
+            self.background.pop(run_id, None)
+
+    async def close(self):
+        tasks = tuple(self.background.values())
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def channel(self, run_id):
         return self.locks.setdefault(run_id, asyncio.Lock())
@@ -259,6 +289,8 @@ class OutboxPublisher:
         self.unprojected_bytes[run_id] = 0
 
     async def delta(self, run_id, packet):
+        if self.store.distributed:
+            raise ModelError("stream_write_requires_outbox", 409)
         if await asyncio.to_thread(self.store.pending, run_id):
             await self.flush(run_id)
         async with self.channel(run_id):

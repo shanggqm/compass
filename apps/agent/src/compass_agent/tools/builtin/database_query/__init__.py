@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated, Any, Literal
 
 import psycopg
@@ -27,8 +27,15 @@ from compass_agent.schemas import (
     ToolDefinition,
     ToolFunction,
 )
+from compass_agent.tools.builtin.database_query.model_schema import SCHEMA
+from compass_agent.tools.builtin.database_query.slim import (
+    column_error,
+    is_metadata,
+    normalize_input,
+)
 from compass_agent.tools.catalog_contracts import ToolSpec
-from compass_agent.tools.contracts import ToolControl
+from compass_agent.tools.contracts import ToolControl, ToolGovernance
+from compass_agent.tools.errors import ActionableToolError
 from compass_agent.tools.registry import parse_arguments as parse_tool_arguments
 
 DATABASE_QUERY = "database_query"
@@ -211,6 +218,7 @@ class DatabaseResult:
         }
         if include_result_id:
             payload["resultId"] = self.id
+            payload["sourceQueryId"] = self.id
         if self.next_offset is not None:
             payload["nextOffset"] = self.next_offset
         return _json(payload)
@@ -253,7 +261,7 @@ def _bounded_result(raw_rows: list[tuple[str]], offset: int | None) -> DatabaseR
 
 async def query_database(
     call: ToolCall, binding: AuthorizedDatabaseBinding, control: ToolControl
-) -> DatabaseResult | RunToolError:
+) -> DatabaseResult | RunToolError | ActionableToolError:
     from compass_agent.execution_context import recorded
 
     return await recorded(
@@ -266,7 +274,7 @@ async def query_database(
             "revision": binding.revision,
         },
         lambda: query_database_live(call, binding, control),
-        DatabaseResult | RunToolError,
+        DatabaseResult | RunToolError | ActionableToolError,
         # read_database drains and closes its connection before returning a value.
         settled_on_return=True,
     )
@@ -278,7 +286,7 @@ async def query_database_live(
     control: ToolControl,
     *,
     fingerprint_only: bool = False,
-) -> DatabaseResult | RunToolError:
+) -> DatabaseResult | RunToolError | ActionableToolError:
     try:
         action = DATABASE_ACTION.validate_python(parse_tool_arguments(call.function.arguments))
         values = None
@@ -308,7 +316,7 @@ async def query_database_live(
                     raise SqlRejected()
 
             await cursor.execute("SET LOCAL search_path = pg_catalog")
-            if relations:
+            if relations and not is_metadata(relations):
                 await cursor.execute(_ALLOWED_RELATIONS, (relations,))
                 allowed = {row[0] for row in await cursor.fetchall()}
                 if not set(relations) <= allowed:
@@ -326,65 +334,86 @@ async def query_database_live(
                 retail_projection,
             )
 
-            projected = (
-                await retail_projection(cursor, binding, query)
-                if isinstance(action, ReadSql)
-                else None
-            )
-            from compass_agent.execution_context import current_execution
-
-            journal = current_execution.get()
-            if fingerprint_only and isinstance(action, ReadSql):
-                from compass_agent.tools.builtin.database_query.result_output import (
-                    result_fingerprint,
+            await cursor.execute("SAVEPOINT dq_exec")
+            try:
+                projected = (
+                    await retail_projection(cursor, binding, query)
+                    if isinstance(action, ReadSql) and not is_metadata(relations)
+                    else None
                 )
+                from compass_agent.execution_context import current_execution
 
-                return await result_fingerprint(cursor, query, control)
-            if isinstance(action, ReadSql) and getattr(journal, "context_results", None):
-                from compass_agent.tools.builtin.database_query.result_output import full_result
-
-                return await full_result(
-                    cursor, query, binding, control, journal, projected, call.id
-                )
-            preview = (
-                "SELECT pg_catalog.left(pg_catalog.row_to_json(result)::text, "
-                f"{MAX_RESULT_BYTES + 1}) AS line FROM ({query}) AS result LIMIT {MAX_ROWS + 1}"
-            )
-            if projected:
-                await cursor.execute(
-                    f"WITH preview AS ({preview}), keys AS ({projected[0]} LIMIT {MAX_KEYS + 1}) "
-                    "SELECT (SELECT json_agg(line) FROM preview), (SELECT json_agg(keys) FROM keys)"
-                )
-                values_read, keys = await cursor.fetchone()
-                rows = [(line,) for line in values_read or ()]
-                ref = reference(binding, projected, keys)
-            else:
-                await cursor.execute(preview, values)
-                rows = await cursor.fetchall()
-                ref = {"kind": "transient"}
-                if isinstance(action, (ListTables, DescribeTable)):
-                    metadata = [json.loads(row[0]) for row in rows]
-                    columns = (
-                        {
-                            action.schema_name + "." + action.table: [
-                                m["column_name"] for m in metadata
-                            ]
-                        }
-                        if isinstance(action, DescribeTable)
-                        else {m["schema"] + "." + m["table"]: [] for m in metadata}
+                journal = current_execution.get()
+                if fingerprint_only and isinstance(action, ReadSql):
+                    from compass_agent.tools.builtin.database_query.result_output import (
+                        result_fingerprint,
                     )
+
+                    return await result_fingerprint(cursor, query, control)
+                if (
+                    isinstance(action, ReadSql)
+                    and not is_metadata(relations)
+                    and getattr(journal, "context_results", None)
+                ):
+                    from compass_agent.tools.builtin.database_query.result_output import full_result
+
+                    return await full_result(
+                        cursor, query, binding, control, journal, projected, call.id
+                    )
+                preview = (
+                    "SELECT pg_catalog.left(pg_catalog.row_to_json(result)::text, "
+                    f"{MAX_RESULT_BYTES + 1}) AS line FROM ({query}) AS result LIMIT {MAX_ROWS + 1}"
+                )
+                if projected:
+                    await cursor.execute(
+                        f"WITH preview AS ({preview}), "
+                        f"keys AS ({projected[0]} LIMIT {MAX_KEYS + 1}) "
+                        "SELECT (SELECT json_agg(line) FROM preview), "
+                        "(SELECT json_agg(keys) FROM keys)"
+                    )
+                    values_read, keys = await cursor.fetchone()
+                    rows = [(line,) for line in values_read or ()]
+                    ref = reference(binding, projected, keys)
+                else:
+                    await cursor.execute(preview, values)
+                    rows = await cursor.fetchall()
+                    ref = {"kind": "transient"}
+                    if isinstance(action, (ListTables, DescribeTable)):
+                        metadata = [json.loads(row[0]) for row in rows]
+                        columns = (
+                            {
+                                action.schema_name + "." + action.table: [
+                                    m["column_name"] for m in metadata
+                                ]
+                            }
+                            if isinstance(action, DescribeTable)
+                            else {m["schema"] + "." + m["table"]: [] for m in metadata}
+                        )
+                        ref = {
+                            "kind": "metadata",
+                            "columns": columns,
+                            "tenant": str(binding.tenant_id),
+                            "workspace": str(binding.workspace_id),
+                            "role": binding.role,
+                            "revision": binding.revision,
+                            "connection": str(binding.connection_id or binding.workspace_id),
+                        }
+                from dataclasses import replace
+
+                if is_metadata(relations):
                     ref = {
                         "kind": "metadata",
-                        "columns": columns,
+                        "columns": {},
                         "tenant": str(binding.tenant_id),
                         "workspace": str(binding.workspace_id),
                         "role": binding.role,
                         "revision": binding.revision,
                         "connection": str(binding.connection_id or binding.workspace_id),
                     }
-            from dataclasses import replace
-
-            return replace(_bounded_result(rows, offset), source_ref=ref)
+                return replace(_bounded_result(rows, offset), source_ref=ref)
+            except psycopg.errors.UndefinedColumn:
+                await cursor.execute("ROLLBACK TO SAVEPOINT dq_exec")
+                return await column_error(cursor, relations)
 
         from compass_agent.execution_context import current_execution
 
@@ -409,7 +438,7 @@ def fingerprint(args, context=None):
 
     from compass_agent.llm.continuation import canonical
 
-    if args.get("op") != "query" or not args.get("sql"):
+    if args.get("op", "query") != "query" or not args.get("sql"):
         return None
     return sha256(canonical({"tool": "database_query", "args": args})).hexdigest(), "query"
 
@@ -423,3 +452,23 @@ SPEC = ToolSpec(
     parallel_safe=True,
     fingerprint=fingerprint,
 )
+
+
+SPEC = replace(
+    SPEC, governance=ToolGovernance(channel="always_on", pack="data_base", subagent_allowed=True)
+)
+
+SPEC = replace(SPEC, normalize_input=normalize_input)
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="database_query",
+            description=tool_text("database_query"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

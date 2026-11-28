@@ -1211,3 +1211,31 @@ def test_0016_prompt_publication_keeps_readers_and_serializes_publishers(targets
             ).fetchone() == (False,)
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize("mode", ["native", "sql"])
+def test_0020_sandbox_upgrade_preserves_legacy_leases_and_limits_runtime_grants(targets, mode):
+    runtime, _ = targets("sandbox_0021_" + mode)
+    db.migrate(target="0020")
+    identifier = uuid4()
+    with psycopg.connect(db.dsn(runtime)) as conn:
+        conn.execute(
+            """INSERT INTO sandbox_allocation
+            (id,tenant_id,workspace_id,actor_user_id,run_id,step_id,tool_call_id,attempt_id,
+             host,slot,request_digest,state,resource_phase,resource_seq,created_at,resource_deadline)
+            VALUES (%s,%s,%s,%s,%s,%s,'legacy',%s,'upgrade-test',0,'digest','unknown','clean',2,
+                    now(),now()+interval '1 minute')""",
+            (identifier, uuid4(), uuid4(), uuid4(), uuid4(), uuid4(), uuid4()),
+        )
+    assert db.migrate(mode=mode, start="0020") == "applied"
+    with psycopg.connect(db.dsn(runtime)) as conn:
+        assert conn.execute(
+            "SELECT state,resource_phase,shared FROM sandbox_allocation WHERE id=%s", (identifier,)
+        ).fetchone() == ("unknown", "clean", False)
+        assert conn.execute("SELECT count(*) FROM sandbox_execution").fetchone() == (0,)
+        for action in (
+            "DELETE FROM sandbox_execution",
+            "ALTER TABLE sandbox_execution ADD bad int",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege), conn.transaction():
+                conn.execute(sql.SQL(cast(LiteralString, action)))

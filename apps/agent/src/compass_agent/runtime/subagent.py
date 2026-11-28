@@ -43,13 +43,14 @@ CHILD_TOOLS = frozenset({"database_query"})
 
 
 def child_tools(entries, visible, protocol):
-    if protocol != 2:
+    if protocol not in {2, 3}:
         return CHILD_TOOLS.intersection(visible)
     return frozenset(
         name
         for name, entry in entries.items()
         if name in visible
         and name not in {"goal", "sub_agent", "todo_write", "create_workflow"}
+        and (protocol != 3 or entry.governance.subagent_allowed)
         and entry.policy.effect == "read_only"
         and entry.policy.approval == "none"
         and not entry.local_effect
@@ -202,7 +203,7 @@ class SubAgent:
                 )
                 modern = (getattr(journal, "context_binding", None) or {}).get(
                     "answerProtocol"
-                ) == 2
+                ) in {2, 3}
                 if journal:
                     await journal.host_result(prepared, result, notify=False)
                     await asyncio.to_thread(merge_delivery, journal, result, context.trusted)
@@ -244,14 +245,17 @@ class SubAgent:
             names = names.intersection(task.tools)
         from compass_agent.schemas import ToolDefinition
 
-        modern = (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2
+        protocol = (getattr(journal, "context_binding", None) or {}).get("answerProtocol")
+        modern = protocol in {2, 3}
         declarations = list(runtime.registry.definitions(names))
         if modern:
             report = json.loads(prompt_text("support/subagent/report-to-parent.json"))
-            report["function"]["parameters"] = {
-                "type": "object",
-                **ReportToParentInput.model_json_schema(by_alias=True),
-            }
+            report.pop("examples", None)
+            if protocol == 2:
+                report["function"]["parameters"] = {
+                    "type": "object",
+                    **ReportToParentInput.model_json_schema(by_alias=True),
+                }
             declarations.append(ToolDefinition.model_validate(report))
         process = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -486,7 +490,7 @@ class SubAgent:
             list[dict],
         )
         journal = current_execution.get()
-        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2:
+        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") in {2, 3}:
             from compass_agent.context_runtime.evidence import after_tool_batch, model_observation
 
             step.tool_calls = calls

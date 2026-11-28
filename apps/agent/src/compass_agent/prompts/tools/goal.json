@@ -2,334 +2,47 @@
   "type": "function",
   "function": {
     "name": "goal",
-    "description": "**用途与调用规则**\n\n- 管理本会话的长任务目标与进度账本。用 op 选择操作：\n\n| op | 什么时候用 | 结果 |\n| --- | --- | --- |\n| propose | 用户交代多阶段、需要多轮推进或明确要求“持续做完”的任务，且本会话没有进行中的目标；或用户要求修改目标 | 弹出目标卡等待用户确认，确认后目标生效 |\n| record | 取得带证据的阶段结论、规划或完成待办、某条路径失败时 | 写入进度账本，后续轮次从账本继续 |\n| complete | 认为每个验收项都有结论支撑、必需待办已完成时 | 系统核验；未通过时返回缺口并生成补救待办，继续推进 |\n| block | 只有用户才能提供的决定、数据或权限阻止继续推进时 | 目标转为受阻，等待用户处理 |\n\n- 对明确持续完成的多阶段任务，首个工具批次只提交 propose；连接探查和数据查询安排在用户确认之后。\n- 简单问答、一次查询能回答的问题不要 propose。\n- propose 的验收项写成可核对的陈述，每项能由一条带证据的结论支撑；约束写口径、范围和禁止事项；预算不超过默认值，除非用户指定。\n- 修改已有目标时 propose 需带 goalId 与 expectedRevision（取自目标锚点）。\n- record 的结论必须引用本轮 evidenceIds；同一事实使用稳定的 factKey，便于发现冲突。数值写 value 与 unit。\n- 待办用于跨轮推进：每个阶段开始前登记，完成后标记 done。必需待办未完成时无法完成目标。\n- 失败也要 record，写明尝试过什么、为什么失败，避免后续轮次重复。\n- complete 被打回时，按返回的 gaps 补齐，不要立即重复申请。\n- block 不用于普通的工具错误或空结果；可以换方法继续时继续。\n- 目标的创建、修改、恢复以用户确认为准；预算和状态以目标锚点为准。",
+    "description": "- 管理跨多轮持续推进的复杂长任务目标与结论账本（单轮内多步分析用 todo_write，常规短问答勿调）。",
     "parameters": {
       "type": "object",
-      "$defs": {
-        "BlockGoal": {
-          "additionalProperties": false,
-          "properties": {
-            "op": {
-              "const": "block",
-              "title": "Op",
-              "type": "string"
-            },
-            "reason": {
-              "maxLength": 60,
-              "minLength": 1,
-              "title": "Reason",
-              "type": "string"
-            }
-          },
-          "required": ["op", "reason"],
-          "title": "BlockGoal",
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["propose", "record", "complete", "block"],
+          "description": "动作：propose 立项待用户确认；record 记阶段结论或受阻尝试；complete 全部达标后申请核验；block 缺外部决策或权限时挂起。"
         },
-        "CompleteGoal": {
-          "additionalProperties": false,
-          "properties": {
-            "op": {
-              "const": "complete",
-              "title": "Op",
-              "type": "string"
-            },
-            "expectedRevision": {
-              "minimum": 1,
-              "title": "Expectedrevision",
-              "type": "integer"
-            }
-          },
-          "required": ["op", "expectedRevision"],
-          "title": "CompleteGoal",
-          "type": "object"
+        "objective": {
+          "type": "string",
+          "description": "action=propose 时的长任务总目标；action=block 时填阻塞原因。"
         },
-        "GoalAcceptance": {
-          "additionalProperties": false,
-          "properties": {
-            "id": {
-              "pattern": "^a[0-9]{1,2}$",
-              "title": "Id",
-              "type": "string"
-            },
-            "text": {
-              "maxLength": 300,
-              "minLength": 1,
-              "title": "Text",
-              "type": "string"
-            }
+        "acceptance": {
+          "type": "array",
+          "items": {
+            "type": "string"
           },
-          "required": ["id", "text"],
-          "title": "GoalAcceptance",
-          "type": "object"
+          "description": "action=propose 时的可核验完成标准列表（1..5 项）。"
         },
-        "GoalBudget": {
-          "additionalProperties": false,
-          "properties": {
-            "maxRounds": {
-              "default": 12,
-              "maximum": 32,
-              "minimum": 1,
-              "title": "Maxrounds",
-              "type": "integer"
-            },
-            "tokens": {
-              "default": 2000000,
-              "maximum": 10000000,
-              "minimum": 10000,
-              "title": "Tokens",
-              "type": "integer"
-            },
-            "costMicrousd": {
-              "default": 20000000,
-              "maximum": 20000000,
-              "minimum": 1,
-              "title": "Costmicrousd",
-              "type": "integer"
-            }
-          },
-          "title": "GoalBudget",
-          "type": "object"
+        "finding": {
+          "type": "string",
+          "description": "action=record 时写入跨轮账本的阶段结论或失败原因摘要。"
         },
-        "GoalContract": {
-          "additionalProperties": false,
-          "properties": {
-            "objective": {
-              "maxLength": 2000,
-              "minLength": 1,
-              "title": "Objective",
-              "type": "string"
-            },
-            "acceptance": {
-              "items": {
-                "$ref": "#/$defs/GoalAcceptance"
-              },
-              "maxItems": 10,
-              "minItems": 1,
-              "title": "Acceptance",
-              "type": "array"
-            },
-            "constraints": {
-              "items": {
-                "maxLength": 500,
-                "minLength": 1,
-                "type": "string"
-              },
-              "maxItems": 10,
-              "title": "Constraints",
-              "type": "array"
-            }
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
           },
-          "required": ["objective", "acceptance"],
-          "title": "GoalContract",
-          "type": "object"
+          "description": "action=record 支撑该结论的本轮工具 evidenceId 列表。"
         },
-        "LedgerItem": {
-          "additionalProperties": false,
-          "properties": {
-            "type": {
-              "enum": ["conclusion", "todo", "todo_done", "failure"],
-              "title": "Type",
-              "type": "string"
-            },
-            "key": {
-              "pattern": "^[a-z0-9_.:-]{1,80}$",
-              "title": "Key",
-              "type": "string"
-            },
-            "title": {
-              "maxLength": 200,
-              "minLength": 1,
-              "title": "Title",
-              "type": "string"
-            },
-            "text": {
-              "anyOf": [
-                {
-                  "maxLength": 2000,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Text"
-            },
-            "evidenceIds": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 8,
-              "title": "Evidenceids",
-              "type": "array"
-            },
-            "factKey": {
-              "anyOf": [
-                {
-                  "pattern": "^[a-z0-9_.:-]{1,80}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Factkey"
-            },
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Value"
-            },
-            "unit": {
-              "anyOf": [
-                {
-                  "maxLength": 20,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Unit"
-            },
-            "acceptanceIds": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 10,
-              "title": "Acceptanceids",
-              "type": "array"
-            },
-            "dependsOn": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 16,
-              "title": "Dependson",
-              "type": "array"
-            },
-            "resolves": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 10,
-              "title": "Resolves",
-              "type": "array"
-            },
-            "required": {
-              "default": true,
-              "title": "Required",
-              "type": "boolean"
-            }
+        "acceptanceIndexes": {
+          "type": "array",
+          "items": {
+            "type": "integer"
           },
-          "required": ["type", "key", "title"],
-          "title": "LedgerItem",
-          "type": "object"
-        },
-        "ProposeGoal": {
-          "additionalProperties": false,
-          "properties": {
-            "op": {
-              "const": "propose",
-              "title": "Op",
-              "type": "string"
-            },
-            "contract": {
-              "$ref": "#/$defs/GoalContract"
-            },
-            "budget": {
-              "$ref": "#/$defs/GoalBudget"
-            },
-            "goalId": {
-              "anyOf": [
-                {
-                  "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Goalid"
-            },
-            "expectedRevision": {
-              "anyOf": [
-                {
-                  "minimum": 1,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Expectedrevision"
-            }
-          },
-          "required": ["op", "contract"],
-          "title": "ProposeGoal",
-          "type": "object"
-        },
-        "RecordProgress": {
-          "additionalProperties": false,
-          "properties": {
-            "op": {
-              "const": "record",
-              "title": "Op",
-              "type": "string"
-            },
-            "items": {
-              "items": {
-                "$ref": "#/$defs/LedgerItem"
-              },
-              "maxItems": 10,
-              "minItems": 1,
-              "title": "Items",
-              "type": "array"
-            }
-          },
-          "required": ["op", "items"],
-          "title": "RecordProgress",
-          "type": "object"
+          "description": "action=record 时本结论已满足的验收项序号（1 起始，对应立项列表顺序）；未满足任何验收项时省略。"
         }
       },
-      "discriminator": {
-        "mapping": {
-          "block": "#/$defs/BlockGoal",
-          "complete": "#/$defs/CompleteGoal",
-          "propose": "#/$defs/ProposeGoal",
-          "record": "#/$defs/RecordProgress"
-        },
-        "propertyName": "op"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ProposeGoal"
-        },
-        {
-          "$ref": "#/$defs/RecordProgress"
-        },
-        {
-          "$ref": "#/$defs/CompleteGoal"
-        },
-        {
-          "$ref": "#/$defs/BlockGoal"
-        }
-      ],
-      "title": "GoalInput"
+      "required": ["action"]
     }
   },
   "examples": []

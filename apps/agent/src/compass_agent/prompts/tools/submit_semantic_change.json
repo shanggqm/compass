@@ -2,48 +2,25 @@
   "type": "function",
   "function": {
     "name": "submit_semantic_change",
-    "description": "**用途与调用规则**\n\n- 把已保存和校验的版本提交双人评审，需要维护者确认。",
+    "description": "- 将已通过 review_semantic_change 校验无阻断错误的语义草稿提交双人专家评审（生成确认卡经维护者确认后正式送审）。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "version_id": {
-          "format": "uuid",
-          "title": "Version Id",
-          "type": "string"
+          "type": "string",
+          "description": "已通过校验的语义草稿版本 ID。"
         },
         "expected_digest": {
-          "pattern": "^[0-9a-f]{64}$",
-          "title": "Expected Digest",
-          "type": "string"
+          "type": "string",
+          "description": "review_semantic_change 校验通过回执返回的 digest 摘要串。"
         },
         "note": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Note",
-          "type": "string"
-        },
-        "request_key": {
-          "format": "uuid",
-          "title": "Request Key",
-          "type": "string"
-        },
-        "binding_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Binding Id"
+          "type": "string",
+          "description": "提交专家评审的变更原因与业务影响简述（<=160 字）。"
         }
       },
-      "required": ["version_id", "expected_digest", "note", "request_key"],
-      "title": "Input",
-      "type": "object"
+      "required": ["version_id", "expected_digest", "note"]
     }
   },
   "examples": []

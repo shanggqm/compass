@@ -34,6 +34,37 @@ return {status: "ok", result: [lead.answer, ...branches.map(x => x.answer)]};
 """
 
 
+@pytest.mark.anyio
+async def test_workflow_child_argument_error_is_actionable_and_can_be_repaired():
+    from compass_agent.tools.errors import ActionableToolRejected
+    from compass_agent.workflows.engine import execute
+
+    from .test_tool_dispatcher import context
+
+    received = []
+
+    async def child(task, group, request):
+        received.append(task)
+        return {"summary": "完成"}
+
+    ctx = context()
+    wrong = (
+        "const result = await agent('sub_agent', {tasks:[{prompt:'核对数据'}]}); "
+        "return {status:'ok',result};"
+    )
+    with pytest.raises(ActionableToolRejected) as error:
+        await execute(wrong, {"type": "object"}, {}, ctx, child)
+    assert error.value.error.code == "invalid_workflow_child"
+    assert error.value.error.field == "scriptSource.agent.input.tasks.0.name"
+    assert not received
+    repaired = (
+        "const result = await agent('sub_agent', {tasks:[{name:'核对',objective:'核对数据'}]}); "
+        "return {status:'ok',result};"
+    )
+    result, _ = await execute(repaired, {"type": "object"}, {}, ctx, child)
+    assert result["status"] == "ok" and len(received) == 1
+
+
 class MemoryAssets:
     def __init__(self):
         self.records = {}
@@ -217,3 +248,40 @@ async def test_cancel_stops_child_loop_and_never_offers_save():
         event.type != "stream.extension" or event.payload.name != "compass.workflow.node"
         for event in events
     )
+
+
+@pytest.mark.anyio
+async def test_workflow_engine_passes_new_tasks_and_old_prompt_without_losing_task_contract():
+    from compass_agent.tools.builtin.sub_agent import SubAgentInput
+    from compass_agent.tools.errors import ActionableToolRejected
+    from compass_agent.workflows.engine import execute
+
+    from .test_tool_dispatcher import context
+
+    received = []
+
+    async def child(value, *_):
+        received.append(value)
+        return {"answer": "ok"}
+
+    source = (
+        "const x = await agent('sub_agent', {tasks:"
+        "[{name:'核对', objective:'核对结果', inputRefs:[]}]}); "
+        "return {status:'ok',result:x};"
+    )
+    result, _ = await execute(source, PARAMETERS, {"window": "November"}, context(), child)
+    assert result["status"] == "ok"
+    assert isinstance(received[0], SubAgentInput) and received[0].tasks
+    assert received[0].tasks[0].objective == "核对结果"
+    await execute(
+        "const x = await agent('sub_agent', {prompt:'检查'}); return {status:'ok',result:x};",
+        PARAMETERS,
+        {"window": "November"},
+        context(),
+        child,
+    )
+    assert received[1] == "检查"
+    with pytest.raises(ActionableToolRejected) as failure:
+        await execute(source, PARAMETERS, {}, context(), child)
+    assert failure.value.error.field == "args.window"
+    assert failure.value.error.payload()["nextAction"]

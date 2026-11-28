@@ -9,7 +9,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-from compass_agent.schemas import TOOL_CATALOG_LIMIT, ToolDefinition
+from compass_agent.schemas import TOOL_CATALOG_LIMIT, TOOL_REGISTRY_POOL_LIMIT, ToolDefinition
 from compass_agent.tools.contracts import (
     McpBinding,
     RegisteredTool,
@@ -17,6 +17,8 @@ from compass_agent.tools.contracts import (
     ToolRejected,
     json_bytes,
 )
+
+TOOL_DECLARATION_BYTES_LIMIT = 64 * 1024
 
 
 def parse_arguments(raw: str) -> object:
@@ -92,7 +94,7 @@ def has_catalog_room(definitions: Iterable[ToolDefinition]) -> bool:
     values = list(definitions)
     return (
         len(values) <= TOOL_CATALOG_LIMIT
-        and len(json_bytes([d.model_dump() for d in values])) <= 64 * 1024
+        and len(json_bytes([d.model_dump() for d in values])) <= TOOL_DECLARATION_BYTES_LIMIT
     )
 
 
@@ -123,8 +125,8 @@ class ToolRegistry:
                 entry = replace(entry, definition=definition.model_copy(deep=True))
             tools[entry.name] = entry
         self._entries = MappingProxyType(tools)
-        definitions = self.definitions()
-        validate_catalog(definitions)
+        if len(tools) > TOOL_REGISTRY_POOL_LIMIT:
+            raise ToolRejected("tool_registry_pool_limit")
         self.catalog_id = hashlib.sha256(
             json_bytes(
                 [
@@ -178,3 +180,8 @@ class ToolRegistry:
             return self._copy(self._entries[name])
         except KeyError as error:
             raise ToolRejected("unknown_tool") from error
+
+
+# Compatibility names remain for callers that validate a model request.
+validate_visible_catalog = validate_catalog
+has_visible_room = has_catalog_room

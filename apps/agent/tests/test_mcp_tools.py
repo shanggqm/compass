@@ -350,3 +350,32 @@ async def test_real_discovery_pages_optional_failure_required_failure_and_catalo
             with pytest.raises(ToolRejected, match="mcp_required_unavailable"):
                 await required.open()
             assert all(s.client is None and s._task.done() for s in required.sessions.values())
+
+
+@pytest.mark.anyio
+async def test_unselected_mcp_connections_are_never_probed(monkeypatch):
+    from compass_agent.execution_context import current_execution
+
+    config = configuration("http://127.0.0.1:1/mcp")
+    calls = []
+
+    async def start(*_):
+        calls.append(True)
+        raise AssertionError("unselected connections must not be probed")
+
+    monkeypatch.setattr(McpSession, "start", start)
+    c = context()
+    run = McpRun(
+        Repository(config),
+        EndpointPolicy("", "http://127.0.0.1:1"),
+        c.owner,
+        selected_connection_ids=frozenset(),
+        defer_catalog_limit=True,
+    )
+    token = current_execution.set(None)
+    try:
+        await run.open()
+        assert not run.entries and not calls and not run.sessions
+    finally:
+        await run.close()
+        current_execution.reset(token)

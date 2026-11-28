@@ -2,258 +2,53 @@
   "type": "function",
   "function": {
     "name": "discover_semantic_candidates",
-    "description": "**用途与调用规则**\n\n- 主动建议留存仅用于本轮实际算出、目录尚未覆盖且有明确重复决策用途的新指标。\n- 先用 search_semantics 比较相关名称、别名和业务含义。\n- 符合时单独调用 trigger=suggest，传本轮 database_query 回执的 semantic_result_ref 作为 result_ref，fields 填业务名称、业务域、统计口径、计量单位和一行可读计算公式。\n- 公式用业务名称及四则运算表达，例如「符合条件的订单数 ÷ 参与统计的订单数 × 100%」。\n- 筛选、时间边界和去重规则写入统计口径；表名、SQL 和实现细节留在查询回执，reuse_reason 说明具体复用场景。\n- 成功后会在回答下方展示候选，由用户决定是否保存。\n- 逐条推荐，最多三项，可以零项。\n- 明细、探查、一次性筛选或已有指标在新时段的结果直接回答。\n- 用户主动要求将此前的计算存为草稿时，用 requested 和 previous_results 中的 result_ref，按需提供建议字段。\n- 用户说“刚才的结果”可省略引用。\n- 保存前由用户核对。\n- 修订已保存指标时传 revise_metric（名称或代码）及本次改动的 fields。\n- 从授权素材提取时传 source_refs 和归属范围。",
+    "description": "- 提报新的可复用经营指标草稿、顺带推荐候选指标或修订存量指标定义（仅在维护口径或沉淀高复用指标时调用）。",
     "parameters": {
-      "$defs": {
-        "SuggestedDraftFields": {
-          "properties": {
-            "name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Name"
-            },
-            "code": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Code"
-            },
-            "domain": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Domain"
-            },
-            "summary": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Summary"
-            },
-            "responsible": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Responsible"
-            },
-            "grain": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Grain"
-            },
-            "unit": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Unit"
-            },
-            "formula": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Formula"
-            },
-            "event_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Event Time"
-            },
-            "timezone": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Timezone"
-            },
-            "aggregation": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Aggregation"
-            }
-          },
-          "title": "SuggestedDraftFields",
-          "type": "object"
-        }
-      },
+      "type": "object",
       "additionalProperties": false,
       "properties": {
-        "revise_metric": {
-          "anyOf": [
-            {
-              "maxLength": 160,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "修订已保存的指标时填现有名称、唯一代码或资产 ID，fields 只填本次修改。",
-          "title": "Revise Metric"
+        "mode": {
+          "type": "string",
+          "enum": ["suggest", "save_draft", "revise"],
+          "description": "动作模式：suggest 为回答后免弹窗推荐候选；save_draft 弹窗保存新草稿（默认）；revise 弹窗修订存量指标。"
         },
-        "source_refs": {
-          "anyOf": [
-            {
-              "items": {
-                "format": "uuid",
-                "type": "string"
-              },
-              "maxItems": 8,
-              "type": "array"
+        "spec": {
+          "type": "object",
+          "description": "拟保存或修订的业务口径定义（修订存量指标时仅填变更字段）。",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "指标中文业务名称。"
             },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Source Refs"
-        },
-        "owner_scope_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
+            "summary": {
+              "type": "string",
+              "description": "统计口径说明（含筛选、时间边界与剔除规则）。"
             },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Owner Scope Id"
-        },
-        "usage_scope_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
+            "formula": {
+              "type": "string",
+              "description": "可读业务计算公式（如 '净退货额 / 签收净销售额'）。"
             },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Usage Scope Id"
-        },
-        "result_ref": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
+            "unit": {
+              "type": "string",
+              "description": "计量单位（如 元、%、单）。"
             },
-            {
-              "type": "null"
+            "grain": {
+              "type": "string",
+              "description": "统计粒度（如 订单、门店×日）。"
             }
-          ],
-          "default": null,
-          "description": "可选。用户指的是刚才的查询时可以省略，系统会在当前会话查找并让用户选择。",
-          "title": "Result Ref"
+          }
         },
-        "trigger": {
-          "default": "requested",
-          "description": "用户要求保存或选择时为 requested。只有主动推荐时填 suggest。",
-          "enum": ["requested", "suggest"],
-          "title": "Trigger",
-          "type": "string"
+        "resultRef": {
+          "type": "string",
+          "description": "提报新指标草稿时关联的本轮查询结果 ID；指代刚才的查询可省略。"
         },
-        "reuse_reason": {
-          "anyOf": [
-            {
-              "maxLength": 400,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "主动推荐时说明哪些经营决策会跨期重复使用这项计算。",
-          "title": "Reuse Reason"
-        },
-        "fields": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SuggestedDraftFields"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "targetMetric": {
+          "type": "string",
+          "description": "mode=revise 时填写目标指标名称、编码或 ID；新建草稿或推荐时省略。"
         }
       },
-      "title": "Input",
-      "type": "object"
+      "required": ["spec"]
     }
   },
   "examples": []

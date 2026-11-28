@@ -81,7 +81,24 @@ class FinalReport(RunContractModel):
 class ReportToParentInput(
     RootModel[Annotated[ProgressReport | FinalReport, Field(discriminator="kind")]]
 ):
-    pass
+    @model_validator(mode="before")
+    @classmethod
+    def compact_report(cls, value):
+        if isinstance(value, dict) and "kind" not in value and "summary" in value:
+            gaps = value.get("gaps", [])
+            summary = value["summary"]
+            return {
+                "kind": "final",
+                "result": {
+                    "status": value.get("status", "partial" if gaps else "completed"),
+                    "summary": summary,
+                    "gaps": gaps,
+                    "findings": [
+                        {"statement": summary[:500], "evidenceIds": value.get("evidenceIds", [])}
+                    ],
+                },
+            }
+        return value
 
 
 class ProposeGoal(RunContractModel):

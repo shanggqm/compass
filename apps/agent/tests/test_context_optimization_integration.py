@@ -147,7 +147,9 @@ def test_auxiliary_budget_is_counted_once_across_prepared_main_takeover(data_sou
     epoch = store.claim(run_id, uuid4())
 
     def ledger():
-        return SimpleNamespace(steps=0, tokens=0, cost_microusd=0, attempts=0, unknown_attempts=0)
+        return SimpleNamespace(
+            steps=0, tokens=0, cost_microusd=0, attempts=0, unknown_attempts=0, reason=None
+        )
 
     async def scenario():
         first = ExecutionJournal(store, LocalPublisher(), run_id, epoch)

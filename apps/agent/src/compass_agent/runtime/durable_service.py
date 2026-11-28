@@ -107,7 +107,10 @@ class CurrentAccess:
                     grants = response.json().get("capabilityGrants", {})
                     if not isinstance(grants, dict):
                         raise ModelError("authorization_unavailable", 503)
-                    return {k: grants.get(k) is True for k in ("analysis", "model", "plugins")}
+                    return {
+                        k: grants.get(k) is True
+                        for k in ("analysis", "model", "plugins", "semantic_maintainer")
+                    }
         except (httpx.HTTPError, ValueError):
             raise ModelError("authorization_unavailable", 503) from None
 
@@ -128,7 +131,11 @@ class ProgressSink:
     def __init__(self, service, run_id, epoch):
         self.service, self.run_id, self.epoch = service, run_id, epoch
         self.pending = []
-        self.known = deepcopy(service.store.read_run(run_id).public_view["objects"])
+        run = service.store.read_run(run_id)
+        self.known = deepcopy(run.public_view["objects"])
+        self.async_publication = (
+            run.config_snapshot.get("contextRuntime", {}).get("answerProtocol") == 3
+        )
         self.lock = asyncio.Lock()
 
     def __call__(self, event):
@@ -189,7 +196,10 @@ class ProgressSink:
                     self.pending = events + self.pending
                     raise
                 observe_tool_receipts(self.service.observations.get(self.run_id), events)
-            await self.service.publisher.flush(self.run_id)
+            if self.async_publication:
+                self.service.publisher.notify(self.run_id)
+            else:
+                await self.service.publisher.flush(self.run_id)
 
 
 class DurableRuntime:
@@ -546,6 +556,7 @@ class DurableRuntime:
         control = None
         token = None
         active_base = 0
+        journal = None
         try:
             run = await asyncio.to_thread(self.store.read_run, run_id)
             if self.store.scheduler and (
@@ -705,7 +716,7 @@ class DurableRuntime:
                     citations=citations,
                     answer_acceptance=getattr(result, "_answer_acceptance", None),
                 )
-            await self.publisher.flush(run_id)
+            await journal.publish()
         except BoundaryYield:
             pass
         except RecoveryStop as stop:
@@ -729,6 +740,11 @@ class DurableRuntime:
             elif run is not None and not self.store.distributed:
                 await self.pause_before_dispatch(run_id, run.version, reason)
         finally:
+            if journal is not None:
+                try:
+                    await journal.flush_text(abort=True)
+                except Exception:
+                    logger.warning("runtime.text_writer_stopped run_id=%s", run_id)
             if control and epoch and not self.store.distributed:
                 await asyncio.to_thread(
                     self.store.record_active_time,
@@ -825,6 +841,7 @@ class DurableRuntime:
             for task in pending:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
+        await self.publisher.close()
         await self.streams.close()
         if self.store.contextops:
             await asyncio.to_thread(self.store.contextops.close)

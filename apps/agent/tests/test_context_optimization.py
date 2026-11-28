@@ -823,3 +823,52 @@ def test_repeated_summary_truncation_is_bounded_and_keeps_original_history(monke
     assert len(calls) == 3
     assert optimizer.summary is None
     assert optimizer.groups == [original]
+
+
+def test_confirmed_meaning_updates_fixed_context_across_incremental_steps_and_restore():
+    from copy import deepcopy
+
+    from compass_agent.context_runtime.optimizer import ContextOptimizer
+    from compass_agent.schemas import GenerateInput
+
+    journal, models, control, _ = setup()
+    messages = [
+        ChatMessage(role="system", content="固定系统"),
+        ChatMessage(role="user", content='{"source":"publishedSemanticRegistry","items":[]}'),
+        ChatMessage(role="user", content="当前问题"),
+    ]
+    optimizer, draft, frame = optimizer_frame(journal, messages)
+    limits = ModelTokenLimits(max_input_tokens=100000, max_output_tokens=2048)
+    confirmed = json.dumps(
+        {
+            "source": "publishedSemanticRegistry",
+            "items": [],
+            "owner_confirmed_meanings": [{"mention": "净收入", "definition": "按入账时间统计"}],
+        },
+        ensure_ascii=False,
+    )
+
+    async def scenario():
+        first = await optimizer.optimize(frame, models, None, control, None, None, limits, draft)
+        for instance in (optimizer, ContextOptimizer(journal)):
+            instance.groups = []
+            instance.restore(first["contextOptimization"], messages)
+            following = deepcopy(first)
+            following["input"]["request"]["messages"][1]["content"] = confirmed
+            following["receipt"]["stepKey"] = "root/model:step-2"
+            # The incoming original question stays unchanged; compilation updates fixed context.
+            result = await instance.optimize(
+                following,
+                models,
+                None,
+                control,
+                None,
+                None,
+                limits,
+                GenerateInput(messages=messages, max_tokens=512),
+            )
+            assert result["input"]["request"]["messages"][1]["content"] == confirmed
+            assert result["input"]["request"]["messages"][-1]["content"] == "当前问题"
+            assert result["contextOptimization"]["active"] == first["contextOptimization"]["active"]
+
+    asyncio.run(scenario())

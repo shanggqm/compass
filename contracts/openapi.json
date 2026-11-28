@@ -2361,6 +2361,17 @@
             ],
             "title": "Tokens"
           },
+          "toolAssembly": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolAssemblyTraceView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "track": {
             "enum": [
               "input",
@@ -7801,6 +7812,17 @@
             "title": "Edit Rev",
             "type": "integer"
           },
+          "governance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolGovernanceView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "has_draft": {
             "title": "Has Draft",
             "type": "boolean"
@@ -10465,6 +10487,17 @@
             ],
             "default": null,
             "title": "Timeoutseconds"
+          },
+          "toolSelection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolSelection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "title": "RunConstraints",
@@ -13997,6 +14030,116 @@
         "title": "ToolApprovalProposal",
         "type": "object"
       },
+      "ToolAssemblyItemView": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "always_on",
+              "scene_routed",
+              "user_selected"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pack": {
+            "title": "Pack",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "channel",
+          "pack"
+        ],
+        "title": "ToolAssemblyItemView",
+        "type": "object"
+      },
+      "ToolAssemblyTraceView": {
+        "additionalProperties": false,
+        "properties": {
+          "authorized_count": {
+            "minimum": 0,
+            "title": "Authorized Count",
+            "type": "integer"
+          },
+          "declaration_bytes": {
+            "minimum": 0,
+            "title": "Declaration Bytes",
+            "type": "integer"
+          },
+          "declaration_tokens": {
+            "minimum": 0,
+            "title": "Declaration Tokens",
+            "type": "integer"
+          },
+          "deferred": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Deferred",
+            "type": "array"
+          },
+          "deferred_count": {
+            "minimum": 0,
+            "title": "Deferred Count",
+            "type": "integer"
+          },
+          "excluded": {
+            "items": {
+              "$ref": "#/components/schemas/ToolExcludedItemView"
+            },
+            "title": "Excluded",
+            "type": "array"
+          },
+          "excluded_count": {
+            "minimum": 0,
+            "title": "Excluded Count",
+            "type": "integer"
+          },
+          "exposed": {
+            "items": {
+              "$ref": "#/components/schemas/ToolAssemblyItemView"
+            },
+            "title": "Exposed",
+            "type": "array"
+          },
+          "exposed_count": {
+            "minimum": 0,
+            "title": "Exposed Count",
+            "type": "integer"
+          },
+          "permission_filtered_count": {
+            "minimum": 0,
+            "title": "Permission Filtered Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "authorized_count",
+          "exposed_count",
+          "deferred_count",
+          "excluded_count",
+          "permission_filtered_count",
+          "declaration_bytes",
+          "declaration_tokens",
+          "exposed",
+          "deferred",
+          "excluded"
+        ],
+        "title": "ToolAssemblyTraceView",
+        "type": "object"
+      },
       "ToolCall": {
         "additionalProperties": false,
         "properties": {
@@ -14198,6 +14341,31 @@
         "title": "ToolEventKey",
         "type": "object"
       },
+      "ToolExcludedItemView": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "scene",
+              "stage",
+              "role",
+              "budget"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reason"
+        ],
+        "title": "ToolExcludedItemView",
+        "type": "object"
+      },
       "ToolFailedPayload": {
         "additionalProperties": false,
         "properties": {
@@ -14364,6 +14532,82 @@
           "name"
         ],
         "title": "ToolFunction",
+        "type": "object"
+      },
+      "ToolGovernanceView": {
+        "additionalProperties": false,
+        "properties": {
+          "approval": {
+            "title": "Approval",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "always_on",
+              "scene_routed",
+              "user_selected"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "effect": {
+            "title": "Effect",
+            "type": "string"
+          },
+          "pack": {
+            "title": "Pack",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "pack",
+          "effect",
+          "approval"
+        ],
+        "title": "ToolGovernanceView",
+        "type": "object"
+      },
+      "ToolSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "mcpServerIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Mcpserverids",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "packs": {
+            "items": {
+              "enum": [
+                "long_task",
+                "workflow_pack",
+                "semantic_govern",
+                "python_sandbox"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Packs",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "workflowIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Workflowids",
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "title": "ToolSelection",
         "type": "object"
       },
       "ToolStarted": {

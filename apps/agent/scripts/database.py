@@ -23,7 +23,7 @@ from compass_agent.runtime.entities import RUNTIME_TABLES, SCHEDULER_TABLES
 from compass_agent.scheduler.entities import AgentSchedule, AgentScheduleTrigger, RuntimeControl
 from compass_agent.semantic import entities as semantic_entities
 from compass_agent.tools.mcp.entities import McpConnection
-from compass_agent.tools.sandbox.entities import SandboxAllocation
+from compass_agent.tools.sandbox.entities import SandboxAllocation, SandboxExecution
 from compass_agent.workflows.assets import UNIQUE_SCRIPT, WorkflowAsset
 from psycopg import sql
 from sqlalchemy import (
@@ -65,8 +65,9 @@ REVISIONS = {
     "0018": "0018_semantic_cleanup.py",
     "0019": "0019_goal_ledger.py",
     "0020": "0020_context_ops.py",
+    "0021": "0021_shared_sandbox.py",
 }
-TARGET = "0020"
+TARGET = "0021"
 GOAL_TABLES = {"agent_goal", "agent_goal_entry"}
 SEMANTIC_TABLES = {
     semantic_entities.SemanticMetricOffer.__tablename__,
@@ -190,6 +191,8 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
         expected |= GOAL_TABLES
     if revision >= "0020":
         expected |= CONTEXTOPS_TABLES
+    if revision >= "0021":
+        expected.add("sandbox_execution")
     views = inspect(connection).get_view_names(schema="public")
     if views != ([SUMMARY_VIEW] if revision >= "0015" else []):
         raise DatabaseError("Agent view drift at current revision")
@@ -234,6 +237,8 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
         if revision < TARGET:
             metadata = MetaData()
             for table in entities.Base.metadata.sorted_tables:
+                if revision < "0021" and table.name == SandboxExecution.__tablename__:
+                    continue
                 if revision < "0020" and table.name in CONTEXTOPS_TABLES:
                     continue
                 if (revision < "0010" and table.name in SCHEDULER_TABLES) or (
@@ -258,6 +263,12 @@ def inspect_version(connection, *, legacy: bool = False) -> str:
                 if revision < "0016" and table.name in PROMPT_TABLES:
                     continue
                 copied = table.to_metadata(metadata)
+                if revision < "0021" and table.name == SandboxAllocation.__tablename__:
+                    copied.indexes.remove(
+                        next(i for i in copied.indexes if i.name == "uq_sandbox_shared_owner")
+                    )
+                    for name in ("shared", "idle_until", "absent_since"):
+                        copied._columns.remove(copied.c[name])
                 if revision < "0016":
                     if table.name == "agent_step":
                         copied._columns.remove(copied.c.prepared_context)
@@ -401,6 +412,8 @@ GRANT SELECT, INSERT ON model_change TO {RUNTIME};"""
     if target >= "0008":
         grants += f"\nGRANT SELECT, INSERT, UPDATE, DELETE ON mcp_connection TO {RUNTIME};"
         grants += f"\nGRANT SELECT, INSERT, UPDATE ON sandbox_allocation TO {RUNTIME};"
+    if target >= "0021":
+        grants += f"\nGRANT SELECT, INSERT, UPDATE ON sandbox_execution TO {RUNTIME};"
     if target >= "0009":
         grants += (
             "\nGRANT SELECT, INSERT, UPDATE ON "
@@ -486,6 +499,7 @@ def sql_delivery(start: str, target: str = TARGET) -> str:
         "0018": "974",
         "0019": "983",
         "0020": "971",
+        "0021": "970",
     }[target]
     change = "transactional Retail copy" if target == "0006" else "additive schema"
     if target == "0018":
@@ -526,6 +540,7 @@ def write_sql(*, check: bool = False) -> None:
         "0015",
         "0017",
         "0018",
+        "0020",
         TARGET,
     ):
         for start in REVISIONS:

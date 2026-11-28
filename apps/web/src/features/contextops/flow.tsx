@@ -661,6 +661,60 @@ function Detail({
               )}
             </dl>
             <p className="co-detail-desc">{item.title}</p>
+            {node.toolAssembly ? (
+              <section aria-label="工具装配">
+                <details open>
+                  <summary>工具装配</summary>
+                  <p>
+                    已授权 {node.toolAssembly.authorized_count} · 本步{" "}
+                    {node.toolAssembly.exposed_count} · 待用 {node.toolAssembly.deferred_count} ·
+                    排除 {node.toolAssembly.excluded_count} · 权限过滤{" "}
+                    {node.toolAssembly.permission_filtered_count}
+                  </p>
+                  <p>
+                    {num(node.toolAssembly.declaration_bytes, 0)} B · 约{" "}
+                    {num(node.toolAssembly.declaration_tokens, 0)} tok
+                  </p>
+                  <ul>
+                    {node.toolAssembly.exposed.map((tool) => (
+                      <li key={tool.name}>
+                        {tool.label} ·{" "}
+                        {
+                          {
+                            always_on: "默认常驻",
+                            scene_routed: "按场景",
+                            user_selected: "用户选择",
+                          }[tool.channel]
+                        }{" "}
+                        · {tool.pack}
+                      </li>
+                    ))}
+                  </ul>
+                  {!!node.toolAssembly.deferred.length && (
+                    <p>待用：{node.toolAssembly.deferred.join("、")}</p>
+                  )}
+                  {!!node.toolAssembly.excluded.length && (
+                    <ul>
+                      {node.toolAssembly.excluded.map((tool) => (
+                        <li key={tool.name}>
+                          {tool.name} ·{" "}
+                          {
+                            {
+                              scene: "当前场景",
+                              stage: "当前阶段",
+                              role: "调用身份",
+                              budget: "声明预算",
+                            }[tool.reason]
+                          }
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </details>
+              </section>
+            ) : isContext(node) ? (
+              <p className="muted">该历史记录未保存工具装配明细。</p>
+            ) : null}
           </>
         )}
         {tab === "security" && (

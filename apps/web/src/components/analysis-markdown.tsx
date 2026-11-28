@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import Markdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -15,16 +15,32 @@ export const AnalysisMarkdown = memo(function AnalysisMarkdown({
   source,
   revealing = false,
   embedded = false,
+  citationLinks,
 }: {
   source: string;
   revealing?: boolean;
   embedded?: boolean;
+  citationLinks?: ReadonlyMap<string, ReactNode>;
 }) {
   return (
     <div className="analysis-markdown" data-revealing={revealing}>
       <Markdown
         remarkPlugins={[remarkGfm]}
-        components={markdownComponents}
+        components={
+          citationLinks
+            ? {
+                ...markdownComponents,
+                a: ({ href, children, ...props }) =>
+                  citationLinks.has(href ?? "") ? (
+                    citationLinks.get(href ?? "")
+                  ) : (
+                    <a href={href} {...props}>
+                      {children}
+                    </a>
+                  ),
+              }
+            : markdownComponents
+        }
         disallowedElements={embedded ? ["img", "a"] : undefined}
         unwrapDisallowed
         skipHtml

@@ -125,6 +125,18 @@ export function FileEditor({
         使用位置　{file.usages.join("、") || "尚未接入"} ·{" "}
         {file.origin === "online" ? "线上新增" : "随包文件"}
       </p>
+      {file.governance && (
+        <p className="muted" aria-label="工具治理信息">
+          加载：
+          {
+            { always_on: "默认常驻", scene_routed: "按场景", user_selected: "用户选择" }[
+              file.governance.channel
+            ]
+          }{" "}
+          · 能力包：{file.governance.pack} · 效果：{file.governance.effect} · 审批：
+          {file.governance.approval === "required" ? "需要确认" : "无需确认"}
+        </p>
+      )}
       <div className="prompt-actions prompt-file-actions" aria-label="文件操作">
         <button className="secondary" onClick={onHistory}>
           <History size={16} aria-hidden="true" /> 版本历史

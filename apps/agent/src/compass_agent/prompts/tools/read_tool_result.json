@@ -2,59 +2,29 @@
   "type": "function",
   "function": {
     "name": "read_tool_result",
-    "description": "- 读取本会话已经保存的工具结果原件，适用于核对预览之外的行、文本或字段。\n- 使用已有工具回执中的 ref。初次读取可设置 offset 与 limit：表格按行定位，文本按字符定位，offset 从 0 开始。\n- 续页时传入返回的 nextCursor 作为 cursor，并沿用同一 ref。cursor 与 offset、limit 两种定位方式互斥。\n- 结果返回实际范围、数据、nextCursor、原件读取进度 complete 和原查询完整性 sourceComplete。长行或大字段可能分片，下一游标会继续该片段。\n- 读取只取得已保存的内容。原查询失败、部分返回、引用失效或当前权限不足时，按返回状态处理。",
+    "description": "- 当工具回执截断（truncated=true）且预览不足时，分页读取已保存的结果原件。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "ref": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Ref",
-          "type": "string"
-        },
-        "offset": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Offset"
-        },
-        "limit": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Limit"
+          "type": "string",
+          "description": "上游回执返回的 resultId 或 ref。"
         },
         "cursor": {
-          "anyOf": [
-            {
-              "maxLength": 1024,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cursor"
+          "type": "string",
+          "description": "续页传上一页 nextCursor；首次省略。"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "首次读取 0 起始行号或字符偏移；传 cursor 时忽略。"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "单次条数上限（1..200，默认 50）。"
         }
       },
-      "required": ["ref"],
-      "title": "ReadToolResultInput",
-      "type": "object"
+      "required": ["ref"]
     }
   },
   "examples": []

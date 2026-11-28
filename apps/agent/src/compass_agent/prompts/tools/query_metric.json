@@ -2,143 +2,26 @@
   "type": "function",
   "function": {
     "name": "query_metric",
-    "description": "**用途与调用规则**\n\n- 通过已发布执行绑定按期间、维度和过滤查询正式指标。\n- 比较时传两个可比期间。\n- 返回受信结果引用、口径、单位与数据截止。\n- 只传 query_ref 即可执行已解析的查询。\n- 对比时传 operation=\"compare\" 和明确的 comparison。\n- 用户要求紧邻的前一等长期间时可采用解析结果中的 previous_equal_window。\n- 新的本期或维度需要先重新解析。\n- 对比结果的 current_minus_comparison 表示本期减对照期，由执行器对齐两期分组，负值表示下降。\n- 完整可加金额中仅一期出现的分组按另一侧零参与差额；缺报或没有可比值时差额为空。\n- period_totals 给出完整可加分组的各期合计。\n- 下钻时，把子分组和父级筛选写进解析参数，再将相同筛选作为 parent_group。\n- 从全体授权数据下钻时填写 parent_group=\"total\"。",
+    "description": "- 正式指标取数首选工具：凭 query_ref 执行受控指标查询、同环比对比或维度下钻（有已发布指标绑定时必须优先使用，禁止手写 SQL 替代）。",
     "parameters": {
-      "$defs": {
-        "Parameters": {
-          "additionalProperties": false,
-          "properties": {
-            "start": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "Start",
-              "type": "string"
-            },
-            "end": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "End",
-              "type": "string"
-            },
-            "as_of": {
-              "anyOf": [
-                {
-                  "maxLength": 40,
-                  "minLength": 16,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "As Of"
-            },
-            "group_by": {
-              "anyOf": [
-                {
-                  "maxLength": 120,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Group By"
-            },
-            "filters": {
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "boolean"
-                  }
-                ]
-              },
-              "maxProperties": 32,
-              "title": "Filters",
-              "type": "object"
-            }
-          },
-          "required": ["start", "end"],
-          "title": "Parameters",
-          "type": "object"
-        }
-      },
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "query_ref": {
-          "format": "uuid",
-          "title": "Query Ref",
-          "type": "string"
+          "type": "string",
+          "description": "预注入上下文或 resolve_semantics 签发的查询引用 ID。",
+          "format": "uuid"
         },
-        "operation": {
-          "default": "query",
-          "enum": ["query", "compare", "drilldown"],
-          "title": "Operation",
-          "type": "string"
+        "compare_to": {
+          "type": "string",
+          "description": "期间对比配置：传 'previous' 自动对比紧邻等长上期，或传 'YYYY-MM-DD..YYYY-MM-DD' 指定对照区间；普通查询省略。"
         },
-        "parameters": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Parameters"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "comparison": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Parameters"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "比较时填写用户所指的对照期。"
-        },
-        "parent_group": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "boolean"
-                  }
-                ]
-              },
-              "type": "object"
-            },
-            {
-              "const": "total",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "下钻起点。填写 total 或已绑定的父级筛选条件。",
-          "title": "Parent Group"
+        "drilldown_from": {
+          "type": "object",
+          "description": "维度下钻的父级筛选键值（从总体汇总下钻传空对象 {}）；不下钻时省略。"
         }
       },
-      "required": ["query_ref"],
-      "title": "Input",
-      "type": "object"
+      "required": ["query_ref"]
     }
   },
   "examples": []

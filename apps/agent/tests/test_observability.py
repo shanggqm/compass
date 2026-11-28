@@ -420,7 +420,7 @@ async def test_durable_tool_receipts_emit_once_after_commit_across_worker_handof
 
     run_id, step_id = uuid4(), uuid4()
     objects = {}
-    run = SimpleNamespace(public_view={"objects": objects})
+    run = SimpleNamespace(public_view={"objects": objects}, config_snapshot={})
 
     def commit(_run, _epoch, events):
         for event in events:
@@ -475,7 +475,7 @@ async def test_durable_tool_receipts_emit_once_after_commit_across_worker_handof
                         ("sql-ok", "query", "ok"),
                         ("sql-error", "query", "error"),
                     ):
-                        item = tools.prepare(call("database_query", key), ctx)
+                        item = await tools.prepare(call("database_query", key), ctx)
                         item = replace(item, args={"op": op, "status": status})
                         try:
                             receipt = await tools._invoke_live(item, replace(ctx, call_id=key))
@@ -499,7 +499,9 @@ async def test_durable_tool_receipts_emit_once_after_commit_across_worker_handof
                             ),
                         )
                     with pytest.raises(ToolBusinessStopped):
-                        await tools._invoke_live(tools.prepare(call("schedule_read"), ctx), ctx)
+                        await tools._invoke_live(
+                            await tools.prepare(call("schedule_read"), ctx), ctx
+                        )
                     await sink.flush()
             finally:
                 current_execution.reset(token)

@@ -1,6 +1,6 @@
 # Agent / main 数据库
 
-Owner 为 `agent/main`，PostgreSQL 17。迁移唯一源为 [Alembic revisions](../../migrations/versions/)，受管工具为 [database.py](../../scripts/database.py)。当前版本 `0020`：保留 `0001` 的演示数据，0002 增加 `model_provider`、`model_change`、`model_call`，0003 将已有 `aliyun_decision` 绑定迁移为通用 `systemone_decision`，保持 ID、型号、凭据、配置版本和历史记录。0004 为调用表追加可空 `execution` JSON，记录至多两次尝试的安全摘要；旧行保持 null。0005 新增每个工作区一行的 `retail_connection`，配置密码加密，更新按 revision 比较。0006 将旧 Retail 记录复制为工作区默认连接，保留密码密文和 revision，再移除原表。新 `data_connection` 同时支持普通 PostgreSQL 与 MySQL。0007 追加 `workflow_asset`，保存工作区个人的 JS 源码、摘要与运行契约。0008 增加 MCP 配置和 Sandbox 租约。0009 增加持久运行实体及物理模型尝试，扩展调用表的加密输入/输出。0010 增加运行调度。`0011` 增加会话标题状态、任务领取信息与软删除时间。0012 给工作流资产增加工具说明和参数 JSON Schema。0013 为 Provider 增加可空的模型容量元数据和生成默认值。0014 新增工作流软删除。0015 新增计划、触发、角色控制及回收和发布租约。0016 保存 PromptOps 代次与运行上下文。Run 快照保存 Registry 发布引用；0018 核对清单与摘要并清理重复存储。Provider 凭据与 Runtime 内容使用不同用途的密文。
+Owner 为 `agent/main`，PostgreSQL 17。迁移唯一源为 [Alembic revisions](../../migrations/versions/)，受管工具为 [database.py](../../scripts/database.py)。当前版本 `0021`：保留 `0001` 的演示数据，0002 增加 `model_provider`、`model_change`、`model_call`，0003 将已有 `aliyun_decision` 绑定迁移为通用 `systemone_decision`，保持 ID、型号、凭据、配置版本和历史记录。0004 为调用表追加可空 `execution` JSON，记录至多两次尝试的安全摘要；旧行保持 null。0005 新增每个工作区一行的 `retail_connection`，配置密码加密，更新按 revision 比较。0006 将旧 Retail 记录复制为工作区默认连接，保留密码密文和 revision，再移除原表。新 `data_connection` 同时支持普通 PostgreSQL 与 MySQL。0007 追加 `workflow_asset`，保存工作区个人的 JS 源码、摘要与运行契约。0008 增加 MCP 配置和 Sandbox 租约。0009 增加持久运行实体及物理模型尝试，扩展调用表的加密输入/输出。0010 增加运行调度。`0011` 增加会话标题状态、任务领取信息与软删除时间。0012 给工作流资产增加工具说明和参数 JSON Schema。0013 为 Provider 增加可空的模型容量元数据和生成默认值。0014 新增工作流软删除。0015 新增计划、触发、角色控制及回收和发布租约。0016 保存 PromptOps 代次与运行上下文。Run 快照保存 Registry 发布引用；0018 核对清单与摘要并清理重复存储。Provider 凭据与 Runtime 内容使用不同用途的密文。
 
 ## 配置与执行
 
@@ -110,3 +110,9 @@ Run 在 `agent_run.config_snapshot.contextRuntime.registry` 固定发布 ID 和�
 发布顺序：备份 0019 数据库和当前密钥，停旧 Worker/Scheduler，使用迁移账号升级 0020 并核对 SQL 清单，再启动 Agent、Web、Scheduler。Runtime 对新表仅有 SELECT/INSERT；Scheduler 仅查询快照引用并删除到期未引用快照。审计表不授予 UPDATE/DELETE。
 
 恢复使用备份到新数据库并切换连接，保留故障库和原密钥；回退旧应用需恢复其对应版本备份。原生及 SQL 升级保留旧表和旧行；受管历史增量保持原字节。迁移、权限和恢复验收见[第 26 课实施记录](../../../../mai-specs/971-lesson-26-context-ops/IMPLEMENTATION.md)。
+
+## 0021 共享 Sandbox 与命令租约
+
+owner `agent/main`，0020→0021。源为 [0021_shared_sandbox.py](../../migrations/versions/0021_shared_sandbox.py)，交付 [0020→0021 SQL](sql/upgrades/0020__0021.sql) 与 [完整 SQL](sql/bootstrap.sql)。`sandbox_allocation` 增加共享标志、空闲期限和远端空列表观察时间；`sandbox_execution` 独立记录各次命令。共享 owner 的存活唯一索引约束跨 worker 创建竞争，历史记录默认 `shared=false`，保持 ID、卷绑定和审计状态。
+
+发布前排空 Run、备份旧库及私有状态密钥、构建新 Sandbox 镜像；升级数据库后启动新 Agent 并同步工具 Prompt。计算和清理沿现有 OpenSandbox/NFS 控制面执行，清卷确认后才释放槽位。运行角色对新表仅 SELECT/INSERT/UPDATE。恢复使用备份还原到新库并切回旧应用，保留升级后的库及工作卷；禁止用 downgrade 删除调用历史。

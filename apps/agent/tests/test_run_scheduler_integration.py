@@ -1981,7 +1981,9 @@ def test_due_triggers_keep_published_context_through_worker_takeover(engine, mon
                         system = frame["input"]["request"]["messages"][0]["content"]
                         assert "Asia/Shanghai" in system
                         organization = frame["input"]["request"]["messages"][1]
-                        assert json.loads(organization["content"])["workspaceName"] == "调度组"
+                        from .test_context_runtime_integration import model_json
+
+                        assert model_json(organization["content"])["workspaceName"] == "调度组"
                         assert (marker in system) == (version == 2)
 
             original = editor.get("tree").json()

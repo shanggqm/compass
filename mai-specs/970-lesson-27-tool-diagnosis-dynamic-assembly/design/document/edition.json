@@ -1,0 +1,76 @@
+{
+  "lesson": 27,
+  "title": "内建工具体系诊断与场景化动态组装",
+  "subtitle": "围绕全部 20 个工具完成极简单一原语契约与流式循证收口重构，建设“内建默认常驻 + 场景分流触发 + 前端用户手动选择”三通道确定性工具组装机制。",
+  "brand": "Compass",
+  "label": "课程技术方案 · 设计示意",
+  "topics": [
+    "去复合单一原语",
+    "确定性连接路由",
+    "100% 参数说明",
+    "常驻 + 场景 + 手动三通道",
+    "恒定前缀 Prefix Cache",
+    "流式 final_answer"
+  ],
+  "cover": {
+    "file": "../../context/lesson-27.png",
+    "alt": "第 27 课 工具体系诊断与三通道动态组装架构总览"
+  },
+  "metrics": [
+    {
+      "value": "243 → 69",
+      "label": "全量参数数量 (−72%)",
+      "detail": "清零 47 个 $defs 与全部 connectionId/request_key，参数说明率 4%→100%"
+    },
+    {
+      "value": "−65%",
+      "label": "19 静态工具紧凑声明",
+      "detail": "42,719 B → 14,980 B (~3,745 tok)，final_answer 直降 −84%"
+    },
+    {
+      "value": "−81%",
+      "label": "SC-01 / SC-21 常驻开销",
+      "detail": "11 个 DataAgent 核心常驻底座仅 7,938 B (~1,985 tok)，跨轮前缀稳定"
+    },
+    {
+      "value": "100% 恒定",
+      "label": "Work 阶段前缀稳定",
+      "detail": "入口冻结标志一次性合流，answerProtocol==3 隔离，0 DDL 迁移"
+    }
+  ],
+  "source": "../TECH_DESIGN.md",
+  "guide": "guide.md",
+  "output": "../TECH_DESIGN.html",
+  "code": {
+    "tool_governance": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ToolGovernance:",
+      "language": "python"
+    },
+    "registry_limits": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "TOOL_REGISTRY_POOL_LIMIT = 128",
+      "language": "python"
+    },
+    "tool_assembler": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def assemble_step(",
+      "language": "python"
+    },
+    "slim_adapter": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def compact_json_schema(",
+      "language": "python"
+    },
+    "actionable_error": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ActionableToolError:",
+      "language": "python"
+    },
+    "postgres_error": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def classify_postgres_error(",
+      "language": "python"
+    }
+  }
+}

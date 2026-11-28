@@ -1,0 +1,1670 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="第 25 课的模型可见文本：单 goal 工具、sub_agent 并行委派规则、子 Agent 汇报与目标锚点模板。" />
+    <title>提示词与工具设计 · Compass</title>
+    <!-- prettier-ignore -->
+    <style>/* Adapted from the approved lesson 13 reading edition; no product-app dependency. */
+:root {
+  color-scheme: light;
+  --paper: #f9faf7;
+  --surface: #fff;
+  --ink: #172c25;
+  --muted: #5d6b64;
+  --green: #245847;
+  --soft: #edf2eb;
+  --line: #dce4db;
+  --lime: #d7edb4;
+  --mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-padding-top: 96px;
+}
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font: 14px/1.9 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input {
+  font: inherit;
+}
+button,
+summary {
+  cursor: pointer;
+}
+button {
+  touch-action: manipulation;
+}
+a {
+  color: var(--green);
+  text-underline-offset: 4px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #598547;
+  outline-offset: 4px;
+}
+svg {
+  display: block;
+}
+.icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+.skip {
+  position: fixed;
+  z-index: 100;
+  top: -80px;
+  left: 20px;
+  padding: 12px 20px;
+  background: var(--green);
+  color: white;
+}
+.skip:focus {
+  top: 10px;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: 72px;
+  background: rgba(249, 250, 247, 0.97);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  max-width: 1440px;
+  height: 100%;
+  margin: auto;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.brand span {
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+  color: var(--muted);
+  font: 10px/1.3 var(--mono);
+}
+.top-links {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 13px;
+}
+.top-links a {
+  text-decoration: none;
+  color: var(--muted);
+}
+.search-trigger,
+.plain-button,
+.close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  font-size: 12px;
+}
+.close-button {
+  min-width: 44px;
+  font-size: 24px;
+}
+kbd {
+  padding: 4px;
+  border-radius: 3px;
+  background: var(--soft);
+  color: var(--muted);
+  font: 11px var(--mono);
+}
+.reading-progress {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  width: 100%;
+  background: var(--green);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.hero {
+  max-width: 1200px;
+  margin: auto;
+  padding: 70px 40px 0;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 30px;
+  color: var(--green);
+  font: 11px/1.5 var(--mono);
+  letter-spacing: 0.06em;
+}
+.dash {
+  width: 25px;
+  height: 2px;
+  background: var(--green);
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 52px;
+  align-items: center;
+}
+.hero-grid--solo {
+  grid-template-columns: 1fr;
+}
+h1 {
+  margin: 0 0 26px;
+  font-size: clamp(32px, 3.4vw, 50px);
+  line-height: 1.25;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+h1 > span {
+  display: block;
+  margin-top: 18px;
+  font-size: clamp(22px, 2.4vw, 32px);
+  font-weight: 450;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  color: var(--green);
+}
+h1 > span:empty {
+  display: none;
+}
+.hero-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.hero-topics:empty {
+  display: none;
+}
+.hero-topics span {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: white;
+  padding: 5px 11px;
+  color: var(--green);
+  font: 12px/1.6 var(--mono);
+}
+.primary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 18px;
+  border-radius: 5px;
+  background: var(--green);
+  color: white;
+  text-decoration: none;
+  font-size: 13px;
+}
+.hero-note {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #67885b;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-top: 48px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.metric {
+  padding: 0 24px;
+  border-left: 1px solid var(--line);
+}
+.metric:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.metric strong {
+  font-size: 31px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin-right: 8px;
+}
+.metric small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.metric p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.doc-layout {
+  max-width: 1200px;
+  margin: auto;
+  padding: 0 40px;
+}
+.document {
+  min-width: 0;
+  padding-top: 20px;
+}
+.document h2 {
+  margin: 64px 0 24px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+  font-size: 30px;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.document h3 {
+  margin: 40px 0 20px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.document h4 {
+  margin: 32px 0 18px;
+  font-size: 19px;
+  font-weight: 600;
+}
+.document p {
+  margin: 16px 0;
+}
+.document strong {
+  font-weight: 650;
+}
+.document :not(pre) > code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--green);
+  background: var(--soft);
+  font: 13px/1.7 var(--mono);
+  overflow-wrap: anywhere;
+}
+.table-wrap {
+  overflow-x: auto;
+  margin: 24px 0 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+}
+th,
+td {
+  min-width: 130px;
+  padding: 14px 16px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+th {
+  background: var(--soft);
+  color: #355442;
+  font-weight: 600;
+}
+td:first-child {
+  color: #305344;
+  font-weight: 500;
+}
+tr:last-child td {
+  border-bottom: 0;
+}
+.diagram {
+  overflow: hidden;
+  margin: 28px 0 40px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+}
+.hero .diagram {
+  margin: 0;
+}
+.figure-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #f3f6ef;
+}
+.figure-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.figure-label small {
+  margin-right: 13px;
+  color: var(--muted);
+  font: 10px var(--mono);
+}
+.figure-bar button {
+  flex: none;
+}
+.diagram-stage {
+  padding: 22px;
+  overflow: auto;
+  background-image: radial-gradient(#dce6d8 0.7px, transparent 0.7px);
+  background-size: 16px 16px;
+}
+.diagram-stage > svg {
+  display: block;
+  margin-inline: auto;
+  max-height: none;
+}
+.source-details {
+  border-top: 1px solid var(--line);
+}
+.source-details summary {
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.source-details .code-block {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.code-block {
+  overflow: hidden;
+  margin: 24px 0 36px;
+  border: 1px solid #2d493d;
+  border-radius: 9px;
+  background: #182d25;
+  color: #e1eada;
+}
+.code-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 49px;
+  padding: 8px 16px;
+  background: #213a2e;
+  border-bottom: 1px solid #365141;
+}
+.code-bar > span {
+  font: 11px/1.6 var(--mono);
+  color: #bad1af;
+  overflow-wrap: anywhere;
+}
+.code-tools {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.code-tools button {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid #54725a;
+  border-radius: 5px;
+  color: #d4e1ca;
+  background: transparent;
+  font-size: 12px;
+}
+.code-block pre {
+  overflow: auto;
+  max-height: 480px;
+  margin: 0;
+  padding: 20px 0;
+  font: 14px/1.85 var(--mono);
+  tab-size: 4;
+}
+.code-block.expanded pre {
+  max-height: none;
+}
+.code-block pre > code {
+  display: block;
+  min-width: max-content;
+}
+.code-line {
+  display: block;
+  padding-right: 24px;
+}
+.line-num {
+  display: inline-block;
+  width: 4ch;
+  margin: 0 20px 0 12px;
+  color: #819582;
+  text-align: right;
+  user-select: none;
+}
+.line-content {
+  white-space: pre;
+}
+.hljs-keyword,
+.hljs-meta {
+  color: #d8bded;
+}
+.hljs-string,
+.hljs-regexp {
+  color: #c9dfaa;
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_ {
+  color: #bce3dd;
+}
+.hljs-number,
+.hljs-literal {
+  color: #efcb91;
+}
+.hljs-comment {
+  color: #9daf9b;
+  font-style: italic;
+}
+.hljs-built_in,
+.hljs-type {
+  color: #b3d9e7;
+}
+.hljs-attr,
+.hljs-params,
+.hljs-property {
+  color: #e1eada;
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1120px;
+  margin: 72px auto 0;
+  padding: 24px 0 36px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.footer a {
+  margin-left: 18px;
+}
+dialog {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 20px 80px #102c2533;
+}
+dialog::backdrop {
+  background: #12261f77;
+  backdrop-filter: blur(3px);
+}
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+#search-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: 85dvh;
+}
+.search-field {
+  padding: 18px 20px;
+}
+.search-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: white;
+}
+#search-results {
+  max-height: 50dvh;
+  overflow: auto;
+  padding: 0 20px;
+}
+.search-result {
+  display: block;
+  padding: 12px;
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  text-decoration: none;
+}
+.search-result:hover,
+.search-result:focus {
+  background: var(--soft);
+}
+.search-result strong {
+  font-size: 14px;
+}
+.search-result p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.search-meta {
+  padding: 0 20px 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+#diagram-dialog {
+  width: calc(100vw - 40px);
+  height: calc(100dvh - 40px);
+  max-width: 1600px;
+  max-height: none;
+}
+.zoom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+#zoom-level {
+  min-width: 48px;
+  text-align: center;
+  font: 12px var(--mono);
+}
+.zoom-hint {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+#zoom-viewport {
+  overflow: auto;
+  height: calc(100% - 160px);
+  padding: 24px;
+  background: white;
+}
+#zoom-content {
+  margin: auto;
+}
+#zoom-content svg {
+  max-width: none !important;
+}
+.toast {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 7px;
+  background: var(--green);
+  color: white;
+  font-size: 13px;
+}
+.toast:empty {
+  display: none;
+}
+.document [id]:target {
+  scroll-margin-top: 96px;
+}
+@media (max-width: 1000px) {
+  .top-links .desktop-link {
+    display: none;
+  }
+  .hero-grid {
+    gap: 28px;
+  }
+  .footer {
+    margin-inline: 40px;
+  }
+}
+@media (max-width: 760px) {
+  .topbar {
+    height: 64px;
+  }
+  .topbar-inner {
+    padding-inline: 20px;
+    gap: 10px;
+  }
+  .brand {
+    font-size: 18px;
+    gap: 9px;
+  }
+  .brand span {
+    padding-left: 9px;
+    font-size: 8px;
+  }
+  .search-trigger span,
+  .search-trigger kbd {
+    display: none;
+  }
+  .hero {
+    padding: 40px 20px 0;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  .metrics {
+    grid-template-columns: 1fr 1fr;
+    padding-block: 0;
+  }
+  .metric,
+  .metric:first-child {
+    padding: 18px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:nth-child(2n) {
+    border-left: 1px solid var(--line);
+  }
+  .doc-layout {
+    padding-inline: 20px;
+  }
+  .document h2 {
+    font-size: 28px;
+  }
+  .document h3 {
+    font-size: 23px;
+  }
+  .diagram-stage {
+    padding: 16px;
+  }
+  .diagram-stage > svg {
+    max-width: none !important;
+  }
+  .figure-bar,
+  .code-bar {
+    flex-wrap: wrap;
+    padding-inline: 12px;
+  }
+  .figure-label small {
+    display: none;
+  }
+  .footer {
+    margin: 48px 20px 0;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #diagram-dialog {
+    width: calc(100vw - 12px);
+    height: calc(100dvh - 12px);
+  }
+  .dialog-header {
+    padding: 10px 12px;
+  }
+  .zoom-toolbar {
+    padding: 8px;
+  }
+  .zoom-hint {
+    display: none;
+  }
+  #zoom-viewport {
+    height: calc(100% - 180px);
+    padding: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media print {
+  body {
+    background: white;
+  }
+  .topbar,
+  .skip,
+  .hero-actions,
+  .source-details,
+  .code-tools,
+  .figure-bar button,
+  dialog,
+  .toast {
+    display: none !important;
+  }
+  .hero {
+    padding-top: 0;
+  }
+  .hero,
+  .doc-layout {
+    max-width: none;
+    padding-inline: 0;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+  .table-wrap {
+    overflow: visible;
+  }
+  th,
+  td {
+    min-width: 0;
+  }
+  .code-block pre {
+    max-height: none;
+    overflow: visible;
+  }
+  .code-block {
+    background: #f4f5f2;
+    color: #1d3125;
+    border-color: #ccc;
+  }
+  .code-bar {
+    background: #edf2eb;
+    border-color: #ccc;
+  }
+  .code-bar > span,
+  .line-content span {
+    color: inherit;
+  }
+  .code-block pre > code {
+    min-width: 0;
+  }
+  .code-line,
+  .line-content {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .diagram-stage {
+    overflow: visible;
+  }
+  .diagram-stage > svg {
+    max-width: 100% !important;
+  }
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+  }
+  .footer {
+    margin-top: 24px;
+  }
+}
+</style>
+  <!-- prettier-ignore --><style id="course-reader">.lesson-heading {
+  width: min(100%, 1200px);
+  margin: auto;
+  padding: 30px 40px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 255px);
+  grid-template-areas: "title cover" "controls cover";
+  align-items: center;
+  gap: 12px 40px;
+}
+.lesson-number {
+  margin: 0 0 6px;
+  color: var(--green);
+  font-weight: 650;
+}
+.lesson-heading h1 {
+  margin: 0;
+  font-size: clamp(31px, 3.5vw, 48px);
+}
+.lesson-question {
+  margin: 8px 0 0;
+  font-size: clamp(16px, 1.6vw, 20px);
+  color: var(--muted);
+}
+.lesson-cover {
+  grid-area: cover;
+  justify-self: end;
+  width: 100%;
+}
+.lesson-cover summary {
+  position: relative;
+  display: block;
+  width: 100%;
+  color: var(--green);
+}
+.lesson-cover summary::-webkit-details-marker {
+  display: none;
+}
+.lesson-cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lesson-cover summary span {
+  display: block;
+  margin-top: 2px;
+  text-align: right;
+  font-size: 12px;
+}
+.lesson-cover .cover-close,
+.lesson-cover[open] .cover-open {
+  display: none;
+}
+.lesson-cover[open] .cover-close {
+  display: block;
+}
+.lesson-heading:has(.lesson-cover[open]) {
+  grid-template-columns: 1fr;
+  grid-template-areas: "title" "controls" "cover";
+}
+.lesson-cover[open] {
+  max-width: 960px;
+  justify-self: start;
+}
+.lesson-controls {
+  grid-area: controls;
+  display: flex;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.lesson-toc {
+  position: relative;
+}
+.lesson-toc summary {
+  padding: 8px 14px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  line-height: 26px;
+}
+.lesson-toc nav {
+  position: absolute;
+  z-index: 4;
+  width: min(350px, 85vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px #172c2521;
+}
+.lesson-toc nav a {
+  display: block;
+  padding: 5px 10px;
+  text-decoration: none;
+}
+.lesson-toc nav a:hover,
+.lesson-toc nav a:focus-visible {
+  background: var(--soft);
+}
+.document {
+  padding-top: 0;
+  font-size: 15px;
+}
+.document > h2:first-child {
+  margin: 0 0 10px;
+  padding-top: 20px;
+}
+.document > h2:first-child + ul {
+  margin: 0;
+  padding-left: 1.5em;
+}
+.document > h2:first-child + ul li {
+  padding: 2px 0;
+}
+.document > h2:first-child + ul li::marker {
+  color: var(--green);
+}
+.document > h2:first-child + ul + h2 {
+  margin-top: 26px;
+  padding-top: 22px;
+}
+.document h2 + .diagram {
+  margin-top: 12px;
+}
+.diagram-stage:focus-visible {
+  outline-offset: -4px;
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #15201b;
+    --surface: #1b2b23;
+    --ink: #e6eee7;
+    --muted: #b0c1b5;
+    --green: #aed3b8;
+    --soft: #263a2f;
+    --line: #3b5042;
+  }
+  .topbar,
+  .search-trigger,
+  .plain-button,
+  .close-button,
+  .search-result,
+  .search-field input,
+  .source-details {
+    background: var(--surface);
+  }
+  .figure-bar {
+    background: var(--soft);
+  }
+  th,
+  td:first-child {
+    color: var(--ink);
+  }
+  .diagram-stage,
+  #zoom-viewport {
+    color-scheme: light;
+    background-color: #f8faf7;
+  }
+  .toast {
+    color: var(--paper);
+  }
+}
+@media (max-width: 760px) {
+  .lesson-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title title" "controls cover";
+    gap: 10px;
+    padding: 20px 20px 16px;
+  }
+  .lesson-heading > div:first-child {
+    grid-area: title;
+  }
+  .lesson-cover:not([open]) img {
+    display: none;
+  }
+  .lesson-cover summary span {
+    margin: 0;
+    padding: 10px 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .lesson-controls {
+    gap: 6px;
+  }
+}
+@media print {
+  .lesson-heading {
+    display: block;
+    padding: 0 0 16px;
+  }
+  .lesson-cover,
+  .lesson-controls {
+    display: none;
+  }
+}
+.document h2 {
+  margin-top: 38px;
+}
+.document h3 {
+  margin: 24px 0 10px;
+  font-size: clamp(18px, 2.1vw, 22px);
+}
+.document .diagram,
+.document .table-wrap,
+.document > .code-block {
+  margin-block: 12px 20px;
+}
+.document .table-wrap td {
+  vertical-align: top;
+}
+.document .table-wrap td:first-child {
+  min-width: 9em;
+}
+
+.lesson-heading:not(:has(.lesson-cover)) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "title" "controls";
+}
+.lesson-toc nav {
+  max-width: calc(100vw - 42px);
+}
+.lesson-controls .plain-button {
+  min-height: 44px;
+}
+.document h2,
+.document h3,
+.lesson-heading {
+  overflow-wrap: anywhere;
+}
+@media print {
+  .document .table-wrap {
+    overflow: visible;
+  }
+}
+</style></head>
+  <body>
+    <a class="skip" href="#document">跳至设计正文</a>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top"
+          >Compass<span>ENGINEERING<br />DESIGN NOTES</span></a
+        >
+        <nav class="top-links" aria-label="快捷导航">
+          <a class="desktop-link" href="#section-0">设计目标</a><a class="desktop-link" href="#section-1">装配位置与分层原则</a><a class="desktop-link" href="#section-2">工具清单</a><a class="desktop-link" href="#section-5">`goal` 工具</a>
+          <button class="search-trigger" type="button" data-search aria-label="检索文档">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 5 5" />
+            </svg>
+            <span>检索文档</span><kbd>⌘ K</kbd>
+          </button>
+        </nav>
+      </div>
+      <div class="reading-progress" aria-hidden="true"></div>
+    </header>
+    <main id="top">
+      <header class="lesson-heading" aria-labelledby="page-title">
+    <div><p class="lesson-number">第 25 课 · 技术方案</p><h1 id="page-title">提示词与工具设计</h1><p class="lesson-question">第 25 课的模型可见文本：单 goal 工具、sub_agent 并行委派规则、子 Agent 汇报与目标锚点模板。</p></div>
+    <div class="lesson-controls"><details class="lesson-toc"><summary>章节目录</summary><nav aria-label="章节目录"><a href="#section-0">设计目标</a><a href="#section-1">装配位置与分层原则</a><a href="#section-2">工具清单</a><a href="#section-5">goal 工具</a><a href="#section-9">sub_agent 与 report_to_parent 工具</a><a href="#section-12">系统提示片段</a><a href="#section-16">目标锚点模板</a><a href="#section-17">提示词评测</a></nav></details><button class="plain-button" type="button" data-search>检索文档</button></div></header>
+      <div class="doc-layout"><article class="document" id="document"><h2 id="section-0">设计目标</h2>
+<p>定义第 25 课新增与修改的全部模型可见文本：三层装配关系、主/子 Agent 工具清单、<code>goal</code> / <code>sub_agent</code> / <code>report_to_parent</code> 工具描述、系统提示片段、子 Agent 提示、目标锚点模板，以及发布前的真实模型评测用例。</p>
+<p>所有文本均为拟议稿，落地时写入 <code>apps/agent/src/compass_agent/prompts/</code> 并经 PromptOps 登记发布；工具参数 Schema 以代码中的 Pydantic 模型为准，由 <code>refresh_tool_schema</code> 自动刷新到工具 JSON。</p>
+<h2 id="section-1">装配位置与分层原则</h2>
+<figure class="diagram" id="figure-0" data-title="装配位置与分层原则"><div class="figure-bar"><span class="figure-label"><small>FIG. 01</small>装配位置与分层原则</span><button class="plain-button" type="button" data-diagram>放大图表 ↗</button></div><div class="diagram-stage"><svg xmlns="http://www.w3.org/2000/svg" id="drawing-0-render-0" width="100%" class="flowchart" style="max-width: 100%; width: 1251.45px; height: auto;" viewBox="0 0 1251.453125 635" role="img" aria-roledescription="flowchart-v2" aria-label="装配位置与分层原则"><style>#drawing-0-render-0{font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;font-size:15px;fill:#20372a;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#drawing-0-render-0 .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#drawing-0-render-0 .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#drawing-0-render-0 .error-icon{fill:#e9eff0;}#drawing-0-render-0 .error-text{fill:#16100f;stroke:#16100f;}#drawing-0-render-0 .edge-thickness-normal{stroke-width:1px;}#drawing-0-render-0 .edge-thickness-thick{stroke-width:3.5px;}#drawing-0-render-0 .edge-pattern-solid{stroke-dasharray:0;}#drawing-0-render-0 .edge-thickness-invisible{stroke-width:0;fill:none;}#drawing-0-render-0 .edge-pattern-dashed{stroke-dasharray:3;}#drawing-0-render-0 .edge-pattern-dotted{stroke-dasharray:2;}#drawing-0-render-0 .marker{fill:#6c8265;stroke:#6c8265;}#drawing-0-render-0 .marker.cross{stroke:#6c8265;}#drawing-0-render-0 svg{font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;font-size:15px;}#drawing-0-render-0 p{margin:0;}#drawing-0-render-0 .label{font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;color:#20372a;}#drawing-0-render-0 .cluster-label text{fill:#16100f;}#drawing-0-render-0 .cluster-label span{color:#16100f;}#drawing-0-render-0 .cluster-label span p{background-color:transparent;}#drawing-0-render-0 .label text,#drawing-0-render-0 span{fill:#20372a;color:#20372a;}#drawing-0-render-0 .node rect,#drawing-0-render-0 .node circle,#drawing-0-render-0 .node ellipse,#drawing-0-render-0 .node polygon,#drawing-0-render-0 .node path{fill:#eef4e7;stroke:#8ba67c;stroke-width:1px;}#drawing-0-render-0 .rough-node .label text,#drawing-0-render-0 .node .label text,#drawing-0-render-0 .image-shape .label,#drawing-0-render-0 .icon-shape .label{text-anchor:middle;}#drawing-0-render-0 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#drawing-0-render-0 .rough-node .label,#drawing-0-render-0 .node .label,#drawing-0-render-0 .image-shape .label,#drawing-0-render-0 .icon-shape .label{text-align:center;}#drawing-0-render-0 .node.clickable{cursor:pointer;}#drawing-0-render-0 .root .anchor path{fill:#6c8265!important;stroke-width:0;stroke:#6c8265;}#drawing-0-render-0 .arrowheadPath{fill:#0b0b0b;}#drawing-0-render-0 .edgePath .path{stroke:#6c8265;stroke-width:2.0px;}#drawing-0-render-0 .flowchart-link{stroke:#6c8265;fill:none;}#drawing-0-render-0 .edgeLabel{background-color:#fff;text-align:center;}#drawing-0-render-0 .edgeLabel p{background-color:#fff;}#drawing-0-render-0 .edgeLabel rect{opacity:0.5;background-color:#fff;fill:#fff;}#drawing-0-render-0 .labelBkg{background-color:rgba(255, 255, 255, 0.5);}#drawing-0-render-0 .cluster rect{fill:#f6f8f1;stroke:#b4c6aa;stroke-width:1px;}#drawing-0-render-0 .cluster text{fill:#16100f;}#drawing-0-render-0 .cluster span{color:#16100f;}#drawing-0-render-0 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;font-size:12px;background:#e9eff0;border:1px solid hsl(188.5714285714, 0%, 82.7450980392%);border-radius:2px;pointer-events:none;z-index:100;}#drawing-0-render-0 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#20372a;}#drawing-0-render-0 rect.text{fill:none;stroke-width:0;}#drawing-0-render-0 .icon-shape,#drawing-0-render-0 .image-shape{background-color:#fff;text-align:center;}#drawing-0-render-0 .icon-shape p,#drawing-0-render-0 .image-shape p{background-color:#fff;padding:2px;}#drawing-0-render-0 .icon-shape rect,#drawing-0-render-0 .image-shape rect{opacity:0.5;background-color:#fff;fill:#fff;}#drawing-0-render-0 .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#drawing-0-render-0 .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#drawing-0-render-0 :root{--mermaid-font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;}</style><g><marker id="drawing-0-render-0_flowchart-v2-pointEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="drawing-0-render-0_flowchart-v2-pointStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="4.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 5 L 10 10 L 10 0 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="drawing-0-render-0_flowchart-v2-circleEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="drawing-0-render-0_flowchart-v2-circleStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-1" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="drawing-0-render-0_flowchart-v2-crossEnd" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="12" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"/></marker><marker id="drawing-0-render-0_flowchart-v2-crossStart" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="-1" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"/></marker><g class="root"><g class="clusters"/><g class="edgePaths"><path d="M96.008,300.75L96.008,552L515.736,595.208" id="drawing-0-L_H_M_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" data-edge="true" data-et="edge" data-id="L_H_M_0" data-points="W3sieCI6OTYuMDA3ODEyNSwieSI6MzAwLjc1fSx7IngiOjk2LjAwNzgxMjUsInkiOjU1Mn0seyJ4Ijo1MTkuNzE0ODQzNzUsInkiOjU5NS42MTc1NTE3MzI3MzV9XQ==" marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"/><path d="M402.25,527L402.25,552L515.862,583.653" id="drawing-0-L_S_M_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" data-edge="true" data-et="edge" data-id="L_S_M_0" data-points="W3sieCI6NDAyLjI1LCJ5Ijo1Mjd9LHsieCI6NDAyLjI1LCJ5Ijo1NTJ9LHsieCI6NTE5LjcxNDg0Mzc1LCJ5Ijo1ODQuNzI2NDIxODcwNTc4N31d" marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"/><path d="M761.18,427.5L761.18,552L647.568,583.653" id="drawing-0-L_D_M_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" data-edge="true" data-et="edge" data-id="L_D_M_0" data-points="W3sieCI6NzYxLjE3OTY4NzUsInkiOjQyNy41fSx7IngiOjc2MS4xNzk2ODc1LCJ5Ijo1NTJ9LHsieCI6NjQzLjcxNDg0Mzc1LCJ5Ijo1ODQuNzI2NDIxODcwNTc4N31d" marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"/><path d="M1097.664,344L1097.664,552L647.696,595.606" id="drawing-0-L_A_M_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" data-edge="true" data-et="edge" data-id="L_A_M_0" data-points="W3sieCI6MTA5Ny42NjQwNjI1LCJ5IjozNDR9LHsieCI6MTA5Ny42NjQwNjI1LCJ5Ijo1NTJ9LHsieCI6NjQzLjcxNDg0Mzc1LCJ5Ijo1OTUuOTkxNjU2NzYxMjc4OX1d" marker-end="url(#drawing-0-render-0_flowchart-v2-pointEnd)"/></g><g class="edgeLabels"><g><rect class="background" style="stroke: none;"/></g><g><rect class="background" style="stroke: none;"/></g><g><rect class="background" style="stroke: none;"/></g><g><rect class="background" style="stroke: none;"/></g><g class="edgeLabel"><g class="label" data-id="L_H_M_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"/></text></g></g><g class="edgeLabel"><g class="label" data-id="L_S_M_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"/></text></g></g><g class="edgeLabel"><g class="label" data-id="L_D_M_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"/></text></g></g><g class="edgeLabel"><g class="label" data-id="L_A_M_0" transform="translate(0, 0)"><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"/></text></g></g></g><g class="nodes"><g class="root" transform="translate(943.875, 183)"><g class="clusters"><g class="cluster" id="drawing-0-A" data-look="classic"><rect x="8" y="8" width="291.578125" height="153"/><g class="cluster-label" transform="translate(56.2890625, 8)"><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">目标锚点（每次模型调用重新</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">生成）</tspan></tspan></text></g></g></g></g><g class="edgePaths"/><g class="edgeLabels"/><g class="nodes"><g class="node default" id="drawing-0-flowchart-AN-7" transform="translate(153.7890625, 84.5)"><rect class="basic label-container" x="-108.2890625" y="-41.5" width="216.578125" height="83"/><g class="label" transform="translate(0, -25.5)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">context</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 通道消息</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">目标契约</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> ·</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 预算</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> ·</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 待办</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> ·</tspan></tspan><tspan class="text-outer-tspan" x="0" y="2.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">已完成</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> ·</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 结论</tspan></tspan></text></g></g></g></g></g><g class="root" transform="translate(612.484375, 99.5)"><g class="clusters"><g class="cluster" id="drawing-0-D" data-look="classic"><rect x="8" y="8" width="281.390625" height="320"/><g class="cluster-label" transform="translate(80.8984375, 8)"><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">工具声明（每个</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> Run</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">冻结一次）</tspan></tspan></text></g></g></g></g><g class="edgePaths"/><g class="edgeLabels"/><g class="nodes"><g class="node default" id="drawing-0-flowchart-G-4" transform="translate(148.6953125, 68)"><rect class="basic label-container" x="-81.734375" y="-25" width="163.46875" height="50"/><g class="label" transform="translate(0, -9)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">tools/goal.json</tspan></tspan></text></g></g></g><g class="node default" id="drawing-0-flowchart-SA-5" transform="translate(148.6953125, 168)"><rect class="basic label-container" x="-103.1953125" y="-25" width="206.390625" height="50"/><g class="label" transform="translate(0, -9)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">tools/sub_agent.json</tspan></tspan></text></g></g></g><g class="node default" id="drawing-0-flowchart-O-6" transform="translate(148.6953125, 268)"><rect class="basic label-container" x="-77" y="-25" width="154" height="50"/><g class="label" transform="translate(0, -9)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">其他已有工具</tspan></tspan></text></g></g></g></g></g><g class="root" transform="translate(226.015625, 0)"><g class="clusters"><g class="cluster" id="drawing-0-S" data-look="classic"><rect x="8" y="8" width="336.46875" height="519"/><g class="cluster-label" transform="translate(108.4375, 8)"><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">系统提示（每个</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> Run</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">冻结一次，可缓存）</tspan></tspan></text></g></g></g></g><g class="edgePaths"/><g class="edgeLabels"/><g class="nodes"><g class="node default" id="drawing-0-flowchart-B-0" transform="translate(176.234375, 76.25)"><rect class="basic label-container" x="-124.234375" y="-33.25" width="248.46875" height="66.5"/><g class="label" transform="translate(0, -17.25)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">shared/fragments/base.md</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">角色与通用规则</tspan></tspan></text></g></g></g><g class="node default" id="drawing-0-flowchart-T-1" transform="translate(176.234375, 192.75)"><rect class="basic label-container" x="-95.265625" y="-33.25" width="190.53125" height="66.5"/><g class="label" transform="translate(0, -17.25)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">tasks/*/system.md</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">任务类型</tspan></tspan></text></g></g></g><g class="node default" id="drawing-0-flowchart-LT-2" transform="translate(176.234375, 317.5)"><rect class="basic label-container" x="-129.3203125" y="-41.5" width="258.640625" height="83"/><g class="label" transform="translate(0, -25.5)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">shared/fragments/long-task.</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">md</tspan></tspan><tspan class="text-outer-tspan" x="0" y="2.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">声明</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> goal</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 工具时加入</tspan></tspan></text></g></g></g><g class="node default" id="drawing-0-flowchart-DG-3" transform="translate(176.234375, 450.5)"><rect class="basic label-container" x="-130.734375" y="-41.5" width="261.46875" height="83"/><g class="label" transform="translate(0, -25.5)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">shared/fragments/delegation</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">.md</tspan></tspan><tspan class="text-outer-tspan" x="0" y="2.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">声明</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> sub_agent</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 工具时加入</tspan></tspan></text></g></g></g></g></g><g class="node default" id="drawing-0-flowchart-M-9" transform="translate(581.71484375, 602)"><rect class="basic label-container" x="-62" y="-25" width="124" height="50"/><g class="label" transform="translate(0, -9)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">模型请求</tspan></tspan></text></g></g></g><g class="node default" id="drawing-0-flowchart-H-14" transform="translate(96.0078125, 267.5)"><rect class="basic label-container" x="-88.0078125" y="-33.25" width="176.015625" height="66.5"/><g class="label" transform="translate(0, -17.25)"><rect/><g><rect class="background" style="stroke: none;"/><text y="-10.1"><tspan class="text-outer-tspan" x="0" y="-0.1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">聊天历史（第</tspan><tspan font-style="normal" class="text-inner-tspan" font-weight="normal"> 24</tspan></tspan><tspan class="text-outer-tspan" x="0" y="1em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">课选择与压缩）</tspan></tspan></text></g></g></g></g></g></g></svg></div><details class="source-details"><summary>查看 Mermaid 源码</summary><div class="code-block" id="code-0"><div class="code-bar"><span>装配位置与分层原则 · 图表源 · text / 19 LINES</span><div class="code-tools"><button type="button" data-copy="0">复制代码</button></div></div><pre id="code-0-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content">flowchart TB</span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">    subgraph S[&quot;系统提示（每个 Run 冻结一次，可缓存）&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">        B[&quot;shared/fragments/base.md&lt;br/&gt;角色与通用规则&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">        T[&quot;tasks/*/system.md&lt;br/&gt;任务类型&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">        LT[&quot;shared/fragments/long-task.md&lt;br/&gt;声明 goal 工具时加入&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">        DG[&quot;shared/fragments/delegation.md&lt;br/&gt;声明 sub_agent 工具时加入&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content">    end</span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content">    subgraph D[&quot;工具声明（每个 Run 冻结一次）&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content">        G[&quot;tools/goal.json&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">10</span><span class="line-content">        SA[&quot;tools/sub_agent.json&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">11</span><span class="line-content">        O[&quot;其他已有工具&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">12</span><span class="line-content">    end</span></span><span class="code-line"><span class="line-num" aria-hidden="true">13</span><span class="line-content">    subgraph A[&quot;目标锚点（每次模型调用重新生成）&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">14</span><span class="line-content">        AN[&quot;context 通道消息&lt;br/&gt;目标契约 · 预算 · 待办 · 已完成 · 结论&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">15</span><span class="line-content">    end</span></span><span class="code-line"><span class="line-num" aria-hidden="true">16</span><span class="line-content">    S --&gt; M[&quot;模型请求&quot;]</span></span><span class="code-line"><span class="line-num" aria-hidden="true">17</span><span class="line-content">    D --&gt; M</span></span><span class="code-line"><span class="line-num" aria-hidden="true">18</span><span class="line-content">    A --&gt; M</span></span><span class="code-line"><span class="line-num" aria-hidden="true">19</span><span class="line-content">    H[&quot;聊天历史（第 24 课选择与压缩）&quot;] --&gt; M</span></span></code></pre></div></details></figure><p>三层文本各司其职，规则只写一处：</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="设计表格"><table><thead>
+<tr>
+<th>层</th>
+<th>承载内容</th>
+<th>变化频率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>系统提示片段</td>
+<td>何时建目标、何时委派、何时并行等决策规则</td>
+<td>随 PromptOps 版本</td>
+</tr>
+<tr>
+<td>工具描述</td>
+<td>单个工具的操作枚举、参数含义、调用时机</td>
+<td>随 PromptOps 版本</td>
+</tr>
+<tr>
+<td>目标锚点</td>
+<td>本目标的契约、预算、待办等运行状态</td>
+<td>每次模型调用</td>
+</tr>
+</tbody>
+</table></div><p>决策规则放在系统提示片段，工具描述只写本工具的用法并引用片段中的规则名，目标锚点只放状态不放规则。</p>
+<p>片段按工具声明动态加入，沿用 <code>context_runtime/pipeline.py</code> 中 <code>database-query.md</code>、<code>workflow.md</code> 的现有做法：</p>
+<div class="code-block" id="code-1"><div class="code-bar"><span>装配位置与分层原则 · python / 4 LINES</span><div class="code-tools"><button type="button" data-copy="1">复制代码</button></div></div><pre id="code-1-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-keyword">if</span> <span class="hljs-string">&quot;goal&quot;</span> <span class="hljs-keyword">in</span> names:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">    usage.append(<span class="hljs-string">&quot;shared/fragments/long-task.md&quot;</span>)</span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content"><span class="hljs-keyword">if</span> <span class="hljs-string">&quot;sub_agent&quot;</span> <span class="hljs-keyword">in</span> names:</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">    usage.append(<span class="hljs-string">&quot;shared/fragments/delegation.md&quot;</span>)</span></span></code></pre></div><p>PromptOps 登记：<code>promptops/catalog.py</code> 的 <code>families</code> 中登记 <code>(&quot;shared/fragments&quot;, &quot;长任务&quot;, (&quot;long-task&quot;, &quot;delegation&quot;))</code> 与 <code>(&quot;support/subagent&quot;, &quot;子任务&quot;, (&quot;analysis&quot;, &quot;report-to-parent&quot;))</code>；<code>delegation.md</code> 使用 <code>{{max_parallel}}</code>、<code>{{max_tasks}}</code> 两个变量，在 <code>allowed</code> 中声明。</p>
+<h2 id="section-2">工具清单</h2>
+<p>本课只给主 Agent 新增 1 个工具（<code>goal</code>），给子 Agent 新增 1 个宿主拦截工具（<code>report_to_parent</code>），避免工具数量膨胀。</p>
+<h3 id="section-3">主 Agent</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="设计表格"><table><thead>
+<tr>
+<th>工具</th>
+<th>本课变化</th>
+<th>出现条件</th>
+<th>一句话用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>goal</code></td>
+<td>新增</td>
+<td>满足目标能力前置条件（调度模式、受控自主、回答协议 2），与目标状态无关</td>
+<td>提出目标、记录进度、申请完成、报告受阻</td>
+</tr>
+<tr>
+<td><code>sub_agent</code></td>
+<td>修改</td>
+<td>沿用现有条件（<code>context.workflow</code>）</td>
+<td>委派一个或多个独立只读调查分支</td>
+</tr>
+<tr>
+<td><code>todo_write</code></td>
+<td>不变</td>
+<td>沿用</td>
+<td>本轮内的步骤计划；跨轮待办以 <code>goal</code> 为准</td>
+</tr>
+<tr>
+<td>其余已有工具</td>
+<td>不变</td>
+<td>沿用</td>
+<td>查询、检索、分析、定时等</td>
+</tr>
+</tbody>
+</table></div><p><code>goal</code> 在注册表中常驻，不随目标状态增删，避免审批恢复时触发 <code>tool_catalog_changed</code>；不适用的操作由 <code>authorize</code> 拒绝。</p>
+<h3 id="section-4">子 Agent</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="设计表格"><table><thead>
+<tr>
+<th>工具</th>
+<th>本课变化</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>契约内只读工具</td>
+<td>修改</td>
+<td><code>child_tools()</code> ∩ <code>task.tools</code>；显式排除 <code>goal</code>、<code>sub_agent</code>、<code>todo_write</code>、<code>create_workflow</code></td>
+</tr>
+<tr>
+<td><code>report_to_parent</code></td>
+<td>新增</td>
+<td>宿主拦截，不进入 Dispatcher；合并“汇报进度”和“交回结果”两种操作</td>
+</tr>
+</tbody>
+</table></div><h2 id="section-5"><code>goal</code> 工具</h2>
+<p>一个工具，通过 <code>op</code> 判别字段区分四种操作，写法沿用 <code>todo_write</code> 的 <code>op</code> 结构。</p>
+<h3 id="section-6">工具定义（<code>prompts/tools/goal.json</code>）</h3>
+<div class="code-block" id="code-2"><div class="code-bar"><span>工具定义（`prompts/tools/goal.json`） · json / 9 LINES</span><div class="code-tools"><button type="button" data-copy="2">复制代码</button></div></div><pre id="code-2-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-punctuation">{</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;function&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">  <span class="hljs-attr">&quot;function&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">    <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;goal&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">    <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;**用途与调用规则**\n\n管理本会话的长任务目标与进度账本。用 op 选择操作：\n\n| op | 什么时候用 | 结果 |\n| --- | --- | --- |\n| propose | 用户交代多阶段、需要多轮推进或明确要求“持续做完”的任务，且本会话没有进行中的目标；或用户要求修改目标 | 弹出目标卡等待用户确认，确认后目标生效 |\n| record | 取得带证据的阶段结论、规划或完成待办、某条路径失败时 | 写入进度账本，后续轮次从账本继续 |\n| complete | 认为每个验收项都有结论支撑、必需待办已完成时 | 系统核验；未通过时返回缺口并生成补救待办，继续推进 |\n| block | 只有用户才能提供的决定、数据或权限阻止继续推进时 | 目标转为受阻，等待用户处理 |\n\n- 简单问答、一次查询能回答的问题不要 propose。\n- propose 的验收项写成可核对的陈述，每项能由一条带证据的结论支撑；约束写口径、范围和禁止事项；预算不超过默认值，除非用户指定。\n- 修改已有目标时 propose 需带 goalId 与 expectedRevision（取自目标锚点）。\n- record 的结论必须引用本轮 evidenceIds；同一事实使用稳定的 factKey，便于发现冲突。数值写 value 与 unit。\n- 待办用于跨轮推进：每个阶段开始前登记，完成后标记 done。必需待办未完成时无法完成目标。\n- 失败也要 record，写明尝试过什么、为什么失败，避免后续轮次重复。\n- complete 被打回时，按返回的 gaps 补齐，不要立即重复申请。\n- block 不用于普通的工具错误或空结果；可以换方法继续时继续。\n- 目标的创建、修改、恢复以用户确认为准；预算和状态以目标锚点为准。&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">    <span class="hljs-attr">&quot;parameters&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;由 GoalInput 生成，见代码设计附录 §2&quot;</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content">  <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content">  <span class="hljs-attr">&quot;examples&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-punctuation">]</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content"><span class="hljs-punctuation">}</span></span></span></code></pre></div><h3 id="section-7">参数说明</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="设计表格"><table><thead>
+<tr>
+<th>字段</th>
+<th>适用 op</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>op</code></td>
+<td>全部</td>
+<td><code>propose</code> / <code>record</code> / <code>complete</code> / <code>block</code></td>
+</tr>
+<tr>
+<td><code>contract.objective</code></td>
+<td>propose</td>
+<td>一句话目标，含时间范围与业务范围</td>
+</tr>
+<tr>
+<td><code>contract.acceptance[]</code></td>
+<td>propose</td>
+<td>1–10 条可核对的验收项，<code>id</code> 形如 <code>a1</code></td>
+</tr>
+<tr>
+<td><code>contract.constraints[]</code></td>
+<td>propose</td>
+<td>口径、数据范围、禁止事项</td>
+</tr>
+<tr>
+<td><code>budget</code></td>
+<td>propose</td>
+<td><code>maxRounds</code>、<code>tokens</code>、<code>costMicrousd</code>；省略则用默认值</td>
+</tr>
+<tr>
+<td><code>goalId</code>、<code>expectedRevision</code></td>
+<td>propose（修改）、complete</td>
+<td>取自目标锚点；版本过期时返回 <code>goal_stale_revision</code></td>
+</tr>
+<tr>
+<td><code>items[]</code></td>
+<td>record</td>
+<td>1–10 条，每条 <code>type</code> 为 <code>conclusion</code> / <code>todo</code> / <code>todo_done</code> / <code>failure</code></td>
+</tr>
+<tr>
+<td><code>items[].key</code></td>
+<td>record</td>
+<td>条目稳定键；同键再次写入即更新</td>
+</tr>
+<tr>
+<td><code>items[].evidenceIds</code></td>
+<td>record（conclusion）</td>
+<td>本轮证据 id，至少 1 个</td>
+</tr>
+<tr>
+<td><code>items[].factKey</code>、<code>value</code>、<code>unit</code></td>
+<td>record（conclusion）</td>
+<td>可比较事实的键与数值</td>
+</tr>
+<tr>
+<td><code>items[].acceptanceIds</code></td>
+<td>record（conclusion）</td>
+<td>该结论支撑的验收项</td>
+</tr>
+<tr>
+<td><code>items[].required</code></td>
+<td>record（todo）</td>
+<td>是否为完成目标所必需，默认 true</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>block</td>
+<td>需要用户做什么，60 字以内</td>
+</tr>
+</tbody>
+</table></div><h3 id="section-8">运行时审批与拒绝码</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="设计表格"><table><thead>
+<tr>
+<th>op</th>
+<th>审批</th>
+<th>目标状态要求</th>
+<th>拒绝码</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>propose</td>
+<td><code>prepare_approval</code> 返回目标卡，需用户确认</td>
+<td>无目标，或修改进行中/预算用尽的目标</td>
+<td><code>goal_exists</code>、<code>goal_stale_revision</code></td>
+</tr>
+<tr>
+<td>record</td>
+<td>无</td>
+<td><code>active</code></td>
+<td><code>goal_not_active</code>、<code>evidence_required</code>、<code>ledger_full</code></td>
+</tr>
+<tr>
+<td>complete</td>
+<td>无</td>
+<td><code>active</code></td>
+<td><code>goal_not_active</code>、<code>goal_stale_revision</code></td>
+</tr>
+<tr>
+<td>block</td>
+<td>无</td>
+<td><code>active</code></td>
+<td><code>goal_not_active</code></td>
+</tr>
+</tbody>
+</table></div><p><code>propose</code> 需要审批，按现有 <code>dispatch_batch</code> 规则必须单独成批；其余操作可与查询工具同批。</p>
+<h2 id="section-9"><code>sub_agent</code> 与 <code>report_to_parent</code> 工具</h2>
+<h3 id="section-10">主 Agent 委派工具（<code>prompts/tools/sub_agent.json</code>）</h3>
+<p>通过 <code>tasks</code> 列表显式表达单分支或并行多分支（最多 <code>{{max_tasks}}</code> 个，同时运行 <code>{{max_parallel}}</code> 个），同时兼容旧 <code>prompt</code> 写法。</p>
+<div class="code-block" id="code-3"><div class="code-bar"><span>主 Agent 委派工具（`prompts/tools/sub_agent.json`） · json / 9 LINES</span><div class="code-tools"><button type="button" data-copy="3">复制代码</button></div></div><pre id="code-3-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-punctuation">{</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;function&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">  <span class="hljs-attr">&quot;function&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">    <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;sub_agent&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">    <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;**用途与调用规则**\n\n把独立的只读调查分支交给子 Agent，在独立上下文中执行，完成后交回结构化结果。是否委派、是否并行按系统提示中的“委派规则”判断。\n\n- 一个分支：tasks 中放 1 个任务。\n- 互不依赖的多个分支：在同一次调用的 tasks 中一起提交（最多 {{max_tasks}} 个），系统同时运行其中 {{max_parallel}} 个，全部结束后一起返回。\n- 后一个分支需要前一个分支的结果时，分两次调用：先等第一个结果写入账本，再把对应账本条目放进下一次的 inputs。\n- 每个任务写清 name（卡片标题，10 字左右）、objective（要回答的问题与范围）、expectations（要交回哪些结论或数值）、constraints（口径与禁止事项）。\n- 已有结论、待办或产物用 inputs 按引用传入，不要把大段原文抄进 objective。子 Agent 看不到你的对话历史。\n- tools 只列分支需要的只读工具；省略表示可用全部只读工具。\n- maxSteps：单表或单指标核对用 3；需要多次探查和交叉核对用 5–8。\n- 返回每个任务的 status、summary、findings（带 evidenceIds）、gaps 和 blockers。partial 或 failed 时根据 gaps 决定自己补查、再委派一次，或记录失败；同一任务不要原样重复委派。\n- 子 Agent 不能请求用户确认、不能写入、不能再委派。需要这些动作的部分留给自己处理。\n- 旧写法 prompt 仍可用，等同于一个只有 objective 的任务。&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">    <span class="hljs-attr">&quot;parameters&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;由 SubAgentInput 生成，见代码设计附录 §2&quot;</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content">  <span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content">  <span class="hljs-attr">&quot;examples&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-punctuation">]</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content"><span class="hljs-punctuation">}</span></span></span></code></pre></div><h3 id="section-11">子 Agent 汇报工具（<code>prompts/support/subagent/report-to-parent.json</code>）</h3>
+<p>子进程内的宿主拦截工具，用 <code>kind</code> 区分中间进展（<code>progress</code>）和最终交付（<code>final</code>）。</p>
+<div class="code-block" id="code-4"><div class="code-bar"><span>子 Agent 汇报工具（`prompts/support/subagent/report-to-parent.json`） · json / 8 LINES</span><div class="code-tools"><button type="button" data-copy="4">复制代码</button></div></div><pre id="code-4-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-punctuation">{</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;function&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">  <span class="hljs-attr">&quot;function&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">    <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;report_to_parent&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">    <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;**用途与调用规则**\n\n向主 Agent 汇报。用 kind 选择：\n\n| kind | 什么时候用 | 结果 |\n| --- | --- | --- |\n| progress | 完成一个有意义的中间步骤，主 Agent 和用户需要知道进展时 | 更新任务卡片摘要，继续执行 |\n| final | 任务完成、只能部分完成或被阻塞时 | 交回结果并结束任务 |\n\n- progress 只写一句进展，60 字以内，不写数值明细。\n- final 只调用一次，调用后任务结束。\n- final.status：completed 表示 expectations 都已回答；partial 表示部分回答，未回答的写进 gaps；blocked 表示需要主 Agent 或用户处理，原因写进 blockers。\n- findings 每条写一个可核对的结论，引用本任务查询得到的 evidenceIds；可比较的数值写 factKey、value、unit。\n- 没有证据支撑的推测写进 gaps，不写进 findings。&quot;</span><span class="hljs-punctuation">,</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">    <span class="hljs-attr">&quot;parameters&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;由 ReportToParentInput 生成，见代码设计附录 §2&quot;</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content">  <span class="hljs-punctuation">}</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content"><span class="hljs-punctuation">}</span></span></span></code></pre></div><h2 id="section-12">系统提示片段</h2>
+<h3 id="section-13">长任务规则（<code>shared/fragments/long-task.md</code>）</h3>
+<p>声明 <code>goal</code> 工具时自动加入系统提示：</p>
+<div class="code-block" id="code-5"><div class="code-bar"><span>长任务规则（`shared/fragments/long-task.md`） · markdown / 12 LINES</span><div class="code-tools"><button type="button" data-copy="5">复制代码</button></div></div><pre id="code-5-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-strong">**长任务规则**</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content"></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content"><span class="hljs-bullet">-</span> 用户交代需要多个阶段或多轮才能完成的分析，且本会话没有进行中的目标时，先用 goal 的 propose 提出目标，等用户确认后再推进。简单问题直接回答。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content"><span class="hljs-bullet">-</span> 有进行中的目标时，系统会在上下文中提供“目标锚点”：目标、验收项、约束、预算、未完成待办、失败记录、已完成查询和阶段结论。以锚点为准，不依赖对较早对话的记忆。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content"><span class="hljs-bullet">-</span> 每一轮先看锚点中的未完成待办，从必需项开始推进；锚点标注“已完成，勿重复”的查询直接使用其结论或复用结果。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content"><span class="hljs-bullet">-</span> 每完成一个阶段性结论就 record，结论引用本轮证据；规划下一阶段时登记待办；路径失败时记录失败原因。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content"><span class="hljs-bullet">-</span> 一轮内能完成的工作在本轮完成；本轮结束前确保进展已 record，下一轮由系统自动开始。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content"><span class="hljs-bullet">-</span> 锚点出现“收尾”提示时，停止开启新的分析，汇报已完成项、剩余项和建议的下一步，然后结束本轮。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content"><span class="hljs-bullet">-</span> 待核（冲突）事项要么用新证据裁决并 record 新结论，要么在最终汇报中并列两方来源。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">10</span><span class="line-content"><span class="hljs-bullet">-</span> 只有用户能提供的决定、数据或权限阻止推进时才 block。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">11</span><span class="line-content"><span class="hljs-bullet">-</span> 所有验收项都有结论支撑、必需待办完成后，用 complete 申请完成。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">12</span><span class="line-content"><span class="hljs-bullet">-</span> 用户在推进中插话时，先回应插话；插话要求修改目标时，用 propose 提出修改后的目标。</span></span></code></pre></div><h3 id="section-14">委派规则（<code>shared/fragments/delegation.md</code>）</h3>
+<p>声明 <code>sub_agent</code> 工具时自动加入系统提示。变量 <code>max_tasks = 4</code>、<code>max_parallel = 2</code>，与 <code>SubAgentInput.tasks</code> 上限和 <code>child_budget</code> 并发上限一致：</p>
+<div class="code-block" id="code-6"><div class="code-bar"><span>委派规则（`shared/fragments/delegation.md`） · markdown / 9 LINES</span><div class="code-tools"><button type="button" data-copy="6">复制代码</button></div></div><pre id="code-6-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-strong">**委派规则**</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content"></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content"><span class="hljs-bullet">-</span> 适合委派的分支同时满足：目标和数据范围可以独立描述；不需要等待其他分支的中间结果；预计需要多次查询或探查，细节留在子任务中可以让主上下文保持精简；结果能概括成带证据的结论。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content"><span class="hljs-bullet">-</span> 以下情况自己做，不委派：一次查询就能回答；下一步依赖刚拿到的结果；需要用户确认、审批或写入；跨分支的对比、汇总、冲突裁决和最终回答。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content"><span class="hljs-bullet">-</span> 并行：同一时刻识别出两个及以上互不依赖的分支时，放进同一次 sub<span class="hljs-emphasis">_agent 调用的 tasks，一次最多 {{max_</span>tasks}} 个，系统同时运行 {{max<span class="hljs-emphasis">_parallel}} 个。</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content"><span class="hljs-emphasis">- 串行：分支之间有数据依赖时，先委派被依赖的分支，拿到结果并 record 后，再把对应账本条目作为 inputs 委派下一个。</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content"><span class="hljs-emphasis">- 长任务中，每轮开始时检查未完成待办：其中互不依赖的调查型待办优先并行委派；需要汇总或裁决的待办留给自己。</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content"><span class="hljs-emphasis">- 子任务返回后检查 status 和 gaps：completed 的结论 record 进账本；partial 的缺口自己补查或改写目标后再委派一次；failed 记录失败，不原样重试。</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content"><span class="hljs-emphasis">- 子任务结论与已有结论数值不一致时，系统会标为待核；按长任务规则裁决或并列来源。</span></span></span></code></pre></div><h3 id="section-15">子 Agent 系统提示（<code>support/subagent/analysis.md</code>）</h3>
+<p>子进程初始化时注入，约束子 Agent 仅依据任务包完成目标并以 <code>report_to_parent</code> 交付：</p>
+<div class="code-block" id="code-7"><div class="code-bar"><span>子 Agent 系统提示（`support/subagent/analysis.md`） · markdown / 7 LINES</span><div class="code-tools"><button type="button" data-copy="7">复制代码</button></div></div><pre id="code-7-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content"><span class="hljs-strong">**独立分析子 Agent**</span></span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content"></span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content"><span class="hljs-bullet">-</span> 你是独立的分析子 Agent，只完成任务包中的目标。看不到主 Agent 的对话，任务包中的 inputs 是你可用的全部已知信息。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content"><span class="hljs-bullet">-</span> 按 expectations 逐项回答，遵守 constraints。使用本次声明的只读工具；数据不足时换方法或缩小范围，仍不足就记入 gaps。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content"><span class="hljs-bullet">-</span> 完成一个有意义的中间步骤时，可以用 report<span class="hljs-emphasis">_to_</span>parent 的 progress 汇报一句进展。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content"><span class="hljs-bullet">-</span> 结束时必须调用一次 report<span class="hljs-emphasis">_to_</span>parent 的 final：完成写 completed，部分完成写 partial 并列出 gaps，无法继续写 blocked 并说明原因。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content"><span class="hljs-bullet">-</span> 每条 findings 引用本任务的 evidenceIds；需要用户确认或写入的事项写进 blockers，交回主 Agent 处理。</span></span></code></pre></div><h2 id="section-16">目标锚点模板</h2>
+<p>由 <code>goal/anchor.py</code> 在每次模型调用前重新生成，作为 <code>context</code> 通道消息插入系统提示之后。锚点只包含运行状态，不含决策规则；固定区块顺序，空区块省略，便于提示缓存。</p>
+<div class="code-block" id="code-8"><div class="code-bar"><span>目标锚点模板 · text / 21 LINES</span><div class="code-tools"><button type="button" data-copy="8">复制代码</button></div></div><pre id="code-8-pre" tabindex="0"><code><span class="code-line"><span class="line-num" aria-hidden="true">1</span><span class="line-content">&lt;goal_anchor revision=&quot;{revision}&quot; round=&quot;{round}/{max_rounds}&quot;&gt;</span></span><span class="code-line"><span class="line-num" aria-hidden="true">2</span><span class="line-content">目标：{objective}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">3</span><span class="line-content">验收项：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">4</span><span class="line-content">  [x] a1 {text}（支撑：{conclusion_keys}）</span></span><span class="code-line"><span class="line-num" aria-hidden="true">5</span><span class="line-content">  [ ] a2 {text}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">6</span><span class="line-content">约束：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">7</span><span class="line-content">  - {constraint}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">8</span><span class="line-content">预算：Token 剩余 {tokens_left_pct}% · 费用剩余 {cost_left_pct}%</span></span><span class="code-line"><span class="line-num" aria-hidden="true">9</span><span class="line-content">{wrap_up?}收尾：预算即将用尽。停止开启新分析，汇报已完成项、剩余项和下一步后结束本轮。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">10</span><span class="line-content">{continuation?}本轮是系统自动开始的第 {round} 轮，请从未完成待办继续。</span></span><span class="code-line"><span class="line-num" aria-hidden="true">11</span><span class="line-content">未完成待办（必需在前）：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">12</span><span class="line-content">  - [{key}] {title}{required_mark}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">13</span><span class="line-content">失败记录：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">14</span><span class="line-content">  - [{key}] {title}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">15</span><span class="line-content">待核与需补查：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">16</span><span class="line-content">  - [{key}] {title}：{source_a} ↔ {source_b}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">17</span><span class="line-content">已完成查询与写入（已完成，勿重复）：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">18</span><span class="line-content">  - [{key}] {title}</span></span><span class="code-line"><span class="line-num" aria-hidden="true">19</span><span class="line-content">阶段结论：</span></span><span class="code-line"><span class="line-num" aria-hidden="true">20</span><span class="line-content">  - [{key}] {title} = {value}{unit}（证据：{evidence_ids}）</span></span><span class="code-line"><span class="line-num" aria-hidden="true">21</span><span class="line-content">&lt;/goal_anchor&gt;</span></span></code></pre></div><h2 id="section-17">提示词评测</h2>
+<p>模拟模型无法检验决策质量，PromptOps 发布前需使用真实模型运行以下用例并核对工具调用序列：</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="设计表格"><table><thead>
+<tr>
+<th>用例</th>
+<th>期望行为</th>
+<th>关联</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“10 月华东 GMV 是多少”</td>
+<td>不调用 goal；不委派</td>
+<td>长任务规则</td>
+</tr>
+<tr>
+<td>“把 10 月经营分析做完，四个阶段，每个结论要有来源”</td>
+<td>先 <code>goal.propose</code>，单独成批</td>
+<td>AC-07</td>
+</tr>
+<tr>
+<td>目标进行中，锚点有“库存缺货排查”“渠道转化排查”两条独立待办</td>
+<td>一次 <code>sub_agent</code>，<code>tasks</code> 含 2 个任务</td>
+<td>AC-01</td>
+</tr>
+<tr>
+<td>待办“对比库存与转化结论”依赖前两项</td>
+<td>不委派；前两项结果 record 后由主 Agent 完成</td>
+<td>委派规则</td>
+</tr>
+<tr>
+<td>子任务返回 partial 且 gaps 非空</td>
+<td>补查或改写后委派一次；不原样重试</td>
+<td>AC-10</td>
+</tr>
+<tr>
+<td>锚点出现收尾提示</td>
+<td>不再发起新查询，输出已完成项与剩余项</td>
+<td>AC-07</td>
+</tr>
+<tr>
+<td><code>goal.complete</code> 被打回</td>
+<td>按 gaps 补齐后再申请</td>
+<td>AC-08</td>
+</tr>
+</tbody>
+</table></div><p>用例与第 24 课的真实模型验收用例放在同一入口，缺少模型凭据时跳过，跳过不计为通过。用例只用于评估提示词，生产 Runtime 不按用例内容设置执行分支。</p>
+</article></div>
+    </main>
+    <footer class="footer">
+      <span>Compass · 第 25 课 · 提示词与工具设计</span><span>单文件 · 离线阅读 <a href="#top">返回顶部 ↑</a></span>
+    </footer>
+    <dialog id="search-dialog" aria-labelledby="search-title">
+      <div class="dialog-header">
+        <h2 id="search-title">检索设计与代码</h2>
+        <button class="close-button" type="button" data-close aria-label="关闭检索">×</button>
+      </div>
+      <div class="search-field">
+        <input
+          id="search-input"
+          aria-label="搜索章节、类型或设计内容"
+          placeholder="输入章节、类型或关键词…"
+          autocomplete="off"
+        />
+      </div>
+      <div id="search-results"></div>
+      <p class="search-meta" id="search-meta" role="status"></p>
+    </dialog>
+    <dialog id="diagram-dialog" aria-labelledby="zoom-title">
+      <div class="dialog-header">
+        <h2 id="zoom-title">设计图</h2>
+        <button class="close-button" type="button" data-close aria-label="关闭图表">×</button>
+      </div>
+      <div class="zoom-toolbar">
+        <button class="plain-button" type="button" data-zoom="out" aria-label="缩小图表">−</button>
+        <output id="zoom-level" aria-label="缩放比例">100%</output>
+        <button class="plain-button" type="button" data-zoom="in" aria-label="放大图表">+</button>
+        <button class="plain-button" type="button" data-zoom="fit">适应窗口</button>
+        <button class="plain-button" type="button" data-zoom="actual">原始尺寸</button>
+        <button class="plain-button" type="button" id="download-svg">下载 SVG</button>
+        <span class="zoom-hint">可横向、纵向滚动 · Esc 关闭</span>
+      </div>
+      <div id="zoom-viewport" tabindex="0" aria-label="图表滚动区域">
+        <div id="zoom-content"></div>
+      </div>
+    </dialog>
+    <div class="toast" role="status" aria-live="polite"></div>
+    <!-- prettier-ignore -->
+    <script type="application/json" id="document-data">{"search":[{"id":"section-0","title":"设计目标","text":"定义第 25 课新增与修改的全部模型可见文本：三层装配关系、主/子 Agent 工具清单、`goal` / `sub_agent` / `report_to_parent` 工具描述、系统提示片段、子 Agent 提示、目标锚点模板，以及发布前的真实模型评测用例。 所有文本均为拟议稿，落地时写入 `apps/agent/src/compass_agent/prompts/` 并经 PromptOps 登记发布；工具参数 Schema 以代码中的 Pydantic 模型为准，由 `refresh_tool_schema` 自动刷新到工具 JSON。"},{"id":"section-1","title":"装配位置与分层原则","text":"flowchart TB\n    subgraph S[\"系统提示（每个 Run 冻结一次，可缓存）\"]\n        B[\"shared/fragments/base.md\u003cbr/>角色与通用规则\"]\n        T[\"tasks/*/system.md\u003cbr/>任务类型\"]\n        LT[\"shared/fragments/long-task.md\u003cbr/>声明 goal 工具时加入\"]\n        DG[\"shared/fragments/delegation.md\u003cbr/>声明 sub_agent 工具时加入\"]\n    end\n    subgraph D[\"工具声明（每个 Run 冻结一次）\"]\n        G[\"tools/goal.json\"]\n        SA[\"tools/sub_agent.json\"]\n        O[\"其他已有工具\"]\n    end\n    subgraph A[\"目标锚点（每次模型调用重新生成）\"]\n        AN[\"context 通道消息\u003cbr/>目标契约 · 预算 · 待办 · 已完成 · 结论\"]\n    end\n    S --> M[\"模型请求\"]\n    D --> M\n    A --> M\n    H[\"聊天历史（第 24 课选择与压缩）\"] --> M\n 三层文本各司其职，规则只写一处： 层 承载内容 变化频率 系统提示片段 何时建目标、何时委派、何时并行等决策规则 随 PromptOps 版本 工具描述 单个工具的操作枚举、参数含义、调用时机 随 PromptOps 版本 目标锚点 本目标的契约、预算、待办等运行状态 每次模型调用 决策规则放在系统提示片段，工具描述只写本工具的用法并引用片段中的规则名，目标锚点只放状态不放规则。 片段按工具声明动态加入，沿用 `context_runtime/pipeline.py` 中 `database-query.md`、`workflow.md` 的现有做法： if \"goal\" in names:\n    usage.append(\"shared/fragments/long-task.md\")\nif \"sub_agent\" in names:\n    usage.append(\"shared/fragments/delegation.md\")\n PromptOps 登记：`promptops/catalog.py` 的 `families` 中登记 `(\"shared/fragments\", \"长任务\", (\"long-task\", \"delegation\"))` 与 `(\"support/subagent\", \"子任务\", (\"analysis\", \"report-to-parent\"))`；`delegation.md` 使用 `{{max_parallel}}`、`{{max_tasks}}` 两个变量，在 `allowed` 中声明。"},{"id":"section-2","title":"工具清单","text":"本课只给主 Agent 新增 1 个工具（`goal`），给子 Agent 新增 1 个宿主拦截工具（`report_to_parent`），避免工具数量膨胀。"},{"id":"section-3","title":"主 Agent","text":"工具 本课变化 出现条件 一句话用途 `goal` 新增 满足目标能力前置条件（调度模式、受控自主、回答协议 2），与目标状态无关 提出目标、记录进度、申请完成、报告受阻 `sub_agent` 修改 沿用现有条件（`context.workflow`） 委派一个或多个独立只读调查分支 `todo_write` 不变 沿用 本轮内的步骤计划；跨轮待办以 `goal` 为准 其余已有工具 不变 沿用 查询、检索、分析、定时等 `goal` 在注册表中常驻，不随目标状态增删，避免审批恢复时触发 `tool_catalog_changed`；不适用的操作由 `authorize` 拒绝。"},{"id":"section-4","title":"子 Agent","text":"工具 本课变化 来源 契约内只读工具 修改 `child_tools()` ∩ `task.tools`；显式排除 `goal`、`sub_agent`、`todo_write`、`create_workflow` `report_to_parent` 新增 宿主拦截，不进入 Dispatcher；合并“汇报进度”和“交回结果”两种操作"},{"id":"section-5","title":"`goal` 工具","text":"一个工具，通过 `op` 判别字段区分四种操作，写法沿用 `todo_write` 的 `op` 结构。"},{"id":"section-6","title":"工具定义（`prompts/tools/goal.json`）","text":"{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"goal\",\n    \"description\": \"**用途与调用规则**\\n\\n管理本会话的长任务目标与进度账本。用 op 选择操作：\\n\\n| op | 什么时候用 | 结果 |\\n| --- | --- | --- |\\n| propose | 用户交代多阶段、需要多轮推进或明确要求“持续做完”的任务，且本会话没有进行中的目标；或用户要求修改目标 | 弹出目标卡等待用户确认，确认后目标生效 |\\n| record | 取得带证据的阶段结论、规划或完成待办、某条路径失败时 | 写入进度账本，后续轮次从账本继续 |\\n| complete | 认为每个验收项都有结论支撑、必需待办已完成时 | 系统核验；未通过时返回缺口并生成补救待办，继续推进 |\\n| block | 只有用户才能提供的决定、数据或权限阻止继续推进时 | 目标转为受阻，等待用户处理 |\\n\\n- 简单问答、一次查询能回答的问题不要 propose。\\n- propose 的验收项写成可核对的陈述，每项能由一条带证据的结论支撑；约束写口径、范围和禁止事项；预算不超过默认值，除非用户指定。\\n- 修改已有目标时 propose 需带 goalId 与 expectedRevision（取自目标锚点）。\\n- record 的结论必须引用本轮 evidenceIds；同一事实使用稳定的 factKey，便于发现冲突。数值写 value 与 unit。\\n- 待办用于跨轮推进：每个阶段开始前登记，完成后标记 done。必需待办未完成时无法完成目标。\\n- 失败也要 record，写明尝试过什么、为什么失败，避免后续轮次重复。\\n- complete 被打回时，按返回的 gaps 补齐，不要立即重复申请。\\n- block 不用于普通的工具错误或空结果；可以换方法继续时继续。\\n- 目标的创建、修改、恢复以用户确认为准；预算和状态以目标锚点为准。\",\n    \"parameters\": \"由 GoalInput 生成，见代码设计附录 §2\"\n  },\n  \"examples\": []\n}\n"},{"id":"section-7","title":"参数说明","text":"字段 适用 op 说明 `op` 全部 `propose` / `record` / `complete` / `block` `contract.objective` propose 一句话目标，含时间范围与业务范围 `contract.acceptance[]` propose 1–10 条可核对的验收项，`id` 形如 `a1` `contract.constraints[]` propose 口径、数据范围、禁止事项 `budget` propose `maxRounds`、`tokens`、`costMicrousd`；省略则用默认值 `goalId`、`expectedRevision` propose（修改）、complete 取自目标锚点；版本过期时返回 `goal_stale_revision` `items[]` record 1–10 条，每条 `type` 为 `conclusion` / `todo` / `todo_done` / `failure` `items[].key` record 条目稳定键；同键再次写入即更新 `items[].evidenceIds` record（conclusion） 本轮证据 id，至少 1 个 `items[].factKey`、`value`、`unit` record（conclusion） 可比较事实的键与数值 `items[].acceptanceIds` record（conclusion） 该结论支撑的验收项 `items[].required` record（todo） 是否为完成目标所必需，默认 true `reason` block 需要用户做什么，60 字以内"},{"id":"section-8","title":"运行时审批与拒绝码","text":"op 审批 目标状态要求 拒绝码 propose `prepare_approval` 返回目标卡，需用户确认 无目标，或修改进行中/预算用尽的目标 `goal_exists`、`goal_stale_revision` record 无 `active` `goal_not_active`、`evidence_required`、`ledger_full` complete 无 `active` `goal_not_active`、`goal_stale_revision` block 无 `active` `goal_not_active` `propose` 需要审批，按现有 `dispatch_batch` 规则必须单独成批；其余操作可与查询工具同批。"},{"id":"section-9","title":"`sub_agent` 与 `report_to_parent` 工具","text":""},{"id":"section-10","title":"主 Agent 委派工具（`prompts/tools/sub_agent.json`）","text":"通过 `tasks` 列表显式表达单分支或并行多分支（最多 `{{max_tasks}}` 个，同时运行 `{{max_parallel}}` 个），同时兼容旧 `prompt` 写法。 {\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"sub_agent\",\n    \"description\": \"**用途与调用规则**\\n\\n把独立的只读调查分支交给子 Agent，在独立上下文中执行，完成后交回结构化结果。是否委派、是否并行按系统提示中的“委派规则”判断。\\n\\n- 一个分支：tasks 中放 1 个任务。\\n- 互不依赖的多个分支：在同一次调用的 tasks 中一起提交（最多 {{max_tasks}} 个），系统同时运行其中 {{max_parallel}} 个，全部结束后一起返回。\\n- 后一个分支需要前一个分支的结果时，分两次调用：先等第一个结果写入账本，再把对应账本条目放进下一次的 inputs。\\n- 每个任务写清 name（卡片标题，10 字左右）、objective（要回答的问题与范围）、expectations（要交回哪些结论或数值）、constraints（口径与禁止事项）。\\n- 已有结论、待办或产物用 inputs 按引用传入，不要把大段原文抄进 objective。子 Agent 看不到你的对话历史。\\n- tools 只列分支需要的只读工具；省略表示可用全部只读工具。\\n- maxSteps：单表或单指标核对用 3；需要多次探查和交叉核对用 5–8。\\n- 返回每个任务的 status、summary、findings（带 evidenceIds）、gaps 和 blockers。partial 或 failed 时根据 gaps 决定自己补查、再委派一次，或记录失败；同一任务不要原样重复委派。\\n- 子 Agent 不能请求用户确认、不能写入、不能再委派。需要这些动作的部分留给自己处理。\\n- 旧写法 prompt 仍可用，等同于一个只有 objective 的任务。\",\n    \"parameters\": \"由 SubAgentInput 生成，见代码设计附录 §2\"\n  },\n  \"examples\": []\n}\n"},{"id":"section-11","title":"子 Agent 汇报工具（`prompts/support/subagent/report-to-parent.json`）","text":"子进程内的宿主拦截工具，用 `kind` 区分中间进展（`progress`）和最终交付（`final`）。 {\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"report_to_parent\",\n    \"description\": \"**用途与调用规则**\\n\\n向主 Agent 汇报。用 kind 选择：\\n\\n| kind | 什么时候用 | 结果 |\\n| --- | --- | --- |\\n| progress | 完成一个有意义的中间步骤，主 Agent 和用户需要知道进展时 | 更新任务卡片摘要，继续执行 |\\n| final | 任务完成、只能部分完成或被阻塞时 | 交回结果并结束任务 |\\n\\n- progress 只写一句进展，60 字以内，不写数值明细。\\n- final 只调用一次，调用后任务结束。\\n- final.status：completed 表示 expectations 都已回答；partial 表示部分回答，未回答的写进 gaps；blocked 表示需要主 Agent 或用户处理，原因写进 blockers。\\n- findings 每条写一个可核对的结论，引用本任务查询得到的 evidenceIds；可比较的数值写 factKey、value、unit。\\n- 没有证据支撑的推测写进 gaps，不写进 findings。\",\n    \"parameters\": \"由 ReportToParentInput 生成，见代码设计附录 §2\"\n  }\n}\n"},{"id":"section-12","title":"系统提示片段","text":""},{"id":"section-13","title":"长任务规则（`shared/fragments/long-task.md`）","text":"声明 `goal` 工具时自动加入系统提示： **长任务规则**\n\n- 用户交代需要多个阶段或多轮才能完成的分析，且本会话没有进行中的目标时，先用 goal 的 propose 提出目标，等用户确认后再推进。简单问题直接回答。\n- 有进行中的目标时，系统会在上下文中提供“目标锚点”：目标、验收项、约束、预算、未完成待办、失败记录、已完成查询和阶段结论。以锚点为准，不依赖对较早对话的记忆。\n- 每一轮先看锚点中的未完成待办，从必需项开始推进；锚点标注“已完成，勿重复”的查询直接使用其结论或复用结果。\n- 每完成一个阶段性结论就 record，结论引用本轮证据；规划下一阶段时登记待办；路径失败时记录失败原因。\n- 一轮内能完成的工作在本轮完成；本轮结束前确保进展已 record，下一轮由系统自动开始。\n- 锚点出现“收尾”提示时，停止开启新的分析，汇报已完成项、剩余项和建议的下一步，然后结束本轮。\n- 待核（冲突）事项要么用新证据裁决并 record 新结论，要么在最终汇报中并列两方来源。\n- 只有用户能提供的决定、数据或权限阻止推进时才 block。\n- 所有验收项都有结论支撑、必需待办完成后，用 complete 申请完成。\n- 用户在推进中插话时，先回应插话；插话要求修改目标时，用 propose 提出修改后的目标。\n"},{"id":"section-14","title":"委派规则（`shared/fragments/delegation.md`）","text":"声明 `sub_agent` 工具时自动加入系统提示。变量 `max_tasks = 4`、`max_parallel = 2`，与 `SubAgentInput.tasks` 上限和 `child_budget` 并发上限一致： **委派规则**\n\n- 适合委派的分支同时满足：目标和数据范围可以独立描述；不需要等待其他分支的中间结果；预计需要多次查询或探查，细节留在子任务中可以让主上下文保持精简；结果能概括成带证据的结论。\n- 以下情况自己做，不委派：一次查询就能回答；下一步依赖刚拿到的结果；需要用户确认、审批或写入；跨分支的对比、汇总、冲突裁决和最终回答。\n- 并行：同一时刻识别出两个及以上互不依赖的分支时，放进同一次 sub_agent 调用的 tasks，一次最多 {{max_tasks}} 个，系统同时运行 {{max_parallel}} 个。\n- 串行：分支之间有数据依赖时，先委派被依赖的分支，拿到结果并 record 后，再把对应账本条目作为 inputs 委派下一个。\n- 长任务中，每轮开始时检查未完成待办：其中互不依赖的调查型待办优先并行委派；需要汇总或裁决的待办留给自己。\n- 子任务返回后检查 status 和 gaps：completed 的结论 record 进账本；partial 的缺口自己补查或改写目标后再委派一次；failed 记录失败，不原样重试。\n- 子任务结论与已有结论数值不一致时，系统会标为待核；按长任务规则裁决或并列来源。\n"},{"id":"section-15","title":"子 Agent 系统提示（`support/subagent/analysis.md`）","text":"子进程初始化时注入，约束子 Agent 仅依据任务包完成目标并以 `report_to_parent` 交付： **独立分析子 Agent**\n\n- 你是独立的分析子 Agent，只完成任务包中的目标。看不到主 Agent 的对话，任务包中的 inputs 是你可用的全部已知信息。\n- 按 expectations 逐项回答，遵守 constraints。使用本次声明的只读工具；数据不足时换方法或缩小范围，仍不足就记入 gaps。\n- 完成一个有意义的中间步骤时，可以用 report_to_parent 的 progress 汇报一句进展。\n- 结束时必须调用一次 report_to_parent 的 final：完成写 completed，部分完成写 partial 并列出 gaps，无法继续写 blocked 并说明原因。\n- 每条 findings 引用本任务的 evidenceIds；需要用户确认或写入的事项写进 blockers，交回主 Agent 处理。\n"},{"id":"section-16","title":"目标锚点模板","text":"由 `goal/anchor.py` 在每次模型调用前重新生成，作为 `context` 通道消息插入系统提示之后。锚点只包含运行状态，不含决策规则；固定区块顺序，空区块省略，便于提示缓存。 \u003cgoal_anchor revision=\"{revision}\" round=\"{round}/{max_rounds}\">\n目标：{objective}\n验收项：\n  [x] a1 {text}（支撑：{conclusion_keys}）\n  [ ] a2 {text}\n约束：\n  - {constraint}\n预算：Token 剩余 {tokens_left_pct}% · 费用剩余 {cost_left_pct}%\n{wrap_up?}收尾：预算即将用尽。停止开启新分析，汇报已完成项、剩余项和下一步后结束本轮。\n{continuation?}本轮是系统自动开始的第 {round} 轮，请从未完成待办继续。\n未完成待办（必需在前）：\n  - [{key}] {title}{required_mark}\n失败记录：\n  - [{key}] {title}\n待核与需补查：\n  - [{key}] {title}：{source_a} ↔ {source_b}\n已完成查询与写入（已完成，勿重复）：\n  - [{key}] {title}\n阶段结论：\n  - [{key}] {title} = {value}{unit}（证据：{evidence_ids}）\n\u003c/goal_anchor>\n"},{"id":"section-17","title":"提示词评测","text":"模拟模型无法检验决策质量，PromptOps 发布前需使用真实模型运行以下用例并核对工具调用序列： 用例 期望行为 关联 “10 月华东 GMV 是多少” 不调用 goal；不委派 长任务规则 “把 10 月经营分析做完，四个阶段，每个结论要有来源” 先 `goal.propose`，单独成批 AC-07 目标进行中，锚点有“库存缺货排查”“渠道转化排查”两条独立待办 一次 `sub_agent`，`tasks` 含 2 个任务 AC-01 待办“对比库存与转化结论”依赖前两项 不委派；前两项结果 record 后由主 Agent 完成 委派规则 子任务返回 partial 且 gaps 非空 补查或改写后委派一次；不原样重试 AC-10 锚点出现收尾提示 不再发起新查询，输出已完成项与剩余项 AC-07 `goal.complete` 被打回 按 gaps 补齐后再申请 AC-08 用例与第 24 课的真实模型验收用例放在同一入口，缺少模型凭据时跳过，跳过不计为通过。用例只用于评估提示词，生产 Runtime 不按用例内容设置执行分支。"},{"id":"code-0","title":"装配位置与分层原则 · 图表源","text":"flowchart TB\n    subgraph S[\"系统提示（每个 Run 冻结一次，可缓存）\"]\n        B[\"shared/fragments/base.md\u003cbr/>角色与通用规则\"]\n        T[\"tasks/*/system.md\u003cbr/>任务类型\"]\n        LT[\"shared/fragments/long-task.md\u003cbr/>声明 goal 工具时加入\"]\n        DG[\"shared/fragments/delegation.md\u003cbr/>声明 sub_agent 工具时加入\"]\n    end\n    subgraph D[\"工具声明（每个 Run 冻结一次）\"]\n        G[\"tools/goal.json\"]\n        SA[\"tools/sub_agent.json\"]\n        O[\"其他已有工具\"]\n    end\n    subgraph A[\"目标锚点（每次模型调用重新生成）\"]\n        AN[\"context 通道消息\u003cbr/>目标契约 · 预算 · 待办 · 已完成 · 结论\"]\n    end\n    S --> M[\"模型请求\"]\n    D --> M\n    A --> M\n    H[\"聊天历史（第 24 课选择与压缩）\"] --> M\n"},{"id":"code-1","title":"装配位置与分层原则","text":"if \"goal\" in names:\n    usage.append(\"shared/fragments/long-task.md\")\nif \"sub_agent\" in names:\n    usage.append(\"shared/fragments/delegation.md\")\n"},{"id":"code-2","title":"工具定义（`prompts/tools/goal.json`）","text":"{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"goal\",\n    \"description\": \"**用途与调用规则**\\n\\n管理本会话的长任务目标与进度账本。用 op 选择操作：\\n\\n| op | 什么时候用 | 结果 |\\n| --- | --- | --- |\\n| propose | 用户交代多阶段、需要多轮推进或明确要求“持续做完”的任务，且本会话没有进行中的目标；或用户要求修改目标 | 弹出目标卡等待用户确认，确认后目标生效 |\\n| record | 取得带证据的阶段结论、规划或完成待办、某条路径失败时 | 写入进度账本，后续轮次从账本继续 |\\n| complete | 认为每个验收项都有结论支撑、必需待办已完成时 | 系统核验；未通过时返回缺口并生成补救待办，继续推进 |\\n| block | 只有用户才能提供的决定、数据或权限阻止继续推进时 | 目标转为受阻，等待用户处理 |\\n\\n- 简单问答、一次查询能回答的问题不要 propose。\\n- propose 的验收项写成可核对的陈述，每项能由一条带证据的结论支撑；约束写口径、范围和禁止事项；预算不超过默认值，除非用户指定。\\n- 修改已有目标时 propose 需带 goalId 与 expectedRevision（取自目标锚点）。\\n- record 的结论必须引用本轮 evidenceIds；同一事实使用稳定的 factKey，便于发现冲突。数值写 value 与 unit。\\n- 待办用于跨轮推进：每个阶段开始前登记，完成后标记 done。必需待办未完成时无法完成目标。\\n- 失败也要 record，写明尝试过什么、为什么失败，避免后续轮次重复。\\n- complete 被打回时，按返回的 gaps 补齐，不要立即重复申请。\\n- block 不用于普通的工具错误或空结果；可以换方法继续时继续。\\n- 目标的创建、修改、恢复以用户确认为准；预算和状态以目标锚点为准。\",\n    \"parameters\": \"由 GoalInput 生成，见代码设计附录 §2\"\n  },\n  \"examples\": []\n}\n"},{"id":"code-3","title":"主 Agent 委派工具（`prompts/tools/sub_agent.json`）","text":"{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"sub_agent\",\n    \"description\": \"**用途与调用规则**\\n\\n把独立的只读调查分支交给子 Agent，在独立上下文中执行，完成后交回结构化结果。是否委派、是否并行按系统提示中的“委派规则”判断。\\n\\n- 一个分支：tasks 中放 1 个任务。\\n- 互不依赖的多个分支：在同一次调用的 tasks 中一起提交（最多 {{max_tasks}} 个），系统同时运行其中 {{max_parallel}} 个，全部结束后一起返回。\\n- 后一个分支需要前一个分支的结果时，分两次调用：先等第一个结果写入账本，再把对应账本条目放进下一次的 inputs。\\n- 每个任务写清 name（卡片标题，10 字左右）、objective（要回答的问题与范围）、expectations（要交回哪些结论或数值）、constraints（口径与禁止事项）。\\n- 已有结论、待办或产物用 inputs 按引用传入，不要把大段原文抄进 objective。子 Agent 看不到你的对话历史。\\n- tools 只列分支需要的只读工具；省略表示可用全部只读工具。\\n- maxSteps：单表或单指标核对用 3；需要多次探查和交叉核对用 5–8。\\n- 返回每个任务的 status、summary、findings（带 evidenceIds）、gaps 和 blockers。partial 或 failed 时根据 gaps 决定自己补查、再委派一次，或记录失败；同一任务不要原样重复委派。\\n- 子 Agent 不能请求用户确认、不能写入、不能再委派。需要这些动作的部分留给自己处理。\\n- 旧写法 prompt 仍可用，等同于一个只有 objective 的任务。\",\n    \"parameters\": \"由 SubAgentInput 生成，见代码设计附录 §2\"\n  },\n  \"examples\": []\n}\n"},{"id":"code-4","title":"子 Agent 汇报工具（`prompts/support/subagent/report-to-parent.json`）","text":"{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"report_to_parent\",\n    \"description\": \"**用途与调用规则**\\n\\n向主 Agent 汇报。用 kind 选择：\\n\\n| kind | 什么时候用 | 结果 |\\n| --- | --- | --- |\\n| progress | 完成一个有意义的中间步骤，主 Agent 和用户需要知道进展时 | 更新任务卡片摘要，继续执行 |\\n| final | 任务完成、只能部分完成或被阻塞时 | 交回结果并结束任务 |\\n\\n- progress 只写一句进展，60 字以内，不写数值明细。\\n- final 只调用一次，调用后任务结束。\\n- final.status：completed 表示 expectations 都已回答；partial 表示部分回答，未回答的写进 gaps；blocked 表示需要主 Agent 或用户处理，原因写进 blockers。\\n- findings 每条写一个可核对的结论，引用本任务查询得到的 evidenceIds；可比较的数值写 factKey、value、unit。\\n- 没有证据支撑的推测写进 gaps，不写进 findings。\",\n    \"parameters\": \"由 ReportToParentInput 生成，见代码设计附录 §2\"\n  }\n}\n"},{"id":"code-5","title":"长任务规则（`shared/fragments/long-task.md`）","text":"**长任务规则**\n\n- 用户交代需要多个阶段或多轮才能完成的分析，且本会话没有进行中的目标时，先用 goal 的 propose 提出目标，等用户确认后再推进。简单问题直接回答。\n- 有进行中的目标时，系统会在上下文中提供“目标锚点”：目标、验收项、约束、预算、未完成待办、失败记录、已完成查询和阶段结论。以锚点为准，不依赖对较早对话的记忆。\n- 每一轮先看锚点中的未完成待办，从必需项开始推进；锚点标注“已完成，勿重复”的查询直接使用其结论或复用结果。\n- 每完成一个阶段性结论就 record，结论引用本轮证据；规划下一阶段时登记待办；路径失败时记录失败原因。\n- 一轮内能完成的工作在本轮完成；本轮结束前确保进展已 record，下一轮由系统自动开始。\n- 锚点出现“收尾”提示时，停止开启新的分析，汇报已完成项、剩余项和建议的下一步，然后结束本轮。\n- 待核（冲突）事项要么用新证据裁决并 record 新结论，要么在最终汇报中并列两方来源。\n- 只有用户能提供的决定、数据或权限阻止推进时才 block。\n- 所有验收项都有结论支撑、必需待办完成后，用 complete 申请完成。\n- 用户在推进中插话时，先回应插话；插话要求修改目标时，用 propose 提出修改后的目标。\n"},{"id":"code-6","title":"委派规则（`shared/fragments/delegation.md`）","text":"**委派规则**\n\n- 适合委派的分支同时满足：目标和数据范围可以独立描述；不需要等待其他分支的中间结果；预计需要多次查询或探查，细节留在子任务中可以让主上下文保持精简；结果能概括成带证据的结论。\n- 以下情况自己做，不委派：一次查询就能回答；下一步依赖刚拿到的结果；需要用户确认、审批或写入；跨分支的对比、汇总、冲突裁决和最终回答。\n- 并行：同一时刻识别出两个及以上互不依赖的分支时，放进同一次 sub_agent 调用的 tasks，一次最多 {{max_tasks}} 个，系统同时运行 {{max_parallel}} 个。\n- 串行：分支之间有数据依赖时，先委派被依赖的分支，拿到结果并 record 后，再把对应账本条目作为 inputs 委派下一个。\n- 长任务中，每轮开始时检查未完成待办：其中互不依赖的调查型待办优先并行委派；需要汇总或裁决的待办留给自己。\n- 子任务返回后检查 status 和 gaps：completed 的结论 record 进账本；partial 的缺口自己补查或改写目标后再委派一次；failed 记录失败，不原样重试。\n- 子任务结论与已有结论数值不一致时，系统会标为待核；按长任务规则裁决或并列来源。\n"},{"id":"code-7","title":"子 Agent 系统提示（`support/subagent/analysis.md`）","text":"**独立分析子 Agent**\n\n- 你是独立的分析子 Agent，只完成任务包中的目标。看不到主 Agent 的对话，任务包中的 inputs 是你可用的全部已知信息。\n- 按 expectations 逐项回答，遵守 constraints。使用本次声明的只读工具；数据不足时换方法或缩小范围，仍不足就记入 gaps。\n- 完成一个有意义的中间步骤时，可以用 report_to_parent 的 progress 汇报一句进展。\n- 结束时必须调用一次 report_to_parent 的 final：完成写 completed，部分完成写 partial 并列出 gaps，无法继续写 blocked 并说明原因。\n- 每条 findings 引用本任务的 evidenceIds；需要用户确认或写入的事项写进 blockers，交回主 Agent 处理。\n"},{"id":"code-8","title":"目标锚点模板","text":"\u003cgoal_anchor revision=\"{revision}\" round=\"{round}/{max_rounds}\">\n目标：{objective}\n验收项：\n  [x] a1 {text}（支撑：{conclusion_keys}）\n  [ ] a2 {text}\n约束：\n  - {constraint}\n预算：Token 剩余 {tokens_left_pct}% · 费用剩余 {cost_left_pct}%\n{wrap_up?}收尾：预算即将用尽。停止开启新分析，汇报已完成项、剩余项和下一步后结束本轮。\n{continuation?}本轮是系统自动开始的第 {round} 轮，请从未完成待办继续。\n未完成待办（必需在前）：\n  - [{key}] {title}{required_mark}\n失败记录：\n  - [{key}] {title}\n待核与需补查：\n  - [{key}] {title}：{source_a} ↔ {source_b}\n已完成查询与写入（已完成，勿重复）：\n  - [{key}] {title}\n阶段结论：\n  - [{key}] {title} = {value}{unit}（证据：{evidence_ids}）\n\u003c/goal_anchor>\n"}],"codes":["flowchart TB\n    subgraph S[\"系统提示（每个 Run 冻结一次，可缓存）\"]\n        B[\"shared/fragments/base.md\u003cbr/>角色与通用规则\"]\n        T[\"tasks/*/system.md\u003cbr/>任务类型\"]\n        LT[\"shared/fragments/long-task.md\u003cbr/>声明 goal 工具时加入\"]\n        DG[\"shared/fragments/delegation.md\u003cbr/>声明 sub_agent 工具时加入\"]\n    end\n    subgraph D[\"工具声明（每个 Run 冻结一次）\"]\n        G[\"tools/goal.json\"]\n        SA[\"tools/sub_agent.json\"]\n        O[\"其他已有工具\"]\n    end\n    subgraph A[\"目标锚点（每次模型调用重新生成）\"]\n        AN[\"context 通道消息\u003cbr/>目标契约 · 预算 · 待办 · 已完成 · 结论\"]\n    end\n    S --> M[\"模型请求\"]\n    D --> M\n    A --> M\n    H[\"聊天历史（第 24 课选择与压缩）\"] --> M\n","if \"goal\" in names:\n    usage.append(\"shared/fragments/long-task.md\")\nif \"sub_agent\" in names:\n    usage.append(\"shared/fragments/delegation.md\")\n","{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"goal\",\n    \"description\": \"**用途与调用规则**\\n\\n管理本会话的长任务目标与进度账本。用 op 选择操作：\\n\\n| op | 什么时候用 | 结果 |\\n| --- | --- | --- |\\n| propose | 用户交代多阶段、需要多轮推进或明确要求“持续做完”的任务，且本会话没有进行中的目标；或用户要求修改目标 | 弹出目标卡等待用户确认，确认后目标生效 |\\n| record | 取得带证据的阶段结论、规划或完成待办、某条路径失败时 | 写入进度账本，后续轮次从账本继续 |\\n| complete | 认为每个验收项都有结论支撑、必需待办已完成时 | 系统核验；未通过时返回缺口并生成补救待办，继续推进 |\\n| block | 只有用户才能提供的决定、数据或权限阻止继续推进时 | 目标转为受阻，等待用户处理 |\\n\\n- 简单问答、一次查询能回答的问题不要 propose。\\n- propose 的验收项写成可核对的陈述，每项能由一条带证据的结论支撑；约束写口径、范围和禁止事项；预算不超过默认值，除非用户指定。\\n- 修改已有目标时 propose 需带 goalId 与 expectedRevision（取自目标锚点）。\\n- record 的结论必须引用本轮 evidenceIds；同一事实使用稳定的 factKey，便于发现冲突。数值写 value 与 unit。\\n- 待办用于跨轮推进：每个阶段开始前登记，完成后标记 done。必需待办未完成时无法完成目标。\\n- 失败也要 record，写明尝试过什么、为什么失败，避免后续轮次重复。\\n- complete 被打回时，按返回的 gaps 补齐，不要立即重复申请。\\n- block 不用于普通的工具错误或空结果；可以换方法继续时继续。\\n- 目标的创建、修改、恢复以用户确认为准；预算和状态以目标锚点为准。\",\n    \"parameters\": \"由 GoalInput 生成，见代码设计附录 §2\"\n  },\n  \"examples\": []\n}\n","{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"sub_agent\",\n    \"description\": \"**用途与调用规则**\\n\\n把独立的只读调查分支交给子 Agent，在独立上下文中执行，完成后交回结构化结果。是否委派、是否并行按系统提示中的“委派规则”判断。\\n\\n- 一个分支：tasks 中放 1 个任务。\\n- 互不依赖的多个分支：在同一次调用的 tasks 中一起提交（最多 {{max_tasks}} 个），系统同时运行其中 {{max_parallel}} 个，全部结束后一起返回。\\n- 后一个分支需要前一个分支的结果时，分两次调用：先等第一个结果写入账本，再把对应账本条目放进下一次的 inputs。\\n- 每个任务写清 name（卡片标题，10 字左右）、objective（要回答的问题与范围）、expectations（要交回哪些结论或数值）、constraints（口径与禁止事项）。\\n- 已有结论、待办或产物用 inputs 按引用传入，不要把大段原文抄进 objective。子 Agent 看不到你的对话历史。\\n- tools 只列分支需要的只读工具；省略表示可用全部只读工具。\\n- maxSteps：单表或单指标核对用 3；需要多次探查和交叉核对用 5–8。\\n- 返回每个任务的 status、summary、findings（带 evidenceIds）、gaps 和 blockers。partial 或 failed 时根据 gaps 决定自己补查、再委派一次，或记录失败；同一任务不要原样重复委派。\\n- 子 Agent 不能请求用户确认、不能写入、不能再委派。需要这些动作的部分留给自己处理。\\n- 旧写法 prompt 仍可用，等同于一个只有 objective 的任务。\",\n    \"parameters\": \"由 SubAgentInput 生成，见代码设计附录 §2\"\n  },\n  \"examples\": []\n}\n","{\n  \"type\": \"function\",\n  \"function\": {\n    \"name\": \"report_to_parent\",\n    \"description\": \"**用途与调用规则**\\n\\n向主 Agent 汇报。用 kind 选择：\\n\\n| kind | 什么时候用 | 结果 |\\n| --- | --- | --- |\\n| progress | 完成一个有意义的中间步骤，主 Agent 和用户需要知道进展时 | 更新任务卡片摘要，继续执行 |\\n| final | 任务完成、只能部分完成或被阻塞时 | 交回结果并结束任务 |\\n\\n- progress 只写一句进展，60 字以内，不写数值明细。\\n- final 只调用一次，调用后任务结束。\\n- final.status：completed 表示 expectations 都已回答；partial 表示部分回答，未回答的写进 gaps；blocked 表示需要主 Agent 或用户处理，原因写进 blockers。\\n- findings 每条写一个可核对的结论，引用本任务查询得到的 evidenceIds；可比较的数值写 factKey、value、unit。\\n- 没有证据支撑的推测写进 gaps，不写进 findings。\",\n    \"parameters\": \"由 ReportToParentInput 生成，见代码设计附录 §2\"\n  }\n}\n","**长任务规则**\n\n- 用户交代需要多个阶段或多轮才能完成的分析，且本会话没有进行中的目标时，先用 goal 的 propose 提出目标，等用户确认后再推进。简单问题直接回答。\n- 有进行中的目标时，系统会在上下文中提供“目标锚点”：目标、验收项、约束、预算、未完成待办、失败记录、已完成查询和阶段结论。以锚点为准，不依赖对较早对话的记忆。\n- 每一轮先看锚点中的未完成待办，从必需项开始推进；锚点标注“已完成，勿重复”的查询直接使用其结论或复用结果。\n- 每完成一个阶段性结论就 record，结论引用本轮证据；规划下一阶段时登记待办；路径失败时记录失败原因。\n- 一轮内能完成的工作在本轮完成；本轮结束前确保进展已 record，下一轮由系统自动开始。\n- 锚点出现“收尾”提示时，停止开启新的分析，汇报已完成项、剩余项和建议的下一步，然后结束本轮。\n- 待核（冲突）事项要么用新证据裁决并 record 新结论，要么在最终汇报中并列两方来源。\n- 只有用户能提供的决定、数据或权限阻止推进时才 block。\n- 所有验收项都有结论支撑、必需待办完成后，用 complete 申请完成。\n- 用户在推进中插话时，先回应插话；插话要求修改目标时，用 propose 提出修改后的目标。\n","**委派规则**\n\n- 适合委派的分支同时满足：目标和数据范围可以独立描述；不需要等待其他分支的中间结果；预计需要多次查询或探查，细节留在子任务中可以让主上下文保持精简；结果能概括成带证据的结论。\n- 以下情况自己做，不委派：一次查询就能回答；下一步依赖刚拿到的结果；需要用户确认、审批或写入；跨分支的对比、汇总、冲突裁决和最终回答。\n- 并行：同一时刻识别出两个及以上互不依赖的分支时，放进同一次 sub_agent 调用的 tasks，一次最多 {{max_tasks}} 个，系统同时运行 {{max_parallel}} 个。\n- 串行：分支之间有数据依赖时，先委派被依赖的分支，拿到结果并 record 后，再把对应账本条目作为 inputs 委派下一个。\n- 长任务中，每轮开始时检查未完成待办：其中互不依赖的调查型待办优先并行委派；需要汇总或裁决的待办留给自己。\n- 子任务返回后检查 status 和 gaps：completed 的结论 record 进账本；partial 的缺口自己补查或改写目标后再委派一次；failed 记录失败，不原样重试。\n- 子任务结论与已有结论数值不一致时，系统会标为待核；按长任务规则裁决或并列来源。\n","**独立分析子 Agent**\n\n- 你是独立的分析子 Agent，只完成任务包中的目标。看不到主 Agent 的对话，任务包中的 inputs 是你可用的全部已知信息。\n- 按 expectations 逐项回答，遵守 constraints。使用本次声明的只读工具；数据不足时换方法或缩小范围，仍不足就记入 gaps。\n- 完成一个有意义的中间步骤时，可以用 report_to_parent 的 progress 汇报一句进展。\n- 结束时必须调用一次 report_to_parent 的 final：完成写 completed，部分完成写 partial 并列出 gaps，无法继续写 blocked 并说明原因。\n- 每条 findings 引用本任务的 evidenceIds；需要用户确认或写入的事项写进 blockers，交回主 Agent 处理。\n","\u003cgoal_anchor revision=\"{revision}\" round=\"{round}/{max_rounds}\">\n目标：{objective}\n验收项：\n  [x] a1 {text}（支撑：{conclusion_keys}）\n  [ ] a2 {text}\n约束：\n  - {constraint}\n预算：Token 剩余 {tokens_left_pct}% · 费用剩余 {cost_left_pct}%\n{wrap_up?}收尾：预算即将用尽。停止开启新分析，汇报已完成项、剩余项和下一步后结束本轮。\n{continuation?}本轮是系统自动开始的第 {round} 轮，请从未完成待办继续。\n未完成待办（必需在前）：\n  - [{key}] {title}{required_mark}\n失败记录：\n  - [{key}] {title}\n待核与需补查：\n  - [{key}] {title}：{source_a} ↔ {source_b}\n已完成查询与写入（已完成，勿重复）：\n  - [{key}] {title}\n阶段结论：\n  - [{key}] {title} = {value}{unit}（证据：{evidence_ids}）\n\u003c/goal_anchor>\n"]}</script>
+    <!-- prettier-ignore -->
+    <script>(() => {
+  "use strict";
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const { search: searchIndex, codes } = JSON.parse($("#document-data").textContent);
+  const toast = $(".toast");
+  let toastTimer;
+  function announce(message) {
+    toast.textContent = message;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.textContent = "";
+    }, 2400);
+  }
+  async function copy(text) {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = text;
+      field.style.cssText = "position:fixed;left:-10000px;top:0";
+      document.body.append(field);
+      field.select();
+      const succeeded = document.execCommand("copy");
+      field.remove();
+      if (!succeeded) {
+        announce("请选中代码后复制");
+        return;
+      }
+    }
+    announce("代码已复制");
+  }
+  $$("[data-copy]").forEach((button) =>
+    button.addEventListener("click", () => {
+      void copy(codes[Number(button.dataset.copy)]);
+    }),
+  );
+  $$("[data-expand]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const expanded = button.closest(".code-block").classList.toggle("expanded");
+      button.textContent = expanded ? "收起代码" : "展开代码";
+      button.setAttribute("aria-expanded", String(expanded));
+    }),
+  );
+  function reveal(id) {
+    const node = document.getElementById(id);
+    if (!node) return;
+    let parent = node.parentElement;
+    while (parent) {
+      if (parent.tagName === "DETAILS") parent.open = true;
+      parent = parent.parentElement;
+    }
+    const code = node.closest(".code-block");
+    if (code) {
+      code.classList.add("expanded");
+      const expand = $("[data-expand]", code);
+      if (expand) {
+        expand.textContent = "收起代码";
+        expand.setAttribute("aria-expanded", "true");
+      }
+    }
+    node.scrollIntoView({ block: "start" });
+    if (!node.hasAttribute("tabindex")) node.setAttribute("tabindex", "-1");
+    node.focus({ preventScroll: true });
+  }
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const id = decodeURIComponent(link.hash.slice(1));
+    if (!document.getElementById(id)) return;
+    event.preventDefault();
+    $$(".mobile-nav[open]").forEach((details) => {
+      details.open = false;
+    });
+    history.pushState(null, "", "#" + id);
+    reveal(id);
+  });
+  window.addEventListener("hashchange", () => reveal(decodeURIComponent(location.hash.slice(1))));
+  if (location.hash)
+    requestAnimationFrame(() => reveal(decodeURIComponent(location.hash.slice(1))));
+
+  const searchDialog = $("#search-dialog");
+  const searchInput = $("#search-input");
+  const results = $("#search-results");
+  function search() {
+    const query = searchInput.value.trim().toLowerCase();
+    const words = query.split(/\s+/).filter(Boolean);
+    const matches = searchIndex
+      .filter((item) =>
+        words.every((word) => (item.title + " " + item.text).toLowerCase().includes(word)),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.title.toLowerCase().includes(query)) -
+          Number(a.title.toLowerCase().includes(query)),
+      );
+    results.replaceChildren();
+    for (const item of matches.slice(0, 25)) {
+      const a = document.createElement("a");
+      a.className = "search-result";
+      a.href = "#" + item.id;
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      const description = document.createElement("p");
+      const index = query ? item.text.toLowerCase().indexOf(query) : 0;
+      const start = Math.max(0, index - 24);
+      description.textContent = item.text.slice(start, start + 110);
+      a.append(title, description);
+      a.addEventListener("click", () => searchDialog.close());
+      results.append(a);
+    }
+    $("#search-meta").textContent = query
+      ? "找到 " + matches.length + " 项" + (matches.length > 25 ? "，显示前 25 项" : "")
+      : "输入章节、字段或关键词 · Tab 选择结果 · Enter 跳转";
+  }
+  $$("[data-search]").forEach((button) =>
+    button.addEventListener("click", () => {
+      searchDialog.showModal();
+      search();
+      searchInput.focus();
+    }),
+  );
+  searchInput.addEventListener("input", search);
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      $(".search-result", results)?.focus();
+    }
+    if (event.key === "Enter") $(".search-result", results)?.click();
+  });
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      if (!searchDialog.open) searchDialog.showModal();
+      search();
+      searchInput.focus();
+    }
+  });
+  $$("[data-close]").forEach((button) =>
+    button.addEventListener("click", () => button.closest("dialog").close()),
+  );
+  $$("dialog").forEach((dialog) =>
+    dialog.addEventListener("click", (event) => {
+      if (event.target !== dialog) return;
+      const bounds = dialog.getBoundingClientRect();
+      if (
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom
+      )
+        dialog.close();
+    }),
+  );
+
+  const diagramDialog = $("#diagram-dialog");
+  const zoomContent = $("#zoom-content");
+  const zoomViewport = $("#zoom-viewport");
+  let diagramSource,
+    diagramName,
+    svgWidth = 1,
+    svgHeight = 1,
+    scale = 1;
+  function setScale(next) {
+    scale = Math.max(0.07, Math.min(3, next));
+    const svg = $("svg", zoomContent);
+    if (!svg) return;
+    svg.style.width = svgWidth * scale + "px";
+    svg.style.height = svgHeight * scale + "px";
+    zoomContent.style.width = svgWidth * scale + "px";
+    $("#zoom-level").textContent = Math.round(scale * 100) + "%";
+  }
+  function fit() {
+    setScale(
+      Math.min(
+        (zoomViewport.clientWidth - 64) / svgWidth,
+        (zoomViewport.clientHeight - 64) / svgHeight,
+      ),
+    );
+  }
+  $$("[data-diagram]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const figure = button.closest(".diagram");
+      const original = $(".diagram-stage > svg", figure);
+      diagramSource = original.outerHTML;
+      diagramName = figure.dataset.title;
+      $("#zoom-title").textContent = diagramName;
+      const svg = original.cloneNode(true);
+      // Namespace the copy so SVG marker references do not collide with the source.
+      const nodes = [svg, ...$$("*", svg)];
+      const ids = new Map(
+        nodes.filter((node) => node.id).map((node) => [node.id, "zoom-" + node.id]),
+      );
+      for (const node of nodes) {
+        for (const attribute of [...node.attributes]) {
+          let value = attribute.value.replace(/url\(['"]?#([^)'"]+)['"]?\)/g, (match, id) =>
+            ids.has(id) ? `url(#${ids.get(id)})` : match,
+          );
+          if (attribute.name === "id") value = ids.get(value);
+          else if (/^(?:xlink:)?href$/.test(attribute.name) && ids.has(value.slice(1)))
+            value = "#" + ids.get(value.slice(1));
+          else if (/^aria-(?:labelledby|describedby)$/.test(attribute.name))
+            value = value
+              .split(/\s+/)
+              .map((id) => ids.get(id) ?? id)
+              .join(" ");
+          node.setAttribute(attribute.name, value);
+        }
+        if (node.localName === "style")
+          node.textContent = node.textContent.replace(/#([A-Za-z_][\w:-]*)/g, (match, id) =>
+            ids.has(id) ? "#" + ids.get(id) : match,
+          );
+      }
+      zoomContent.replaceChildren(svg);
+      const viewBox = original.viewBox.baseVal;
+      svgWidth = viewBox.width;
+      svgHeight = viewBox.height;
+      diagramDialog.showModal();
+      fit();
+      zoomViewport.scrollTop = 0;
+      zoomViewport.scrollLeft = 0;
+    }),
+  );
+  $$("[data-zoom]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const mode = button.dataset.zoom;
+      if (mode === "fit") fit();
+      else setScale(mode === "actual" ? 1 : scale * (mode === "in" ? 1.3 : 1 / 1.3));
+    }),
+  );
+  $("#download-svg").addEventListener("click", () => {
+    if (!diagramSource) return;
+    const url = URL.createObjectURL(
+      new Blob([diagramSource], { type: "image/svg+xml;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "design-" + diagramName.replace(/[^\w\u4e00-\u9fff-]+/g, "-") + ".svg";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  let scheduled = false;
+  function updateReading() {
+    scheduled = false;
+    const total = document.documentElement.scrollHeight - innerHeight;
+    $(".reading-progress").style.transform =
+      "scaleX(" + (total > 0 ? Math.min(1, scrollY / total) : 0) + ")";
+  }
+  addEventListener(
+    "scroll",
+    () => {
+      if (!scheduled) {
+        scheduled = true;
+        requestAnimationFrame(updateReading);
+      }
+    },
+    { passive: true },
+  );
+  addEventListener("resize", updateReading);
+  updateReading();
+})();
+</script>
+  <script>(() => {
+    const menu = document.querySelector(".lesson-toc");
+    menu.addEventListener("click", (event) => { if (event.target.closest("a")) menu.open = false; });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && menu.open) { menu.open = false; menu.querySelector("summary").focus(); } });
+    document.addEventListener("pointerdown", (event) => { if (menu.open && !menu.contains(event.target)) menu.open = false; });
+  })()</script></body>
+</html>

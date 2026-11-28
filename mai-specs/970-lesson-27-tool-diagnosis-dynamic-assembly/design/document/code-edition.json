@@ -1,0 +1,75 @@
+{
+  "lesson": 27,
+  "title": "内建工具治理与三通道动态组装 · 代码设计附录",
+  "subtitle": "三层 ToolSpec、三通道 ToolAssembler 恒定前缀合流、前端 ToolSelection 手动选择器、确定性连接路由与流式 final_answer 供审骨架。",
+  "brand": "Compass",
+  "label": "代码设计附录 · 设计示意",
+  "topics": [
+    "ToolGovernance",
+    "ToolAssembler 三通道",
+    "ToolSelectionBar",
+    "compact_json_schema",
+    "ActionableToolError",
+    "Tool Eval"
+  ],
+  "source": "../CODE_DESIGN.md",
+  "guide": "code-guide.md",
+  "output": "../CODE_DESIGN.html",
+  "code": {
+    "m1_spec": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ToolGovernance:",
+      "language": "python"
+    },
+    "m1_reg": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "TOOL_REGISTRY_POOL_LIMIT = 128",
+      "language": "python"
+    },
+    "m2_asm": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def assemble_step(",
+      "language": "python"
+    },
+    "m3_dto": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ToolSelection(APIModel):",
+      "language": "python"
+    },
+    "m3_ui": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "export function ToolSelectionBar(",
+      "language": "tsx"
+    },
+    "m4_slim": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def compact_json_schema(",
+      "language": "python"
+    },
+    "m4_err": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ActionableToolError:",
+      "language": "python"
+    },
+    "m4_pg": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def classify_postgres_error(",
+      "language": "python"
+    },
+    "m5_resume": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def bind_extension_entries(",
+      "language": "python"
+    },
+    "m6_eval": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def summarize_group(",
+      "language": "python"
+    },
+    "m6_ui": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "export function ToolAssemblySection(",
+      "language": "tsx"
+    }
+  }
+}

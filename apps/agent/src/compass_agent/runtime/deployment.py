@@ -8,7 +8,7 @@ from compass_agent.models.errors import ModelError
 from compass_agent.runtime.private_state import digest
 from compass_agent.scheduler.entities import RuntimeControl
 
-REVISION = "0020"
+REVISION = "0021"
 MODE_LOCK = 985002
 LEGACY_OWNER_LOCK = 985001
 

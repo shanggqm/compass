@@ -45,4 +45,5 @@ def registration(asset, handler, *, declaration=None):
         lambda args, context: context.require_running(),
         bounded_payload,
         evidence_adapter=receipt,
+        workflow_id=asset.asset_id,
     )

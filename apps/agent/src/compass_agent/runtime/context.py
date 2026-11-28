@@ -35,6 +35,7 @@ class RunRoute:
     model: str = ""
     task_type: str = ""
     schema_output: bool = False
+    required_tools: tuple[str, ...] = ()
 
 
 def initial_messages(

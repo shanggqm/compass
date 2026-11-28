@@ -100,15 +100,21 @@ class RunToolBindings:
         self.todo_plan = controlled.plan if controlled else ExecutionPlan[TodoDefinition]()
 
     async def with_workflows(self, declarations, snapshot):
+        from compass_agent.execution_context import current_execution
+        from compass_agent.schemas import TOOL_REGISTRY_POOL_LIMIT
+
+        journal = current_execution.get()
+        modern = (getattr(journal, "context_binding", None) or {}).get("answerProtocol", 1) >= 3
+        capacity = TOOL_REGISTRY_POOL_LIMIT if modern else TOOL_CATALOG_LIMIT
         assert self.workflow_tools is not None
         if snapshot is None:
-            if len(declarations) >= TOOL_CATALOG_LIMIT:
+            if len(declarations) >= capacity:
                 return
             assert self.workflow_tools.assets is not None
             assets = await asyncio.to_thread(
                 self.workflow_tools.assets.active_tools,
                 self.trusted,
-                limit=TOOL_CATALOG_LIMIT - len(declarations),
+                limit=capacity - len(declarations),
             )
             candidates = [(asset, None) for asset in assets]
         else:
@@ -131,7 +137,9 @@ class RunToolBindings:
                 candidates.append((asset, definition))
         for asset, definition in candidates:
             entry = registration(asset, self.workflow_tools.reuse, declaration=definition)
-            if entry.definition is None or not has_catalog_room([*declarations, entry.definition]):
+            if entry.definition is None or (
+                not modern and not has_catalog_room([*declarations, entry.definition])
+            ):
                 continue
             self.entries += (entry,)
             declarations.append(entry.definition)
@@ -149,6 +157,24 @@ class RunToolBindings:
             *self.entries,
             *registrations(replace(context, workflow=self.workflow), self._handler),
         ]
+        from compass_agent.execution_context import current_execution
+
+        journal = current_execution.get()
+        snapshot = journal.catalog_declarations() if journal else None
+        if snapshot is not None:
+            entries = [
+                replace(
+                    e,
+                    definition=ToolDefinition.model_validate(snapshot[e.name][0]),
+                    normalize_input=None,
+                )
+                if e.name in snapshot
+                and (journal.context_binding or {}).get("answerProtocol", 1) < 3
+                and e.legacy_definition is not None
+                else e
+                for e in entries
+                if e.name in snapshot
+            ]
         self.runtime = self.loader.assemble(
             entries if self.supported else (), self.discovered if self.supported else None
         )
@@ -157,6 +183,8 @@ class RunToolBindings:
         from compass_agent.execution_context import current_execution
 
         if journal := current_execution.get():
+            journal.tool_entries = self.runtime.registry.entries
+            journal.entry_plan_active = bool(self.todo_plan.items)
             journal.freeze_catalog(
                 self.runtime.registry,
                 asset_names={name: asset.name for name, asset in self.assets_by_tool.items()},
@@ -189,7 +217,12 @@ class RunToolBindings:
         from compass_agent.tools.builtin.todo_write.plan import TODO_ACTION
 
         parent = next(step for step in self.state.steps if step.id == context.step_id)
-        self.todo_plan.apply(TODO_ACTION.validate_python(prepared.args), parent.index)
+        if "todos" in prepared.args:
+            from compass_agent.tools.builtin.todo_write.slim import apply_slim
+
+            apply_slim(self.todo_plan, prepared.args, parent.index)
+        else:
+            self.todo_plan.apply(TODO_ACTION.validate_python(prepared.args), parent.index)
         if {"status": "ok", **self.todo_plan.snapshot()} != receipt.payload:
             raise ModelError("execution_replay_mismatch", 409)
 
@@ -220,7 +253,7 @@ class RunToolBindings:
                         for i, call in enumerate(parent.tool_calls, 1)
                         if call.id == context.call_id
                     ),
-                    args["op"],
+                    args.get("op", "replace"),
                     payload.get("code", "ok"),
                     args.get("todoId"),
                 )
@@ -275,6 +308,14 @@ class RunToolBindings:
             grants = await journal.capabilities() if journal.capabilities else {}
             if not grants.get("analysis") or not grants.get("model"):
                 raise ToolRejected("permission_denied")
+            if journal.context_binding.get("answerProtocol", 1) >= 3 and not grants.get(
+                "semantic_maintainer"
+            ):
+                visible = frozenset(
+                    n
+                    for n in visible
+                    if not runtime.registry.entries[n].governance.requires_semantic_maintainer
+                )
             if not grants.get("plugins"):
                 visible = frozenset(n for n in visible if not n.startswith(("mcp_", "workflow_")))
             await asyncio.to_thread(
@@ -372,6 +413,19 @@ class RunToolBindings:
                     **fields,
                 )
 
+        async def sandbox_access(run_ids):
+            from compass_agent.context_runtime.source_access import record_sources, sandbox_sources
+            from compass_agent.models.errors import ModelError
+            from compass_agent.tools.contracts import ToolRejected
+
+            try:
+                refs = await asyncio.to_thread(
+                    sandbox_sources, journal.store, self.trusted, run_ids, epoch=journal.epoch
+                )
+            except ModelError as error:
+                raise ToolRejected(error.code) from error
+            await asyncio.to_thread(record_sources, journal, refs)
+
         context = ToolExecutionContext(
             self.trusted,
             self.control.id,
@@ -380,6 +434,7 @@ class RunToolBindings:
             self.budget,
             visible,
             sources=runtime.sources,
+            sandbox_access=sandbox_access,
             emit=event,
             on_start=started,
             search_dispatch=self.search_dispatch.invoke if self.search_dispatch else None,
@@ -397,7 +452,7 @@ class RunToolBindings:
             lambda: dispatch_batch(runtime.dispatcher, step.tool_calls, context, policy)
         )
         observations = {}
-        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2:
+        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") in {2, 3}:
             from compass_agent.context_runtime.evidence import after_tool_batch
 
             admitted = await asyncio.to_thread(

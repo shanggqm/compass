@@ -13,7 +13,7 @@ from compass_agent.context_runtime.source_access import (
 )
 from compass_agent.data_connections.connections import DataConnections
 from compass_agent.documents.client import restrict_connections, verify
-from compass_agent.execution_context import execution_path
+from compass_agent.execution_context import current_execution, execution_path
 from compass_agent.goal.contracts import ChildDelivery, ChildReturn, LedgerItem
 from compass_agent.goal.ledger import Ledger, bound_goal
 from compass_agent.models.errors import ModelError
@@ -299,3 +299,63 @@ def read_child_answer(store, run_id, child_id, context):
         if result.child_run_id != str(child_id):
             raise ModelError("service_unavailable", 503)
         return result.answer or None
+
+
+def normalize_delegation_input(raw, context):
+    if "tasks" not in raw or not any("inputRefs" in t for t in raw["tasks"]):
+        return raw
+    from compass_agent.goal.ledger import Ledger, bound_goal
+    from compass_agent.runtime.entities import AgentArtifact
+
+    journal = current_execution.get()
+    if journal is None:
+        if any(t.get("inputRefs") for t in raw["tasks"]):
+            raise ToolRejected("delegation_input_forbidden")
+        return {"tasks": [{k: v for k, v in t.items() if k != "inputRefs"} for t in raw["tasks"]]}
+    with journal.store.transaction() as tx:
+        _, run = journal.store.lock(tx, journal.run_id, context.trusted)
+        evidence = getattr(journal, "answer_evidence", {}).get(execution_path.get(), {})
+        goal = bound_goal(tx, run)
+        ledger = (
+            {
+                e.entry_key
+                for e, _ in Ledger(journal.store).visible(
+                    tx,
+                    goal,
+                    context.trusted,
+                    epoch=journal.epoch,
+                )
+            }
+            if goal
+            else set()
+        )
+        tasks = []
+        for task in raw["tasks"]:
+            value = {k: v for k, v in task.items() if k != "inputRefs"}
+            inputs = []
+            for identifier in task.get("inputRefs", []):
+                result_evidence = next(
+                    (
+                        key
+                        for key, item in evidence.items()
+                        if item["record"].get("resultId") == identifier
+                    ),
+                    None,
+                )
+                if identifier in evidence or result_evidence:
+                    identifier = result_evidence or identifier
+                    kind = "evidence"
+                elif identifier in ledger:
+                    kind = "ledger"
+                else:
+                    try:
+                        artifact = tx.get(AgentArtifact, UUID(identifier))
+                    except ValueError:
+                        artifact = None
+                    if artifact is None or artifact.run_id != run.id:
+                        raise ToolRejected("delegation_input_forbidden")
+                    kind = "artifact"
+                inputs.append({"kind": kind, "id": identifier})
+            value["inputs"] = inputs
+            tasks.append(value)
+        return {"tasks": tasks}

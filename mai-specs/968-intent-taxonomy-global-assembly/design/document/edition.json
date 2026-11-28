@@ -1,0 +1,72 @@
+{
+  "title": "意图分类体系极简重构与全局动态装配",
+  "subtitle": "废除 40 场景笛卡尔积字典与双轨意图模型，建立 10 项任务意图 × 7 项业务域 × 复合复杂度三正交维度，打通 PromptOps、语义检索、工具组装与 ContextOps 全链路。",
+  "brand": "Compass",
+  "label": "技术方案 · 设计示意",
+  "topics": [
+    "正交三维度意图",
+    "10 任务意图",
+    "7 业务域对齐",
+    "工作区弱先验",
+    "四通道工具组装",
+    "语义同域加权",
+    "零历史债迁移"
+  ],
+  "metrics": [
+    {
+      "value": "40 → 10",
+      "label": "任务与边界意图",
+      "detail": "6 项业务作业 + 4 项边界守卫，彻底吸收 deliverable 双轨"
+    },
+    {
+      "value": "7 域",
+      "label": "统一业务域字典",
+      "detail": "100% 无重叠映射 Web 语义 11 域码，单轮支持 0–2 域"
+    },
+    {
+      "value": "4 通道",
+      "label": "确定性工具组装",
+      "detail": "清除全部 SC-* 硬编码，新增 domain_routed 与 compound_enabled"
+    },
+    {
+      "value": "2 库迁移",
+      "label": "双库独立演进",
+      "detail": "agent/main 0020→0021 + web/main 0010→0011，零历史债"
+    }
+  ],
+  "source": "../TECH_DESIGN.md",
+  "guide": "guide.md",
+  "output": "../TECH_DESIGN.html",
+  "code": {
+    "schemas": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class RunRoutedPayload(RunContractModel):",
+      "language": "python"
+    },
+    "dictionary": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def build_intent(",
+      "language": "python"
+    },
+    "intent_classifier": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def decision_input(",
+      "language": "python"
+    },
+    "tool_assembler": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def _matches_intent_or_domain(",
+      "language": "python"
+    },
+    "semantic_boost": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "const domainBoost = (v: MetricView)",
+      "language": "typescript"
+    },
+    "agent_migration": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "revision = \"0021\"",
+      "language": "python"
+    }
+  }
+}

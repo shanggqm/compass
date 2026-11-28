@@ -30,10 +30,15 @@ def upsert(values: dict, key: str, value: dict, revision: str = "revision"):
 
 
 def reduce_packet(view: dict, messages: dict, raw: dict):
+    from compass_agent.runtime.answer_publication import apply_marker, marker_data
+
     packet = AgentPacket.model_validate(raw)
     event = packet.event.model_dump(mode="json", by_alias=True)
     kind, payload = event["type"], event["payload"]
-    if kind == "run.upsert":
+    if data := marker_data(event):
+        apply_marker(messages, data)
+        upsert(view["objects"], payload["objectId"], payload)
+    elif kind == "run.upsert":
         box = {"run": view["run"]} if view.get("run") else {}
         upsert(box, "run", payload, "version")
         view["run"] = box["run"]

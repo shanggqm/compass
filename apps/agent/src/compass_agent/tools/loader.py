@@ -52,6 +52,7 @@ class ToolLoader:
         control: ToolControl,
         *,
         defer_catalog_limit: bool = False,
+        selected_connection_ids: frozenset | None = None,
     ) -> McpRun | None:
         control.require_running()
         if self.repository is None:
@@ -59,7 +60,11 @@ class ToolLoader:
         assert self.endpoints is not None
         repository = self.repository() if callable(self.repository) else self.repository
         run = McpRun(
-            repository, self.endpoints, owner_key(trusted), defer_catalog_limit=defer_catalog_limit
+            repository,
+            self.endpoints,
+            owner_key(trusted),
+            defer_catalog_limit=defer_catalog_limit,
+            selected_connection_ids=selected_connection_ids,
         )
         try:
             async with asyncio.timeout(control.remaining):

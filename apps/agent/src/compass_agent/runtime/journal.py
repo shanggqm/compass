@@ -26,6 +26,7 @@ from compass_agent.runtime.entities import (
 )
 from compass_agent.runtime.private_state import digest
 from compass_agent.runtime.store import now
+from compass_agent.runtime.text_buffer import TextBuffer
 from compass_agent.tools.contracts import PhaseCanceled
 
 logger = logging.getLogger(__name__)
@@ -87,12 +88,18 @@ class ExecutionJournal:
         self.fault: Callable[[str, UUID], Awaitable[None]] | None = None
         self.text_message = None
         self.text_lock = asyncio.Lock()
+        self.text_buffer: TextBuffer | None = None
         self.pending_drafts = []
         self.active_started = monotonic()
         run = store.read_run(run_id)
         self.goal_id = (run.config_snapshot.get("goal") or {}).get("goalId")
         self.accepted_at = run.created_at
         self.user_question = run.config_snapshot.get("command", {}).get("question", "")
+        self.tool_selection = (run.config_snapshot.get("command", {}).get("constraints") or {}).get(
+            "toolSelection"
+        ) or {}
+        self.tool_entries = {}
+        self.entry_plan_active = False
         self.context_binding = run.config_snapshot.get("contextRuntime")
         self.search_snapshot = run.config_snapshot.get("searchSnapshot")
         self.rebuilding_search = bool(self.search_snapshot and run.checkpoint_no)
@@ -276,7 +283,48 @@ class ExecutionJournal:
         return RuntimeResources(self.store).offer(self, detail, step_id=step_id)
 
     async def text_delta(self, value):
-        if self.store.scheduler or not value:
+        if (
+            not value
+            or self.scheduled
+            or (self.store.scheduler and (self.context_binding or {}).get("answerProtocol", 1) < 3)
+        ):
+            return
+        if (self.context_binding or {}).get("answerProtocol") == 3:
+            if self.text_buffer is None:
+                from compass_agent.runtime.answer_publication import append_chunk
+
+                attempt_id = self.active_attempt.get()
+                if attempt_id is None:
+                    raise ModelError("execution_fenced", 409)
+
+                async def write(operation_id, content):
+                    from sqlalchemy.exc import DBAPIError
+
+                    for retry in range(2):
+                        try:
+                            await asyncio.to_thread(
+                                append_chunk,
+                                self.store,
+                                self.run_id,
+                                self.epoch,
+                                attempt_id,
+                                operation_id,
+                                content,
+                            )
+                            break
+                        except DBAPIError as error:
+                            code = getattr(error.orig, "sqlstate", "") or ""
+                            if retry or not (
+                                error.connection_invalidated
+                                or code.startswith("08")
+                                or code in {"40001", "40P01", "55P03", "57014"}
+                            ):
+                                raise
+                            await asyncio.sleep(0.1)
+                    self.publisher.notify(self.run_id)
+
+                self.text_buffer = TextBuffer(write)
+            self.text_buffer.push(value)
             return
         async with self.text_lock:
             if self.text_message is None:
@@ -321,6 +369,22 @@ class ExecutionJournal:
                         },
                     },
                 )
+
+    async def flush_text(self, *, abort=False):
+        buffer = self.text_buffer
+        if buffer is not None:
+            try:
+                await (buffer.abort() if abort else buffer.finish())
+            finally:
+                self.text_buffer = None
+
+    async def publish(self):
+        if (self.context_binding or {}).get("answerProtocol") == 3 and hasattr(
+            self.publisher, "notify"
+        ):
+            self.publisher.notify(self.run_id)
+        else:
+            await self.publisher.flush(self.run_id)
 
     def workflow(self, source, args, *, parent_model_step=None):
         from compass_agent.execution_context import execution_path
@@ -477,7 +541,7 @@ class ExecutionJournal:
     async def gate(self):
         if self.flush_progress:
             await self.flush_progress()
-        await self.publisher.flush(self.run_id)
+        await self.publish()
         run = await asyncio.to_thread(self.store.read_run, self.run_id)
         if run.execution_epoch != self.epoch:
             raise RecoveryStop("execution_fenced")
@@ -1009,9 +1073,12 @@ class ExecutionJournal:
         tool_finished = False
         model_finished = False
         sandbox_execution_id = None
+        accepted = False
         try:
             with execution_scope(key, absolute=True):
                 result = await operation()
+            if kind == "model":
+                await self.flush_text()
             encoded = adapter.dump_python(result, mode="json")
             model_finished = (
                 kind == "model"
@@ -1057,31 +1124,49 @@ class ExecutionJournal:
                 boundary=yield_boundary,
                 **({"expected_attempt_status": "prepared"} if kind == "routing_host" else {}),
             )
+            accepted = True
             self.last_attempt = attempt_id
             if kind in {"ctx_select", "ctx_compact"} and budget is not None:
                 self.context_accounted_attempts.add(attempt_id)
-            await self.publisher.flush(self.run_id)
+            await self.publish()
             if yielded:
                 if self.flush_progress:
                     await self.flush_progress()
                 raise BoundaryYield()
             return result
         except BaseException as error:
+            if kind == "model":
+                try:
+                    await self.flush_text(abort=True)
+                except Exception as writer_error:
+                    # Preserve cancellation/lease semantics while observing the writer failure.
+                    logger.warning(
+                        "runtime.text_writer_interrupted run_id=%s reason=%s",
+                        self.run_id,
+                        writer_error.code
+                        if isinstance(writer_error, ModelError)
+                        else type(writer_error).__name__,
+                    )
             if tool_finished or (
                 kind == "tool" and isinstance(error, PhaseCanceled) and error.cleanup_confirmed
             ):
                 await asyncio.to_thread(self.confirm_canceled_attempt, attempt_id)
-            await asyncio.shield(
-                asyncio.to_thread(
-                    self.unknown, attempt_id, sandbox_execution_id=sandbox_execution_id
+            if not accepted:
+                await asyncio.shield(
+                    asyncio.to_thread(
+                        self.unknown, attempt_id, sandbox_execution_id=sandbox_execution_id
+                    )
                 )
-            )
             if type(error) is asyncio.CancelledError and (model_finished or tool_finished):
                 raise PhaseCanceled(cleanup_confirmed=True) from None
             raise
         finally:
-            self.parent.reset(parent_token)
-            self.active_attempt.reset(attempt_token)
+            try:
+                if kind == "model":
+                    await self.flush_text(abort=True)
+            finally:
+                self.parent.reset(parent_token)
+                self.active_attempt.reset(attempt_token)
 
     def validate_checkpoint(self):
         with Session(self.store.engine) as tx:

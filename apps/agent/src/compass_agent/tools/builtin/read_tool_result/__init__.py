@@ -1,11 +1,22 @@
 """Read an authorized page from a previously accepted tool result."""
 
+from dataclasses import replace
+from hashlib import sha256
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from compass_agent.prompt_assets import tool_text
 from compass_agent.schemas import ToolDefinition, ToolFunction
+from compass_agent.tools.builtin.read_tool_result.model_schema import SCHEMA
 from compass_agent.tools.catalog_contracts import ToolSpec
-from compass_agent.tools.contracts import InProcessBinding, RegisteredTool, ToolPolicy, ToolRejected
+from compass_agent.tools.contracts import (
+    InProcessBinding,
+    RegisteredTool,
+    ToolGovernance,
+    ToolPolicy,
+    ToolRejected,
+    json_bytes,
+)
 from compass_agent.tools.registry import bounded_payload, parse_arguments
 
 
@@ -55,6 +66,19 @@ def registration(catalog):
     )
 
 
+def evidence(args, payload, refs):
+    if not isinstance(payload, dict) or not all(key in payload for key in ("ref", "range", "data")):
+        return
+    yield {
+        "kind": "document",
+        "title": "工具结果原件分页",
+        "version": sha256(json_bytes(payload)).hexdigest(),
+        "locator": payload["ref"],
+        "record": payload,
+        "sourceRefs": refs,
+    }
+
+
 SPEC = ToolSpec(
     "read_tool_result",
     "builtin",
@@ -63,4 +87,34 @@ SPEC = ToolSpec(
     lambda context: context.result_reader is not None,
     parallel_safe=True,
     context_factory=registration,
+    evidence_adapter=evidence,
 )
+
+
+SPEC = replace(
+    SPEC, governance=ToolGovernance(channel="always_on", pack="core_base", subagent_allowed=True)
+)
+
+
+def normalize_input(raw, _context):
+    args = dict(raw)
+    if args.get("cursor"):
+        args.pop("offset", None)
+        args.pop("limit", None)
+    return args
+
+
+SPEC = replace(SPEC, normalize_input=normalize_input)
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="read_tool_result",
+            description=tool_text("read_tool_result"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

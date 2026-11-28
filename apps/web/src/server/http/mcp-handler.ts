@@ -13,7 +13,8 @@ const scope = z.strictObject({ tenantId: uuid, workspaceId: uuid });
 export async function handleMcpRequest(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const parts = url.pathname.slice("/api/mcp/".length).split("/");
+    const prefix = url.pathname.startsWith("/api/web/v1/mcp/") ? "/api/web/v1/mcp/" : "/api/mcp/";
+    const parts = url.pathname.slice(prefix.length).split("/");
     const [resource, identifier, action] = parts;
     if (resource !== "connections") reject("not_found");
     const method = request.method;

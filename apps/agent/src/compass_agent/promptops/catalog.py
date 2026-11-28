@@ -156,6 +156,7 @@ def member_usages(version=None):
         ("shared/fragments", "上下文优化", ("context-results",)),
         ("support/diagnostics", "运行诊断", ("reliability-request",)),
         ("support/delivery", "最终交付格式修正", ("repair",)),
+        ("answer", "交付完成度复核", ("review",)),
         ("support/session", "会话标题", ("title",)),
         ("support/subagent", "子任务", ("analysis",)),
     )

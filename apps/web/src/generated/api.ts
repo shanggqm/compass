@@ -2427,6 +2427,8 @@ export interface components {
             step_id: string;
             /** Tokens */
             tokens: number | null;
+            /** @default null */
+            toolAssembly: components["schemas"]["ToolAssemblyTraceView"] | null;
             /**
              * Track
              * @enum {string}
@@ -4434,6 +4436,8 @@ export interface components {
             draft_body: string | null;
             /** Edit Rev */
             edit_rev: number;
+            /** @default null */
+            governance: components["schemas"]["ToolGovernanceView"] | null;
             /** Has Draft */
             has_draft: boolean;
             /**
@@ -5436,6 +5440,8 @@ export interface components {
              * @default null
              */
             timeoutSeconds: number | null;
+            /** @default null */
+            toolSelection: components["schemas"]["ToolSelection"] | null;
         };
         /** RunContractModel */
         RunContractModel: Record<string, never>;
@@ -6687,6 +6693,43 @@ export interface components {
             /** Toolname */
             toolName: string;
         };
+        /** ToolAssemblyItemView */
+        ToolAssemblyItemView: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "always_on" | "scene_routed" | "user_selected";
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Pack */
+            pack: string;
+        };
+        /** ToolAssemblyTraceView */
+        ToolAssemblyTraceView: {
+            /** Authorized Count */
+            authorized_count: number;
+            /** Declaration Bytes */
+            declaration_bytes: number;
+            /** Declaration Tokens */
+            declaration_tokens: number;
+            /** Deferred */
+            deferred: string[];
+            /** Deferred Count */
+            deferred_count: number;
+            /** Excluded */
+            excluded: components["schemas"]["ToolExcludedItemView"][];
+            /** Excluded Count */
+            excluded_count: number;
+            /** Exposed */
+            exposed: components["schemas"]["ToolAssemblyItemView"][];
+            /** Exposed Count */
+            exposed_count: number;
+            /** Permission Filtered Count */
+            permission_filtered_count: number;
+        };
         /** ToolCall */
         ToolCall: {
             function: components["schemas"]["ToolCallFunction"];
@@ -6776,6 +6819,16 @@ export interface components {
             /** Toolindex */
             toolIndex: number;
         };
+        /** ToolExcludedItemView */
+        ToolExcludedItemView: {
+            /** Name */
+            name: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "scene" | "stage" | "role" | "budget";
+        };
         /** ToolFailedPayload */
         ToolFailedPayload: {
             /**
@@ -6831,6 +6884,29 @@ export interface components {
             parameters?: {
                 [key: string]: unknown;
             };
+        };
+        /** ToolGovernanceView */
+        ToolGovernanceView: {
+            /** Approval */
+            approval: string;
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "always_on" | "scene_routed" | "user_selected";
+            /** Effect */
+            effect: string;
+            /** Pack */
+            pack: string;
+        };
+        /** ToolSelection */
+        ToolSelection: {
+            /** Mcpserverids */
+            mcpServerIds?: string[];
+            /** Packs */
+            packs?: ("long_task" | "workflow_pack" | "semantic_govern" | "python_sandbox")[];
+            /** Workflowids */
+            workflowIds?: string[];
         };
         /** ToolStarted */
         ToolStarted: {

@@ -86,6 +86,25 @@ async def ok(args, ctx):
     return ExecutionReceipt(ctx.call_id, "ok", "confirmed", {"value": 1})
 
 
+@pytest.mark.anyio
+async def test_read_sql_preflight_rejection_keeps_worker_usable():
+    from compass_agent.tools.builtin.database_query.slim import query_relations
+
+    async def rejected_sql(args, ctx):
+        query_relations("DELETE FROM orders")
+        raise AssertionError("rejected SQL reached execution")
+
+    d = dispatcher(registration("query", rejected_sql), registration("read", ok))
+    c = context("query", "read")
+    result = await dispatch_batch(d, (call("query"),), c, ToolBatchPolicy())
+    assert result[0].status == "rejected"
+    assert result[0].cleanup == "not_started"
+    assert isinstance(result[0].payload, dict)
+    assert result[0].payload["category"] == "fix_arguments"
+    recovered = await dispatch_batch(d, (call("read"),), c, ToolBatchPolicy())
+    assert recovered[0].status == "ok"
+
+
 def dispatcher(*entries):
     return ToolDispatcher(ToolRegistry(entries), ExecutionSlots(), ArtifactStore())
 
@@ -305,3 +324,53 @@ async def test_artifact_acceptance_requires_valid_png_and_full_owner():
         store.read(ref.id, (uuid4(), *c.owner[1:]), c.run_id)
     with pytest.raises(ToolRejected):
         store.register(png() + b"extra", replace(c, call_id="other"))
+
+
+@pytest.mark.anyio
+async def test_input_adapter_keeps_blocking_reads_off_loop_and_preserves_scope():
+    from contextvars import ContextVar
+    from threading import get_ident
+
+    marker = ContextVar[str | None]("adapter_test_scope", default=None)
+    marker.set("current-run")
+    loop_thread = get_ident()
+
+    async def authorized_read():
+        assert marker.get() == "current-run"
+        return {}
+
+    def normalize(args, ctx):
+        assert get_ident() != loop_thread
+        return asyncio.run(authorized_read())
+
+    entry = replace(registration("read", ok), normalize_input=normalize)
+    d = dispatcher(entry)
+    c = context("read")
+    result = await dispatch_batch(d, (call("read"),), c, ToolBatchPolicy())
+    assert result[0].status == "ok"
+
+
+@pytest.mark.anyio
+async def test_canceling_input_adapter_joins_pending_read_before_return():
+    from threading import Event
+
+    from compass_agent.tools.contracts import PhaseCanceled
+    from compass_agent.tools.input_adapter import normalize_arguments
+
+    started, release, finished = Event(), Event(), Event()
+
+    def normalize(args, ctx):
+        started.set()
+        assert release.wait(5)
+        finished.set()
+        return args
+
+    task = asyncio.create_task(normalize_arguments(normalize, {}, None))
+    assert await asyncio.to_thread(started.wait, 5)
+    task.cancel()
+    await asyncio.sleep(0)
+    assert not task.done() and not finished.is_set()
+    release.set()
+    with pytest.raises(PhaseCanceled) as canceled:
+        await task
+    assert canceled.value.cleanup_confirmed and finished.is_set()

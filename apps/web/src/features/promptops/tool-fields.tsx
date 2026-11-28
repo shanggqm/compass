@@ -40,7 +40,7 @@ export function ToolFields({
         工具描述
         <textarea
           rows={4}
-          maxLength={2000}
+          maxLength={1200}
           value={document.function.description}
           disabled={disabled}
           onChange={(event) =>
@@ -79,7 +79,7 @@ export function ToolFields({
             setExamples(text);
             try {
               const value: unknown = JSON.parse(text);
-              if (!Array.isArray(value)) throw Error("请填写 JSON 数组。");
+              if (!Array.isArray(value) || value.length > 3) throw Error("请填写 JSON 数组。");
               setExampleError("");
               onValidation("");
               update((next) => {
@@ -95,7 +95,7 @@ export function ToolFields({
       </label>
       <p className="muted" id="tool-examples-help">
         每条示例包含 description 和 arguments；参数须符合下方代码定义的 Schema。描述与示例合计最多
-        2000 个字符。
+        1200 个字符，最多 3 条示例。
       </p>
       <p className="muted">参数名称、类型、必填项和约束随代码发布。此处仅编辑描述与示例。</p>
       <UiCodeBlock

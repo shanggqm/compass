@@ -2,131 +2,20 @@
   "type": "function",
   "function": {
     "name": "schedule_read",
-    "description": "**用途与调用规则**\n\n- 列出、搜索当前用户的定时任务，或按 ID 查看详情及执行记录。\n- 按名称修改或删除前先查询，遇到同名任务请用户选择。",
+    "description": "- 查询当前用户的定时分析任务（一次返回完整配置、分析问题与近期触发记录）。调用 schedule_write 修改或删除前须先调用本工具确认目标 scheduleId。",
     "parameters": {
       "type": "object",
-      "$defs": {
-        "ScheduleGetArgs": {
-          "additionalProperties": false,
-          "properties": {
-            "operation": {
-              "const": "get",
-              "title": "Operation",
-              "type": "string"
-            },
-            "scheduleId": {
-              "format": "uuid",
-              "title": "Scheduleid",
-              "type": "string"
-            }
-          },
-          "required": ["operation", "scheduleId"],
-          "title": "ScheduleGetArgs",
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "按任务名称或分析问题关键词筛选；省略则列出全部未删除任务。"
         },
-        "ScheduleHistoryArgs": {
-          "additionalProperties": false,
-          "properties": {
-            "operation": {
-              "const": "history",
-              "title": "Operation",
-              "type": "string"
-            },
-            "scheduleId": {
-              "format": "uuid",
-              "title": "Scheduleid",
-              "type": "string"
-            },
-            "cursor": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Cursor"
-            }
-          },
-          "required": ["operation", "scheduleId"],
-          "title": "ScheduleHistoryArgs",
-          "type": "object"
-        },
-        "ScheduleListArgs": {
-          "additionalProperties": false,
-          "properties": {
-            "operation": {
-              "const": "list",
-              "title": "Operation",
-              "type": "string"
-            },
-            "q": {
-              "anyOf": [
-                {
-                  "maxLength": 120,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Q"
-            },
-            "status": {
-              "anyOf": [
-                {
-                  "enum": ["enabled", "disabled", "deleted"],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Status"
-            },
-            "cursor": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Cursor"
-            }
-          },
-          "required": ["operation"],
-          "title": "ScheduleListArgs",
-          "type": "object"
+        "scheduleId": {
+          "type": "string",
+          "description": "按任务 ID 精确查看单个任务及执行历史。"
         }
-      },
-      "discriminator": {
-        "mapping": {
-          "get": "#/$defs/ScheduleGetArgs",
-          "history": "#/$defs/ScheduleHistoryArgs",
-          "list": "#/$defs/ScheduleListArgs"
-        },
-        "propertyName": "operation"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ScheduleListArgs"
-        },
-        {
-          "$ref": "#/$defs/ScheduleGetArgs"
-        },
-        {
-          "$ref": "#/$defs/ScheduleHistoryArgs"
-        }
-      ]
+      }
     }
   },
   "examples": []

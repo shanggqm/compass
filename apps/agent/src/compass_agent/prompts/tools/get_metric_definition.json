@@ -2,32 +2,17 @@
   "type": "function",
   "function": {
     "name": "get_metric_definition",
-    "description": "**用途与调用规则**\n\n- 读取已发布定义、统计粒度、期间、单位、适用维度与可见关系。",
+    "description": "- 读取指标计算公式与排除规则（仅口径解释或核对例外时用；常规查数直接调 resolve_semantics）。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "asset_id": {
-          "format": "uuid",
-          "title": "Asset Id",
-          "type": "string"
-        },
-        "version_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Version Id"
+          "type": "string",
+          "description": "已发布指标资产 ID。"
         }
       },
-      "required": ["asset_id"],
-      "title": "Input",
-      "type": "object"
+      "required": ["asset_id"]
     }
   },
   "examples": []

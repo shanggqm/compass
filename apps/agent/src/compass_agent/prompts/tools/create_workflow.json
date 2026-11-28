@@ -2,44 +2,33 @@
   "type": "function",
   "function": {
     "name": "create_workflow",
-    "description": "**用途与调用规则**\n\n- 用户要求沉淀已验证的分析方法时，编写可复用的 JavaScript 编排并试跑。\n- scriptSource 填写异步函数体，第一行可直接写 const 参数 = args.字段。\n- 用 await agent(\"sub_agent\", {prompt: \"完整子任务\"}) 调用子 Agent，返回 {answer}。\n- 用 await parallel([() => agent(...), () => agent(...)]) 并行独立任务。\n- 每次最多 3 个子任务，同时最多 2 个，单个子任务入参最多 4 KiB。\n- 以 return {status: 'ok', result: ...} 提交可复用结果，数据不足时返回 {status: 'needs_data', result: ...}。\n- 将会变化的数据范围作为参数，并给子任务提供所需的表、口径和范围。\n- 收到 invalid_workflow_script 时，修正 JavaScript 语法后再试跑。\n- 试跑成功后由用户确认保存。",
+    "description": "- 当用户明确要求将已验证的分析流程沉淀为可复用工作流模板时，提交入参定义与异步编排脚本并用本次参数即时试跑（试跑通过后向用户弹出保存确认卡）。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "name": {
-          "maxLength": 80,
-          "minLength": 1,
-          "title": "Name",
-          "type": "string"
+          "type": "string",
+          "description": "工作流模板名称（<=80 字）。"
         },
         "description": {
-          "maxLength": 500,
-          "minLength": 1,
-          "title": "Description",
-          "type": "string"
+          "type": "string",
+          "description": "工作流适用场景与输出摘要说明。"
         },
         "parameters": {
-          "additionalProperties": true,
-          "description": "调用此工作流的 JSON Schema。顶层 type 必须为 object。",
-          "title": "Parameters",
-          "type": "object"
+          "type": "object",
+          "description": "工作流入参 JSON Schema（顶层须包含 type='object' 与 properties 字段定义）。"
         },
         "scriptSource": {
-          "maxLength": 16384,
-          "minLength": 1,
-          "title": "Scriptsource",
-          "type": "string"
+          "type": "string",
+          "description": "JS 异步函数体：从 args.<字段> 读入参，调用 await agent('sub_agent', {tasks:[{name:'子任务名称', objective:'调查目标'}]})。tasks 中每项必填 name/objective；单任务兼容 {prompt:'调查目标'}。用 await parallel([()=>agent(...),()=>agent(...)]) 并行，以 return {status:'ok', result} 结束。"
         },
         "args": {
-          "additionalProperties": true,
-          "description": "本次用来试跑的实际参数，符合 parameters。",
-          "title": "Args",
-          "type": "object"
+          "type": "object",
+          "description": "用于本次即时试跑验证的实参对象（须匹配 parameters 定义）。"
         }
       },
-      "required": ["name", "description", "parameters", "scriptSource", "args"],
-      "title": "CreateWorkflowInput",
-      "type": "object"
+      "required": ["name", "description", "parameters", "scriptSource", "args"]
     }
   },
   "examples": []

@@ -2,83 +2,26 @@
   "type": "function",
   "function": {
     "name": "search_semantics",
-    "description": "**用途与调用规则**\n\n- 搜索当前发布及授权范围内的术语、指标和实体，按名称、别名和业务域检索。\n- 下一页沿用本次检索条件及返回的 cursor。\n- 更改条件时从第一页开始。",
+    "description": "- 搜索已发布的指标、维度、实体与术语（预注入 publishedSemanticRegistry 已含目标指标时禁调，直接用 resolve_semantics 或 query_metric）。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "query": {
-          "maxLength": 256,
-          "title": "Query",
-          "type": "string"
+          "type": "string",
+          "description": "名称、别名或业务域关键词。"
         },
-        "kinds": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Kinds"
-        },
-        "domain": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Domain"
-        },
-        "scope_filter": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Scope Filter"
+        "kind": {
+          "type": "string",
+          "enum": ["metric", "dimension", "entity", "term"],
+          "description": "资产类别；省略查全部。"
         },
         "cursor": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "const": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cursor"
-        },
-        "limit": {
-          "default": 12,
-          "maximum": 50,
-          "minimum": 1,
-          "title": "Limit",
-          "type": "integer"
+          "type": "string",
+          "description": "翻页传上一页 next_cursor；首页省略。"
         }
       },
-      "required": ["query"],
-      "title": "Input",
-      "type": "object"
+      "required": ["query"]
     }
   },
   "examples": []

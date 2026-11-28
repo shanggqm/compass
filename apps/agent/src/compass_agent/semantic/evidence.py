@@ -6,7 +6,11 @@ from compass_agent.runtime.private_state import digest
 def result(args, payload, refs):
     if not isinstance(payload, dict):
         return
-    if "rows" in payload and "columns" in payload:
+    if ("columns" in payload and "rows" in payload) or (
+        "ref" in payload and "preview" in payload and "returnedRows" in payload
+    ):
+        # Spilled results retain their original reference, size and bounded preview.
+        # A preview stays labelled as a preview; it is never promoted to the full rows.
         record = payload
         if payload.get("metric") and payload.get("time_range"):
             record = {**payload, "time_bounds": {"start": "inclusive", "end": "exclusive"}}

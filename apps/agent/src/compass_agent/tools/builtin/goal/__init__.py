@@ -1,6 +1,7 @@
 """One stable tool; only propose requests an explicit owner's confirmation."""
 
 import asyncio
+from dataclasses import replace
 from uuid import uuid5
 
 from pydantic import ValidationError
@@ -10,12 +11,15 @@ from compass_agent.goal.contracts import GoalInput, ProposeGoal
 from compass_agent.models.errors import ModelError
 from compass_agent.prompt_assets import tool_text
 from compass_agent.schemas import GoalProposal, ToolApprovalProposal, ToolDefinition, ToolFunction
+from compass_agent.tools.builtin.goal.model_schema import SCHEMA
+from compass_agent.tools.builtin.goal.slim import normalize_input
 from compass_agent.tools.catalog_contracts import ToolSpec
 from compass_agent.tools.contracts import (
     ExecutionReceipt,
     InProcessBinding,
     PreparedApproval,
     RegisteredTool,
+    ToolGovernance,
     ToolPolicy,
     ToolRejected,
 )
@@ -116,3 +120,21 @@ SPEC = ToolSpec(
     context_factory=registration,
     public_projection="status_only",
 )
+
+
+SPEC = replace(SPEC, governance=ToolGovernance(channel="user_selected", pack="long_task"))
+
+SPEC = replace(SPEC, normalize_input=normalize_input)
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="goal",
+            description=tool_text("goal"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

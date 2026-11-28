@@ -65,6 +65,40 @@ def tool(name, op, capability, args_type):
         async def execute(raw, execution):
             try:
                 result = await service.run(op, arguments(raw), execution)
+                if result.get("status") == "unavailable_binding":
+                    from compass_agent.tools.errors import ActionableToolError
+
+                    result = {
+                        **ActionableToolError(
+                            "semantic_binding_unavailable",
+                            "switch_tool",
+                            "定义可用，尚无已发布执行绑定。",
+                            suggested_tool="database_query",
+                            next_action=(
+                                "按用户确认的定义，使用当前获准的只读明细完成即时计算并说明计算口径；"
+                                "保留权限检查，缺少字段或权限时说明缺口。"
+                            ),
+                        ).payload(),
+                        **result,
+                    }
+                if op == "query" and result.get("resultId"):
+                    from compass_agent.context_runtime.source_access import require_run_sources
+                    from compass_agent.tools.contracts import AuthorizedInput
+
+                    async def revalidate_source():
+                        await asyncio.to_thread(
+                            require_run_sources,
+                            service.store,
+                            service.journal.run_id,
+                            execution.trusted,
+                            epoch=service.journal.epoch,
+                        )
+                        return True
+
+                    result = {**result, "sourceQueryId": result["resultId"]}
+                    execution.sources[result["resultId"]] = AuthorizedInput(
+                        execution.run_id, execution.owner, result, revalidate_source
+                    )
                 return ExecutionReceipt(execution.call_id, "ok", "confirmed", result)
             except SourceUnavailable as exc:
                 if not getattr(getattr(service, "journal", None), "search_snapshot", None):

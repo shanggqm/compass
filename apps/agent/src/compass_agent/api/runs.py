@@ -495,10 +495,19 @@ async def inspect_sandbox(
         raise ModelError("not_found", 404)
     try:
         allocation = await asyncio.to_thread(
-            backend.allocations.get, allocation_id, owner_key(context)
+            backend.inspection_target, allocation_id, owner_key(context)
         )
         if allocation.run_id != run_id:
             raise ToolRejected("sandbox_not_found")
+        service = request.app.state.durable_runtime
+        if service is not None:
+            from compass_agent.context_runtime.source_access import sandbox_sources
+
+            await service.access.check(context)
+            runs = await asyncio.to_thread(
+                backend.inspection_runs, allocation_id, owner_key(context)
+            )
+            await asyncio.to_thread(sandbox_sources, service.store, context, runs)
         receipt = await backend.inspect(allocation_id, owner_key(context))
     except ToolRejected:
         raise ModelError("not_found", 404) from None

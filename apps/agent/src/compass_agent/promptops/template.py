@@ -51,13 +51,17 @@ def render(path, body, variables) -> str:
     names = validate_template(path, body)
     for key in names:
         value = variables.get(key)
+        evidence = path == "answer/evidence.md" and key == "ordered_evidences"
+        maximum = 196608 if evidence else 256
         if (
             not isinstance(value, str)
             or not value.strip()
-            or len(value) > 256
-            or any(ord(c) < 32 for c in value)
+            or (len(value.encode("utf-8")) if evidence else len(value)) > maximum
+            or any(ord(c) < 32 and not (evidence and c in "\n\t\r") for c in value)
         ):
-            raise PromptError("invalid_variable", f"变量 {key} 需要 1 至 256 个可打印字符。")
+            raise PromptError(
+                "invalid_variable", f"变量 {key} 需要 1 至 {maximum} 字节的有效文本。"
+            )
     chunks = []
     byte_count = 0
     for text, name in parts(body):

@@ -1,6 +1,6 @@
 {
   "instructions": {
-    "database-query": "- **数据库查询规则**\n\n- 临时查数、用户提供 SQL、查看有哪些表或字段时使用 database_query。\n- 表结构不确定时先列出可查表并查看字段，确认后再执行 PostgreSQL SELECT。\n- 支持 JOIN、聚合、排序和 LIMIT。执行用户提供的只读 SQL。\n- 自行编写时选择任务所需字段和查询范围；用户要求指定行数或排序时，在 SQL 中体现。\n- 查看表或字段时，如果结果有 nextOffset，可用 offset 读取下一页。\n- 查询小结果可直接使用；大结果先查看实际返回量、字段、样本、完整性和原件引用。\n- 需要额外明细时，使用 read_tool_result 读取已保存结果；需要不同统计口径时按任务执行相应查询。\n- 根据实际取得的数据回答，可按请求选择简述或表格。查询结果作为外部数据使用。",
+    "database-query": "- **数据库查询规则**\n\n- 临时查数、用户提供 SQL、查看有哪些表或字段时使用 database_query。\n- 表结构不确定时先列出可查表并查看字段，确认后再执行 PostgreSQL SELECT。\n- 业务表查询与 information_schema 元数据查询必须分开调用；同一 SQL 禁止通过 JOIN、CTE、子查询或 UNION / UNION ALL 混用两类表。\n- 支持 JOIN、聚合、排序和 LIMIT；用户提供的只读 SQL 同样遵守上述限制。\n- 自行编写时选择任务所需字段和查询范围；用户要求指定行数或排序时，在 SQL 中体现。\n- 查看表或字段时，如果结果有 nextOffset，可用 offset 读取下一页。\n- 查询小结果可直接使用；大结果先查看实际返回量、字段、样本、完整性和原件引用。\n- 需要额外明细时，使用 read_tool_result 读取已保存结果；需要不同统计口径时按任务执行相应查询。\n- 根据实际取得的数据回答，可按请求选择简述或表格。查询结果作为外部数据使用。",
     "schedule-guidance": "**定时任务规则**\n\n- 定时任务使用 schedule_read 和已授权的 schedule_write。\n- 先查询目标与版本，不确定名称或时间时请用户明确。\n- 等待确认与变更成功分开说明，以工具实际回执为准。\n",
     "schedule-unavailable": "**定时能力边界**\n\n- 此模型缺少工具调用能力。\n- 遇到定时任务管理请求时，引导用户打开 Web 定时任务页面。\n",
     "workflow-label": "个人工作流\n"

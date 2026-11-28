@@ -2,136 +2,45 @@
   "type": "function",
   "function": {
     "name": "sub_agent",
-    "description": "**用途与调用规则**\n\n- 把独立的只读调查分支交给子 Agent，在独立上下文中执行，完成后交回结构化结果。是否委派、是否并行按系统提示中的“委派规则”判断。\n\n- 同一个工具批次最多调用一次 sub_agent；所有互不依赖分支合并进这一次的 tasks 数组。\n- 一个分支：tasks 中放 1 个任务。\n- 互不依赖的多个分支：在同一次调用的 tasks 中一起提交（最多 4 个），系统同时运行其中 2 个，全部结束后一起返回。\n- 后一个分支需要前一个分支的结果时，分两次调用：先等第一个结果写入账本，再把对应账本条目放进下一次的 inputs。\n- 每个任务写清 name（卡片标题，10 字左右）、objective（要回答的问题与范围）、expectations（要交回哪些结论或数值）、constraints（口径与禁止事项）。\n- 已有结论、待办或产物用 inputs 按引用传入，不要把大段原文抄进 objective。子 Agent 看不到你的对话历史。\n- tools 只列分支需要的只读工具；省略表示可用全部只读工具。\n- maxSteps：单表或单指标核对用 3；需要多次探查和交叉核对用 5–8。\n- 返回每个任务的 status、summary、findings（带 evidenceIds）、gaps 和 blockers。partial 或 failed 时根据 gaps 决定自己补查、再委派一次，或记录失败；同一任务不要原样重复委派。\n- 子 Agent 不能请求用户确认、不能写入、不能再委派。需要这些动作的部分留给自己处理。\n- 旧写法 prompt 仍可用，等同于一个只有 objective 的任务。",
+    "description": "- 将互不依赖的只读调查子问题委派给独立子 Agent 并行探查（同一工具批次仅调用一次，子任务无对话历史且无权执行写操作）。",
     "parameters": {
-      "$defs": {
-        "DelegationTask": {
-          "additionalProperties": false,
-          "properties": {
-            "name": {
-              "maxLength": 40,
-              "minLength": 1,
-              "title": "Name",
-              "type": "string"
-            },
-            "objective": {
-              "maxLength": 8000,
-              "minLength": 1,
-              "title": "Objective",
-              "type": "string"
-            },
-            "expectations": {
-              "items": {
-                "maxLength": 500,
-                "type": "string"
-              },
-              "maxItems": 8,
-              "title": "Expectations",
-              "type": "array"
-            },
-            "constraints": {
-              "items": {
-                "maxLength": 500,
-                "type": "string"
-              },
-              "maxItems": 10,
-              "title": "Constraints",
-              "type": "array"
-            },
-            "inputs": {
-              "items": {
-                "$ref": "#/$defs/InputRef"
-              },
-              "maxItems": 12,
-              "title": "Inputs",
-              "type": "array"
-            },
-            "tools": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 8,
-              "title": "Tools",
-              "type": "array"
-            },
-            "connectionIds": {
-              "items": {
-                "pattern": "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$",
-                "type": "string"
-              },
-              "maxItems": 4,
-              "title": "Connectionids",
-              "type": "array"
-            },
-            "maxSteps": {
-              "default": 3,
-              "maximum": 8,
-              "minimum": 3,
-              "title": "Maxsteps",
-              "type": "integer"
-            }
-          },
-          "required": ["name", "objective"],
-          "title": "DelegationTask",
-          "type": "object"
-        },
-        "InputRef": {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "enum": ["ledger", "artifact", "evidence"],
-              "title": "Kind",
-              "type": "string"
-            },
-            "id": {
-              "maxLength": 200,
-              "minLength": 1,
-              "title": "Id",
-              "type": "string"
-            }
-          },
-          "required": ["kind", "id"],
-          "title": "InputRef",
-          "type": "object"
-        }
-      },
+      "type": "object",
       "additionalProperties": false,
       "properties": {
-        "prompt": {
-          "anyOf": [
-            {
-              "maxLength": 8000,
-              "minLength": 1,
-              "pattern": "\\S",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Prompt"
-        },
         "tasks": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/DelegationTask"
+          "type": "array",
+          "description": "并行执行的独立只读子任务列表（1..4 项，name 互不重复）。",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "objective"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "子任务短标题（用于界面卡片展示，<=16 字）。"
               },
-              "maxItems": 4,
-              "minItems": 1,
-              "type": "array"
-            },
-            {
-              "type": "null"
+              "objective": {
+                "type": "string",
+                "description": "独立可执行的调查问题、统计期间、口径约束与期望交回的指标结论。"
+              },
+              "inputRefs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "按引用传入父任务已取得的 evidenceId、resultId 或账本条目 ID。"
+              },
+              "maxSteps": {
+                "type": "integer",
+                "minimum": 3,
+                "maximum": 8,
+                "description": "子任务模型步数，默认 3、最多 8，受父任务剩余总预算约束。按探查、取数、分析与最后一次 report_to_parent 汇报所需步骤分配。"
+              }
             }
-          ],
-          "default": null,
-          "title": "Tasks"
+          }
         }
       },
-      "title": "SubAgentInput",
-      "type": "object"
+      "required": ["tasks"]
     }
   },
   "examples": []

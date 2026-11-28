@@ -1,0 +1,85 @@
+{
+  "lesson": 28,
+  "title": "轻量插件市场、云端 MCP 接入与 Tool Search 技术方案",
+  "subtitle": "单一 Streamable HTTP MCP 接入、双轨统一机审质检、默认 deferred 走 Claude Code 风格 Tool Search 按需发现及 ContextOps 全链路观测。",
+  "brand": "Compass",
+  "label": "课程阅读版 · 轻量市场、Tool Search 与可观测",
+  "topics": ["Streamable HTTP MCP", "Tool Search", "默认 Deferred 按需发现", "双轨统一机审", "ContextOps 全链路观测"],
+  "source": "../TECH_DESIGN.md",
+  "guide": "guide.md",
+  "output": "../TECH_DESIGN.html",
+  "metrics": [
+    {
+      "value": "1 表 + 5 列",
+      "label": "数据库增量 (0022)",
+      "detail": "衔接 0021_shared_sandbox 升至 0022，含 asset_type、默认 deferred 与机审状态，web/main 零迁移"
+    },
+    {
+      "value": "256 → ≤32",
+      "label": "注册与暴露解耦",
+      "detail": "注册池扩至 256 个工具，默认进入延迟池经 tool_search 动态激活，单轮严守 32 槽位与 64 KiB"
+    },
+    {
+      "value": "≥ 70%",
+      "label": "初始声明压缩",
+      "detail": "Work 入口冻结目录摘要与工具前缀，ContextOps 实时量化省流率与前缀指纹"
+    },
+    {
+      "value": "5 项 + 4 态",
+      "label": "双轨统一机审",
+      "detail": "自用接入过机审即用、改地址强制重检并支持一键转上架，市场共享叠加管理员审批与下架"
+    }
+  ],
+  "code": {
+    "endpoint_policy": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "SUPPORTED_MCP_PROTOCOL_VERSIONS",
+      "language": "python"
+    },
+    "auto_load_repo": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def load_enabled_connection_modes",
+      "language": "python"
+    },
+    "auto_load_service": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "async def discover_for_v3_run",
+      "language": "python"
+    },
+    "entities": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class PluginCatalogItem",
+      "language": "python"
+    },
+    "admission": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "async def run_plugin_quality_gate",
+      "language": "python"
+    },
+    "bff_auth": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "export type PluginPurpose",
+      "language": "ts"
+    },
+    "tool_search_engine": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def search_deferred_pool",
+      "language": "python"
+    },
+    "tool_search_spec": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ToolSearchInput",
+      "language": "python"
+    },
+    "tool_search_partition": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "def partition_mcp_tools",
+      "language": "python"
+    },
+    "observability_trace": {
+      "file": "../CODE_DESIGN.md",
+      "contains": "class ToolAssemblyTraceView",
+      "language": "python"
+    }
+  }
+}

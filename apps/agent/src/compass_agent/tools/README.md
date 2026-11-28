@@ -6,7 +6,7 @@
 
 后台在 `prompts/tools/<tool_name>.json` 展示完整工具声明，包括函数名称、描述、参数 Schema 和调用示例。参数名称、类型、必填项、约束及执行绑定以注册代码为权威来源；随包导入从 `ToolSpec.definition()` 生成参数结构。在线允许编辑工具描述、参数说明及符合 Schema 的示例，保存、导入和发布都会在服务端核对代码契约。模型使用发布版本中的描述与示例，授权、审批和实际执行继续使用同一注册对象。
 
-新增工具使用 `prompt_assets.tool_text(name)` 读取描述，参数说明可用 `tool_text(name, parameter)`。参数结构在定义代码中维护，执行 `python -m compass_agent.promptops.sync --write-sources` 可重新导出源码 JSON 并预览数据库差异；从根目录执行时按资产升级说明注入根 `.env`。模型可见的描述与示例合计最多 2000 字符，示例还需满足 Runtime 的 JSON 大小、深度与格式约束。
+新增工具使用 `prompt_assets.tool_text(name)` 读取描述，参数说明可用 `tool_text(name, parameter)`。参数结构在定义代码中维护，执行 `python -m compass_agent.promptops.sync --write-sources` 可重新导出源码 JSON 并预览数据库差异；从根目录执行时按资产升级说明注入根 `.env`。新声明的描述与示例合计最多 1200 字符，示例为 0–3 条，所有参数都有说明。冻结的旧代次沿用 2000 字符与 10 条示例上限。示例同时满足 Runtime 的 JSON 大小、深度与格式约束。
 
 场景说明集中到 `prompts/support/routing/scenes.json`，阶段、技能、公共规则和前端示例按用途组成 JSON 资产。旧版本清单保留；旧文件名通过显式成员定位读取所属资产，不重新生成旧版本。数据同步入口与验收见 [资产粒度修订](../../../../../mai-specs/975-lesson-21-context-runtime-promptops/design/ASSET_MODEL_UPDATE.md)。
 
@@ -38,16 +38,16 @@
 
 Runtime 默认工具集为空。产品入口 compass_definition() 装配 todo、database、python、workflow 及经授权的定时任务工具：
 
-- final_answer：提交 plain / evidence 私有候选，由同一 Loop 校验后发布正文、引用和附件。完成能力独占调用批次，不占业务工具次数。
+- final_answer：新 Run 传入 `mode=plain|evidence` 与可选 `artifactFormat`，触发无工具的独立流式回答。混批先执行工作工具，再返回延期回执；交付前后复核来源，最终保存正文、引用与附件。交付前至多增加一次受原预算约束的工作复核；`completion=partial` 保留未完成状态。旧 Run 沿冻结协议处理候选和审阅。
 - todo_write：模型登记和维护任务计划。
-- database_query：列出授权 PostgreSQL 连接、发现获准 schema 的表和字段、执行受限只读 SQL。多连接使用 connectionId，表名须带 schema。工具读取表和字段注释；账号权限与 RLS 继续约束可见数据。当前 MySQL 仅提供连接配置与探测。
-- python_analysis：沙箱可用时执行通用分析代码；输入必须是当前 owner、租户和 Run 授权的数据引用。当前产物通道保留 PNG。
+- database_query：模型只传 `sql`，通过 `information_schema` 探查获准表列，再按完整 `schema.table` 路由到唯一授权连接。多连接元信息聚合；列名错误返回授权候选，SAVEPOINT 保持事务可继续。结果同时返回 `resultId` / `sourceQueryId`。账号权限与 RLS 继续约束数据，MySQL 当前提供连接配置与探测。
+- python_analysis：沙箱可用时执行通用分析代码；输入必须是当前 owner、租户和 Run 授权的数据引用。当前产物通道保留 PNG。同用户、租户与工作区复用一个 Sandbox，默认并行 2 个独立进程；每次调用的当前目录、`output_dir`、`chart_path` 独立，`shared_dir=/workspace/shared` 共享文件。图表写 `chart_path` 或相对 `chart.png`，共享同名文件由调用者协调。空闲 600 秒且无活动命令后回收容器和工作卷；已交付产物沿 ArtifactStore 保留。跨 Run 复用会复核全部输入来源权限，命令按独立 ID 取消和恢复。可变共享文件使代码/input 指纹不足以复用结果，因此 Python 调用不参与 Goal 结果去重。
 - create_workflow：用本次参数试跑模型生成的编排，成功后提出保存邀请。脚本入口支持异步函数体及 `async function (args) { … }` 包装，编译失败返回 `invalid_workflow_script`。
 - goal：propose 经本人审批创建或修订会话目标；record 写入进度账本，complete 执行完成核验，block 停止自动推进并说明所需决定。仅主任务、受控自主模式和调度消费者可用。
-- sub_agent：接收 tasks 委派契约（最多 4 项、并行 2 项），也兼容 prompt。每项使用独立进程与 3–8 步预算，按父任务工具、连接和输入范围运行；report_to_parent progress/final 回传并按 childRunId 单次持久交付。新答案协议按注册元数据继承当前可见只读能力；变更、固定审批、递归编排和完成能力留给父级，动态确认事项交回父级。父子共享预算，子级只返回内部结果与证据，父级统一交付。旧 Run 保留原数据库委派边界。
+- sub_agent：接收 tasks 委派契约（最多 4 项、并行 2 项），也兼容 prompt。每项使用独立进程与 3–8 步预算，按父任务工具、连接和输入范围运行；report_to_parent 以 summary、evidenceIds、gaps、status 回传并按 childRunId 单次持久交付；旧协议保留 progress/final。新答案协议按注册元数据继承当前可见只读能力；变更、固定审批、递归编排和完成能力留给父级，动态确认事项交回父级。父子共享预算，子级只返回内部结果与证据，父级统一交付。旧 Run 保留原数据库委派边界。
 - schedule_read 读取当前工作区内本人计划和触发历史。schedule_write 生成一次所有者确认，摘要包含计划变更和按计划时区显示的预计触发时间，分析内容保留 Markdown 换行。工具使用已批准的计划版本、Run 租约与持久 Action 同事务完成更新和 Checkpoint。定时 Run 只装配读取工具。
-- 个人工作流：按用户及工作区装配启用的动态资产，执行时再次复验。模型工具清单保留通用和 MCP 工具，剩余槽位按创建时间装配资产。
-- 用户配置的 MCP：每个 Run 重新发现，沿用统一授权、预算、审批、取消和恢复机制。
+- 个人工作流：按用户及工作区冻结启用的动态资产，按本轮选择挂载，执行时再次复验。自动化场景无显式选择时最多回退装载四项。
+- 用户配置的 MCP：新 Run 仅探测显式选择的本人连接，恢复按冻结绑定还原。未选连接跳过联网；沿用统一授权、预算、审批、取消和恢复机制。
 
 数据库注册由 data_connections.tools.provider() 按可信运行上下文加载连接，使用 database_query 自己的声明和工厂。查询结果在工具适配内登记 AuthorizedInput，供 Python 使用；Runtime 不解析业务字段。
 
@@ -63,12 +63,24 @@ Runtime 默认工具集为空。产品入口 compass_definition() 装配 todo、
 
 ## 通用结果与交付接入
 
-工具结果直接返回模型的默认预算为 20,000 token，由 [result_store.py](result_store.py) 的 `INLINE_TOKENS` 统一定义；`database_query` 的内联结果和 `read_tool_result` 的默认分页共用该预算。当前使用 UTF-8 字节数保守估算 token。超过预算时保存完整原件并返回引用和预览，后续按需分页读取；原件回执的预览预算为 512。
+工具结果直接返回模型的默认预算为 20,000 token，由 [result_store.py](result_store.py) 的 `INLINE_TOKENS` 统一定义；`database_query` 的内联结果和 `read_tool_result` 的默认分页共用该预算。当前使用 UTF-8 字节数保守估算 token。超过预算时保存完整原件并返回引用和预览，后续按需分页读取；原件回执的预览预算为 512。`originalComplete` / `truncated` 描述原件完整性，`previewTruncated` 描述预览；原件回执与授权分页均登记为最终回答材料，分页保留原件总行数。
 
-ToolSpec / RegisteredTool 的 evidence_adapter 负责把已授权回执适配为可引用来源；completion 标记受信完成能力，public_projection 控制公开过程详情。无适配器的工具仍可正常执行。after_tool_batch 登记结果，before_delivery 检查候选；需要语义审阅时返回主 Loop 的 verify 模型步骤。原有权限、审批、预算、取消与恢复继续复用。模型工具目录总容量为 32；MCP 按同一目录容量装配。
+ToolSpec / RegisteredTool 的 evidence_adapter 负责把已授权回执适配为可引用来源；completion 标记受信完成能力，public_projection 控制公开过程详情。无适配器的工具仍可正常执行。after_tool_batch 登记结果，协议 3 的 Answer Prompt 使用排序且有界的来源预览；协议 2 沿用 before_delivery 与 verify。原有权限、审批、预算、取消与恢复继续复用。授权注册池上限为 128，单步声明上限为 32 项 / 64 KiB，手选扩展的实际工具总数上限为 12。
 
 ## 大结果与渐进读取
 
 `read_tool_result` 是通用只读工具，按不透明 ref、零起始 offset / limit 或 nextCursor 读取既有结果。工具原文先通过生产者的输出校验，再保存私有原件；公开回执保留状态、实际规模、完整性、有限样本及引用。大单行、宽字段与长文本使用片段游标，页大小保持有界。
 
 具有来源授权信息的生产者在 `ExecutionReceipt.source_deps` 声明本次操作的依赖；数据库使用查询或元信息 witness。未声明的通用结果包含当前 Run / epoch 的 transient 依赖。授权依赖与原件 manifest 经 Journal 接受后才能回读，恢复时复核内容摘要；原件故障不重复执行已接受的外部动作。
+
+## 第 27 课装配与恢复
+
+`ToolSpec` 分离模型声明、Runtime 适配与 `ToolGovernance`。`assembler.py` 先做权限交集，再按 `always_on`、`user_selected`、`scene_routed` 合流。常驻底座 11 项；深度分析补充 Todo、Python 与子任务；长任务、工作流、语义治理与个人扩展按选择和场景启用。治理能力要求 `semantic_maintainer`，子任务仅继承只读且无审批的父级可见工具，定时 Run 剔除 `schedule_write`。子任务保留可选 `maxSteps`（3–8）供模型按调查与汇报所需步骤分配，仍受父级总预算约束。工作流子任务参数错误返回具体字段和修正方式。缺少指标执行绑定时返回使用获准明细即时计算的指引，权限拒绝维持原行为。
+
+`RunConstraints.toolSelection` 持久保存并由 Goal 后续轮次继承。意图识别独立输出所需静态工具，装配仍受权限、角色与声明预算约束；工作入口冻结该需求以及计划、目标及草稿标志；工作步骤保持工具序列不变，预算收口只保留 `final_answer`，回答阶段清空工具。阶段转换决定随 Run 保存，换 Worker 后沿原决定恢复。旧 Run 从冻结声明恢复并继续原输入和答案协议。上下文编译改变已封存的消息前缀时，先核对原输入仍匹配续接摘要，再移除续接令牌、使用安全处理后的完整历史；原输入不匹配时仍由模型协议拒绝。
+
+SQL 预检拒绝通过 `ActionableToolRejected` 返回 `invalid_parameters / fix_arguments`，保留 `not_started` 状态，不进入资源状态未知的回收流程。外部后端的明确准入拒绝也先形成同类回执，再进入 Journal 接受与重放，避免已知拒绝占住 Worker。
+
+同步输入适配统一在线程中执行，保留当前执行上下文；适配内的来源复核和事务完成后才进入工具准入，取消时等待读取收尾。模型直调和工作流子任务使用相同边界。用户已确认的指标含义随每轮固定 Registry 上下文进入模型输入，原始问题保持不变，避免历史优化覆盖新确认。确认摘要变化时重建一次模型上下文；回执保存摘要，后续步骤及跨 Worker 恢复可继续原生续接。
+
+`ActionableToolError` 返回 `code/category/field/candidates/nextAction`，限制在 4 KiB。诊断集与真实模型 runner 放在 `tests/tool_eval/`；运行说明见其 README。`test_lesson27_integration.py` 纳入 `pnpm test:integration -F agent`，覆盖真实 PostgreSQL、流式、恢复、旧契约和确认流程。

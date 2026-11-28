@@ -22,12 +22,21 @@ from compass_agent.semantic.evidence import result as evidence_result
 from compass_agent.tools.builtin.database_query import (
     _FUNCTIONS,
     DATABASE_ACTION,
+    SPEC,
     DatabaseResult,
     ListConnections,
+    ReadSql,
     definition,
     fingerprint,
     query_database,
 )
+from compass_agent.tools.builtin.database_query.slim import (
+    is_metadata,
+    normalize_input,
+    query_relations,
+    route_binding,
+)
+from compass_agent.tools.catalog_contracts import CatalogContext
 from compass_agent.tools.contracts import (
     AuthorizedInput,
     ExecutionReceipt,
@@ -41,6 +50,7 @@ from compass_agent.tools.contracts import (
 from compass_agent.tools.contracts import (
     preview as bounded_preview,
 )
+from compass_agent.tools.errors import ActionableToolError
 from compass_agent.tools.registry import bounded_payload, parse_arguments
 
 
@@ -132,6 +142,9 @@ def registration(
             if context.connection_ids is None
             or str(b.connection_id or b.workspace_id) in context.connection_ids
         )
+        if current is not None:
+            authorized = await current()
+            allowed_bindings = tuple(b for b in allowed_bindings if b in authorized)
         available = {
             str(item.connection_id or item.workspace_id): item for item in allowed_bindings
         }
@@ -143,6 +156,36 @@ def registration(
                 or (allowed_bindings[0] if len(allowed_bindings) == 1 else None)
             )
         )
+        if isinstance(action, ReadSql) and not action.connection_id:
+            relations = query_relations(action.sql)
+            if is_metadata(relations) and len(allowed_bindings) > 1:
+                # Each branch is reauthorized and recorded under its connection-qualified call ID.
+                from dataclasses import replace
+
+                receipts = await asyncio.gather(
+                    *(
+                        execute(
+                            {**args, "connectionId": str(b.connection_id or b.workspace_id)},
+                            replace(context, call_id=f"{context.call_id}:{i}"),
+                        )
+                        for i, b in enumerate(allowed_bindings)
+                    )
+                )
+                return ExecutionReceipt(
+                    context.call_id,
+                    "ok" if all(receipt.status == "ok" for receipt in receipts) else "error",
+                    "confirmed",
+                    {
+                        "connections": [
+                            {"name": b.name, "result": receipt.payload}
+                            for b, receipt in zip(allowed_bindings, receipts, strict=True)
+                        ]
+                    },
+                    source_deps=tuple(
+                        ref for receipt in receipts for ref in receipt.source_deps or ()
+                    ),
+                )
+            binding = await route_binding(allowed_bindings, action.sql, context.control)
         if binding is None:
             return ExecutionReceipt(
                 context.call_id,
@@ -184,12 +227,17 @@ def registration(
             lambda: (query or query_database)(call, binding, context.control), timeout_s=8
         )
         if not isinstance(result, DatabaseResult):
-            failure = {"status": "error", "code": result}
+            failure = (
+                result.payload()
+                if isinstance(result, ActionableToolError)
+                else {"status": "error", "code": result}
+            )
             if result == "invalid_parameters":
                 failure.update(
                     repair=(
-                        "请依据 list_tables / describe_table 返回的业务表和字段修正单条 SELECT。"
-                        "元信息使用上述工具操作读取；普通函数调用支持 supportedFunctions 中的名字，"
+                        "请通过 information_schema.tables / information_schema.columns "
+                        "核对授权表和字段后修正单条 SELECT；"
+                        "函数调用支持 supportedFunctions 中的名字，"
                         "也可直接选择原始列。"
                     ),
                     supportedFunctions=sorted(_FUNCTIONS),
@@ -200,7 +248,12 @@ def registration(
                     payload=ToolFailedPayload(
                         **common,
                         status="error",
-                        errorCode=cast(RunToolError, result),
+                        errorCode=cast(
+                            RunToolError,
+                            "database_query_failed"
+                            if isinstance(result, ActionableToolError)
+                            else result,
+                        ),
                         resultPreview=json_bytes(failure).decode(),
                     ),
                 )
@@ -226,6 +279,7 @@ def registration(
                 )
         if journal and getattr(journal, "context_binding", None):
             await finish_bookkeeping(asyncio.to_thread(record_source, journal, witness))
+        payload["sourceQueryId"] = payload["resultId"]
         context.sources[payload["resultId"]] = AuthorizedInput(
             context.run_id, context.owner, payload, revalidate
         )
@@ -261,7 +315,7 @@ def registration(
 
     return RegisteredTool(
         "database_query",
-        definition(),
+        SPEC.current_definition(CatalogContext(frozenset())),
         ToolPolicy(),
         InProcessBinding(execute),
         parse_arguments,
@@ -270,4 +324,7 @@ def registration(
         parallel_safe=True,
         evidence_adapter=evidence_result,
         fingerprint=fingerprint,
+        normalize_input=normalize_input,
+        legacy_definition=definition(),
+        governance=SPEC.governance,
     )

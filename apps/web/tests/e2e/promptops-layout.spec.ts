@@ -16,6 +16,7 @@ async function prepare(page: Page) {
   function add(path: string, body: string, draft = false) {
     files.set(path, {
       path,
+      governance: null,
       body: draft ? null : body,
       draft_body: draft ? body : null,
       current_version: draft ? null : 1,

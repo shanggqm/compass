@@ -224,6 +224,8 @@ def prepare_input(
     goal_anchor=None,
     security_mode="enforce",
     reviewing=False,
+    answer_mode=None,
+    tool_assembly=None,
 ):
     from compass_agent.promptops.template import render
 
@@ -238,7 +240,7 @@ def prepare_input(
             if k == search.get("connectionId") and v == search.get("connectionRevision")
         }
     available = tuple(t.function.name for t in draft.tools)
-    if not current and binding.get("answerProtocol") != 2:
+    if not current and binding.get("answerProtocol", 1) < 2:
         available = tuple(t for t in available if t != "database_query")
     allow = grants.get("analysis") is True and grants.get("model") is True
     if not allow:
@@ -274,6 +276,8 @@ def prepare_input(
     paths = list(dict.fromkeys([*profile.paths, *support_paths, *usage]))
     if binding.get("optimizationVersion") == 1:
         paths.append("shared/fragments/context-results.md")
+    if answer_mode:
+        paths = ["answer/evidence.md" if answer_mode == "evidence" else "answer/plain.md"]
     files = exact(tx, binding, paths)
     receipts = [f.receipt() for f in files]
     definitions = [f"tools/{tool.name}.json" for tool in TOOLS if tool.name in names]
@@ -336,29 +340,23 @@ def prepare_input(
             }
             if search:
                 content.pop("previous_results")
-            messages.insert(1, ChatMessage(role="user", content=canonical(content).decode()))
-            required_positions = (1,)
             if decisions := registry_context.get("owner_clarifications"):
-                owner_turn = max(i for i, message in enumerate(messages) if message.role == "user")
                 names = {
                     item.get("asset_id"): item.get("name") for item in registry_context["items"]
                 }
-                confirmations = []
-                for choice in decisions:
-                    selected = (
-                        choice.get("definition")
+                # Confirmed meanings are current fixed context. Keep the original owner
+                # turn immutable so history optimization cannot restore a stale decision.
+                content["owner_confirmed_meanings"] = [
+                    {
+                        "mention": choice["mention"],
+                        "definition": choice.get("definition")
                         or names.get(choice.get("metric_id"))
-                        or choice["metric_id"]
-                    )
-                    confirmations.append(f"「{choice['mention']}」使用：{selected}")
-                latest = messages[owner_turn]
-                messages[owner_turn] = latest.model_copy(
-                    update={
-                        "content": (latest.content or "")
-                        + "\n\n我刚在本轮选择卡确认了以下口径，请按此完成原问题：\n"
-                        + "\n".join(confirmations)
+                        or choice["metric_id"],
                     }
-                )
+                    for choice in decisions
+                ]
+            messages.insert(1, ChatMessage(role="user", content=canonical(content).decode()))
+            required_positions = (1,)
         if dictionary and messages:
             question = question or next(
                 (m.content or "" for m in reversed(messages) if m.role == "user"), ""
@@ -486,6 +484,7 @@ def prepare_input(
     )
     receipt = {
         "schemaVersion": 1,
+        **({"toolAssembly": tool_assembly} if tool_assembly is not None else {}),
         "contextOps": {
             "frozen": frozen,
             "reviewing": reviewing,

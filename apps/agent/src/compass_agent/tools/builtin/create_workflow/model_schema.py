@@ -1,0 +1,37 @@
+"""Model-facing contract; execution retains the full internal domain model."""
+
+SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "工作流模板名称（<=80 字）。",
+        },
+        "description": {
+            "type": "string",
+            "description": "工作流适用场景与输出摘要说明。",
+        },
+        "parameters": {
+            "type": "object",
+            "description": (
+                "工作流入参 JSON Schema（顶层须包含 type='object' 与 properties 字段定义）。"
+            ),
+        },
+        "scriptSource": {
+            "type": "string",
+            "description": (
+                "JS 异步函数体：从 args.<字段> 读入参，调用 "
+                "await agent('sub_agent', {tasks:[{name:'子任务名称', objective:'调查目标'}]})。"
+                "tasks 中每项必填 name/objective；单任务兼容 {prompt:'调查目标'}。"
+                "用 await parallel([()=>agent(...),()=>agent(...)]) 并行，"
+                "以 return {status:'ok', result} 结束。"
+            ),
+        },
+        "args": {
+            "type": "object",
+            "description": ("用于本次即时试跑验证的实参对象（须匹配 parameters 定义）。"),
+        },
+    },
+    "required": ["name", "description", "parameters", "scriptSource", "args"],
+}

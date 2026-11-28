@@ -28,6 +28,14 @@ def test_large_query_read_does_not_repeat_query_or_lose_rows(tmp_path):
     assert receipt["returnedRows"] == 10000
     assert len(json_bytes(receipt)) <= 512
     assert len(receipt["preview"]) <= 5
+    assert receipt["originalComplete"] and not receipt["truncated"]
+    assert receipt["previewTruncated"]
+    from compass_agent.semantic.evidence import result
+
+    evidence = list(result({}, receipt, []))
+    assert evidence[0]["kind"] == "query"
+    assert evidence[0]["record"]["returnedRows"] == 10000
+    assert "rows" not in evidence[0]["record"]
     page = store.read(manifest, offset=8000, limit=1)
     assert page["data"] == [[8000, "渠道甲"]]
     assert page["range"] == {"start": 8000, "end": 8001}
@@ -35,6 +43,13 @@ def test_large_query_read_does_not_repeat_query_or_lose_rows(tmp_path):
     assert page["sourceComplete"]
     assert not page["complete"]
     assert store.read(manifest, offset=9999, limit=1)["complete"]
+    empty = store.read(manifest, offset=10000, limit=1)
+    assert empty["data"] == [] and empty["returnedRows"] == 10000
+    from compass_agent.tools.builtin.read_tool_result import evidence as page_evidence
+
+    record = list(page_evidence({}, empty, []))[0]
+    assert record["record"]["range"]["start"] == 10000
+    assert record["record"]["sourceComplete"]
 
 
 def test_oversized_record_pages_advance_without_losing_characters(tmp_path):
@@ -69,6 +84,7 @@ def test_text_page_preserves_unicode_and_original_completeness(tmp_path):
     assert "".join(collected) == text
     partial = save(store, {"columns": ["id"], "rows": [[1]], "truncated": True})
     assert not store.receipt(partial)["complete"]
+    assert store.receipt(partial)["truncated"]
     assert not store.read(partial)["sourceComplete"]
     assert store.read(partial)["complete"]
 

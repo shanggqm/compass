@@ -2,187 +2,37 @@
   "type": "function",
   "function": {
     "name": "report_to_parent",
-    "description": "**用途与调用规则**\n\n- 向主 Agent 汇报。用 kind 选择：\n\n| kind | 什么时候用 | 结果 |\n| --- | --- | --- |\n| progress | 完成一个有意义的中间步骤，主 Agent 和用户需要知道进展时 | 更新任务卡片摘要，继续执行 |\n| final | 任务完成、只能部分完成或被阻塞时 | 交回结果并结束任务 |\n\n- progress 只写一句进展，60 字以内，不写数值明细。\n- final 只调用一次，调用后任务结束。\n- final.status：completed 表示 expectations 都已回答；partial 表示部分回答，未回答的写进 gaps；blocked 表示需要主 Agent 或用户处理，原因写进 blockers。\n- findings 每条写一个可核对的结论，引用本任务查询得到的 evidenceIds；可比较的数值写 factKey、value、unit。\n- 没有证据支撑的推测写进 gaps，不写进 findings。",
+    "description": "- 子任务调查结束时向主 Agent 交回最终结论并终止当前子任务（仅在完成或确认受阻时调用一次）。",
     "parameters": {
       "type": "object",
-      "$defs": {
-        "ChildReturn": {
-          "additionalProperties": false,
-          "properties": {
-            "status": {
-              "enum": ["completed", "partial", "blocked"],
-              "title": "Status",
-              "type": "string"
-            },
-            "summary": {
-              "maxLength": 1000,
-              "minLength": 1,
-              "title": "Summary",
-              "type": "string"
-            },
-            "findings": {
-              "items": {
-                "$ref": "#/$defs/Finding"
-              },
-              "maxItems": 20,
-              "title": "Findings",
-              "type": "array"
-            },
-            "artifactRefs": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 8,
-              "title": "Artifactrefs",
-              "type": "array"
-            },
-            "gaps": {
-              "items": {
-                "maxLength": 500,
-                "type": "string"
-              },
-              "maxItems": 10,
-              "title": "Gaps",
-              "type": "array"
-            },
-            "blockers": {
-              "items": {
-                "maxLength": 500,
-                "type": "string"
-              },
-              "maxItems": 5,
-              "title": "Blockers",
-              "type": "array"
-            },
-            "nextActions": {
-              "items": {
-                "maxLength": 500,
-                "type": "string"
-              },
-              "maxItems": 5,
-              "title": "Nextactions",
-              "type": "array"
-            }
-          },
-          "required": ["status", "summary"],
-          "title": "ChildReturn",
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "面向主 Agent 的结构化调查结论与关键数值摘要（Markdown）。"
         },
-        "FinalReport": {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "const": "final",
-              "title": "Kind",
-              "type": "string"
-            },
-            "result": {
-              "$ref": "#/$defs/ChildReturn"
-            }
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
           },
-          "required": ["kind", "result"],
-          "title": "FinalReport",
-          "type": "object"
+          "description": "支撑上述结论的本子任务工具回执 evidenceId 列表。"
         },
-        "Finding": {
-          "additionalProperties": false,
-          "properties": {
-            "statement": {
-              "maxLength": 500,
-              "minLength": 1,
-              "title": "Statement",
-              "type": "string"
-            },
-            "factKey": {
-              "anyOf": [
-                {
-                  "pattern": "^[a-z0-9_.:-]{1,80}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Factkey"
-            },
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Value"
-            },
-            "unit": {
-              "anyOf": [
-                {
-                  "maxLength": 20,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Unit"
-            },
-            "evidenceIds": {
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 8,
-              "title": "Evidenceids",
-              "type": "array"
-            }
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
           },
-          "required": ["statement"],
-          "title": "Finding",
-          "type": "object"
+          "description": "受权限或数据限制未能核实的缺口说明；全部完成时省略。"
         },
-        "ProgressReport": {
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "const": "progress",
-              "title": "Kind",
-              "type": "string"
-            },
-            "summary": {
-              "maxLength": 120,
-              "minLength": 1,
-              "title": "Summary",
-              "type": "string"
-            }
-          },
-          "required": ["kind", "summary"],
-          "title": "ProgressReport",
-          "type": "object"
+        "status": {
+          "type": "string",
+          "enum": ["completed", "partial", "blocked"],
+          "description": "子任务完成态：全部完成传 completed，存在缺口传 partial，权限或数据受阻传 blocked；省略时按 gaps 自动推导。"
         }
       },
-      "discriminator": {
-        "mapping": {
-          "final": "#/$defs/FinalReport",
-          "progress": "#/$defs/ProgressReport"
-        },
-        "propertyName": "kind"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ProgressReport"
-        },
-        {
-          "$ref": "#/$defs/FinalReport"
-        }
-      ],
-      "title": "ReportToParentInput"
+      "required": ["summary"]
     }
-  }
+  },
+  "examples": []
 }

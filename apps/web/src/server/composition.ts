@@ -192,6 +192,9 @@ export async function authorizeRuntime(
               analysis: allowed(current, "module.analysis", scope),
               model: allowed(current, "models.invoke", scope),
               plugins: allowed(current, "module.plugins", scope),
+              semantic_maintainer:
+                allowed(current, "semantics.draft", scope) ||
+                allowed(current, "semantics.govern", scope),
             },
           }
         : {}),

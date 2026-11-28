@@ -31,6 +31,9 @@ class Allocation:
     seq: int
     deadline: datetime
     retain_until: datetime | None
+    shared: bool = False
+    reconcile_token: UUID | None = None
+    absent_since: datetime | None = None
 
     @property
     def metadata(self):
@@ -66,6 +69,9 @@ class Allocations:
             row.resource_seq,
             row.resource_deadline,
             row.retain_until,
+            row.shared,
+            row.reconcile_token,
+            row.absent_since,
         )
 
     def _quota(self, session, tenant, *, validate=True):
@@ -147,6 +153,10 @@ class Allocations:
             row is None
             or row.resource_seq != allocation.seq
             or row.resource_phase != allocation.phase
+            or (
+                allocation.reconcile_token is not None
+                and row.reconcile_token != allocation.reconcile_token
+            )
         ):
             raise ToolRejected("sandbox_phase_stale")
         return row
@@ -192,7 +202,7 @@ class Allocations:
         if phase not in {"collect", "inspect", "clean"}:
             raise ToolRejected("sandbox_phase_stale")
         with Session(self.engine) as session, session.begin():
-            self._quota(session, allocation.owner[0])
+            self._quota(session, allocation.owner[0], validate=phase != "clean")
             row = self._locked(session, allocation)
             if row.state != "retained" or row.sandbox_id is not None:
                 raise ToolRejected("sandbox_phase_stale")
@@ -212,6 +222,7 @@ class Allocations:
                 "creating",
             )
             row.resource_deadline = datetime.now(UTC) + timedelta(seconds=155)
+            row.absent_since = None
             row.reconcile_token = row.reconcile_until = None
             return self.value(row)
 
@@ -234,6 +245,7 @@ class Allocations:
                     select(SandboxAllocation)
                     .where(
                         SandboxAllocation.host == self.host,
+                        SandboxAllocation.shared.is_(False),
                         SandboxAllocation.state != "released",
                         or_(
                             SandboxAllocation.reconcile_until.is_(None),
@@ -280,3 +292,28 @@ class Allocations:
                     )
                 )
             ]
+
+    def observe_absent(self, allocation: Allocation) -> bool:
+        # A create may finish after its HTTP response is lost. The stored deadline
+        # includes the remote maximum lifetime and server create timeout. Require
+        # two successful remote empty listings, separated by a reconciliation lease.
+        now = datetime.now(UTC)
+        with Session(self.engine) as session, session.begin():
+            row = self._locked(session, allocation)
+            if row.resource_deadline >= now or row.state not in ACTIVE:
+                return False
+            if row.absent_since is None:
+                row.absent_since = now
+                return False
+            return row.absent_since + timedelta(seconds=60) <= now
+
+    def observe_resource(self, allocation: Allocation, sandbox_id: str) -> Allocation:
+        with Session(self.engine) as session, session.begin():
+            row = self._locked(session, allocation)
+            if row.state not in ACTIVE:
+                raise ToolRejected("sandbox_phase_stale")
+            if row.sandbox_id not in (None, sandbox_id):
+                raise ToolRejected("sandbox_phase_stale")
+            row.sandbox_id = sandbox_id
+            row.absent_since = None
+            return self.value(row)

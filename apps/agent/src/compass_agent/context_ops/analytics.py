@@ -407,7 +407,12 @@ class Analytics:
                     redacted_count=summary.redacted_count,
                     funnel=summary.funnel_json,
                     source_breakdown=summary.source_breakdown_json,
-                    decisions=summary.decisions_json,
+                    decisions=summary.decisions_json.get("items", [])
+                    if isinstance(summary.decisions_json, dict)
+                    else summary.decisions_json,
+                    toolAssembly=summary.decisions_json.get("toolAssembly")
+                    if isinstance(summary.decisions_json, dict)
+                    else None,
                 )
             )
         return sorted(nodes, key=lambda n: (aware(n.started_at), n.ordinal, n.id))

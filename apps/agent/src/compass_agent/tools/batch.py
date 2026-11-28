@@ -14,6 +14,7 @@ from compass_agent.tools.contracts import (
     ToolRejected,
 )
 from compass_agent.tools.dispatcher import ToolDispatcher
+from compass_agent.tools.errors import ActionableToolRejected
 
 REVOKED = {
     "mcp_configuration_stale",
@@ -31,7 +32,50 @@ async def dispatch_batch(
 ) -> tuple[ToolExecutionResult, ...]:
     if not calls or len(calls) > 16 or len({c.id for c in calls}) != len(calls):
         raise ToolRejected("invalid_batch")
-    # Reject the entire batch before approval preparation or any tool can execute.
+    from compass_agent.execution_context import current_execution
+
+    journal = current_execution.get()
+    if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 3 and len(
+        calls
+    ) > 1:
+        work_calls = tuple(call for call in calls if call.function.name != "final_answer")
+        if len(work_calls) != len(calls):
+            executed = (
+                await dispatch_batch(dispatcher, work_calls, context, policy) if work_calls else ()
+            )
+            by_id = {result.call_id: result for result in executed}
+            for call in calls:
+                if call.id not in by_id:
+                    context.emit(
+                        ToolExecutionEvent(
+                            context.run_id,
+                            context.step_id,
+                            call.id,
+                            call.function.name,
+                            "none",
+                            "read_only",
+                            "none",
+                            "rejected",
+                            "not_started",
+                            0,
+                            "completion_deferred",
+                        )
+                    )
+            return tuple(
+                by_id.get(call.id)
+                or ToolExecutionResult(
+                    call.id,
+                    "rejected",
+                    reason_code="completion_deferred",
+                    payload={
+                        "errorCode": "completion_deferred",
+                        "message": "同批工作调用已处理，请根据结果继续。",
+                        "nextAction": "工作完成后单独调用 final_answer。",
+                    },
+                )
+                for call in calls
+            )
+    # Older protocols retain their original whole-batch completion rule.
     if len(calls) > 1 and any(
         entry.completion
         for call in calls
@@ -71,7 +115,7 @@ async def dispatch_batch(
     try:
         for index, call in enumerate(calls):
             try:
-                item = dispatcher.prepare(call, context)
+                item = await dispatcher.prepare(call, context)
                 prepared[index] = item
                 if item.tool.local_effect and len(calls) != 1:
                     raise ToolRejected("tool_requires_independent_call")
@@ -90,7 +134,14 @@ async def dispatch_batch(
                         call.id, "rejected", reason_code="parallel_not_supported"
                     )
             except ToolRejected as error:
-                results[index] = ToolExecutionResult(call.id, "rejected", reason_code=error.code)
+                results[index] = ToolExecutionResult(
+                    call.id,
+                    "rejected",
+                    reason_code=error.code,
+                    payload=error.error.payload()
+                    if isinstance(error, ActionableToolRejected)
+                    else None,
+                )
     except asyncio.CancelledError:
         raise PhaseCanceled(cleanup_confirmed=context.control.cleanup_confirmed) from None
     waiting = any(result and result.status == "waiting" for result in results)

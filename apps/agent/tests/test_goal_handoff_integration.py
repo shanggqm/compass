@@ -439,7 +439,7 @@ def test_large_goal_receipt_has_persistent_owner_sources_and_readable_original(
         dispatcher = ToolDispatcher(registry, ExecutionSlots(), ArtifactStore())
         token = current_execution.set(journal)
         try:
-            result = await dispatcher.execute(dispatcher.prepare(request, ctx), ctx)
+            result = await dispatcher.execute(await dispatcher.prepare(request, ctx), ctx)
             assert result.status == "ok", result.reason_code
             assert result.context_result and result.context_result["sourceDeps"] == []
             return result.context_result
@@ -527,7 +527,7 @@ def test_effect_keeps_original_file_and_imports_complete_evidence_without_reexec
                     }
                 ),
             )
-            source = await dispatcher.execute(dispatcher.prepare(request, ctx), ctx)
+            source = await dispatcher.execute(await dispatcher.prepare(request, ctx), ctx)
             assert source.status == "ok" and isinstance(source.payload, dict)
             after_tool_batch(
                 journal,
@@ -547,7 +547,7 @@ def test_effect_keeps_original_file_and_imports_complete_evidence_without_reexec
                     }
                 ),
             )
-            result = await dispatcher.execute(dispatcher.prepare(request, py_ctx), py_ctx)
+            result = await dispatcher.execute(await dispatcher.prepare(request, py_ctx), py_ctx)
             assert result.status == "ok" and isinstance(result.payload, dict)
             observed = after_tool_batch(
                 journal,

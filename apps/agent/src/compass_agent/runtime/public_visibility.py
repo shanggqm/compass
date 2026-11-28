@@ -11,6 +11,12 @@ def managed_events(store, tx, run, events):
     """Only publish progress metadata. Authorized reads hydrate the final private answer."""
     output = []
     for event in events:
+        from compass_agent.runtime.answer_publication import marker_data
+
+        if marker_data(event):
+            # The chunk is already encrypted; this ordered reference carries no answer text.
+            output.append(event)
+            continue
         if event["type"] == "message.delta":
             continue
         if event["type"] == "view.upsert":

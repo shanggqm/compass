@@ -10,6 +10,7 @@ vi.mock("../../src/server/composition", () => ({
 }));
 vi.mock("../../src/server/agent-api", () => ({ requestModelAgent: mocks.upstream }));
 import { handleMcpRequest } from "../../src/server/http/mcp-handler";
+import { handleWebRequest } from "../../src/server/http/handler";
 import { ApplicationError } from "../../src/server/platform/errors";
 import { csrfToken } from "../../src/server/http/security";
 
@@ -42,6 +43,22 @@ beforeEach(() => {
   mocks.upstream.mockResolvedValue(Response.json({ items: [] }));
 });
 describe("personal MCP BFF", () => {
+  it("serves the analysis tool selector through the Web API with the same authorization", async () => {
+    const original = request("GET");
+    const response = await handleWebRequest(
+      new Request(original.url.replace("/api/mcp/", "/api/web/v1/mcp/"), original),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.authorize).toHaveBeenCalledWith(token, {
+      kind: "tenant",
+      purpose: "mcp_manage",
+      tenantId: tenant,
+      workspaceId: workspace,
+    });
+    expect(mocks.upstream).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/v1/mcp/connections", schema: "McpConnectionList" }),
+    );
+  });
   it("derives the actor through session authorization and forwards the personal purpose", async () => {
     expect((await handleMcpRequest(request("GET"))).status).toBe(200);
     expect(mocks.authorize).toHaveBeenCalledWith(token, {

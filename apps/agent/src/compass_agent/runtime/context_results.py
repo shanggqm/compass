@@ -176,4 +176,6 @@ class ContextResults:
         from compass_agent.context_runtime.source_access import record_sources
 
         await asyncio.to_thread(record_sources, self.journal, manifest["sourceDeps"])
-        return ExecutionReceipt(context.call_id, "ok", "confirmed", value)
+        return ExecutionReceipt(
+            context.call_id, "ok", "confirmed", value, source_deps=tuple(manifest["sourceDeps"])
+        )

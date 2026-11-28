@@ -2,131 +2,37 @@
   "type": "function",
   "function": {
     "name": "resolve_semantics",
-    "description": "**用途与调用规则**\n\n- 解析本次提问指向的正式指标。\n- 根据前文或本次要求确定指标后可直接传可见 metric_id。\n- 仍有歧义时省略 ID，让用户选择或补充计算方法。\n- 无绑定时返回可见定义，按当前授权继续分析。\n- 用签发的 query_ref 计算。\n- 正式取数需在 parameters 中提交 start 和 end，并指定需要的分组及过滤。\n- 服务端按 Run 的受理时刻填写 as_of，仅在用户明确指定历史数据截止时提交 historical_as_of。\n- query_metric 复用返回的规范化参数。\n- previous_equal_window 提供紧邻本期且天数相同的上一业务日期区间，使用相同分组、筛选和截止时刻。\n- 若收到 invalid_parameters，请按 field、filter_types 和 group_by_options 修正。\n- 筛选值使用绑定要求的 JSON 类型，编号型维度填整数。",
+    "description": "- 将用户提问的指标、期间与维度条件绑定为受控查询引用 query_ref。若预注入 authorized_resolution 已含匹配 query_ref，禁止重复调用，直接调 query_metric。",
     "parameters": {
-      "$defs": {
-        "Parameters": {
-          "additionalProperties": false,
-          "properties": {
-            "start": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "Start",
-              "type": "string"
-            },
-            "end": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "title": "End",
-              "type": "string"
-            },
-            "as_of": {
-              "anyOf": [
-                {
-                  "maxLength": 40,
-                  "minLength": 16,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "As Of"
-            },
-            "group_by": {
-              "anyOf": [
-                {
-                  "maxLength": 120,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Group By"
-            },
-            "filters": {
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "boolean"
-                  }
-                ]
-              },
-              "maxProperties": 32,
-              "title": "Filters",
-              "type": "object"
-            }
-          },
-          "required": ["start", "end"],
-          "title": "Parameters",
-          "type": "object"
-        }
-      },
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "mention": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Mention",
-          "type": "string"
+          "type": "string",
+          "description": "用户问题中的原始指标名称（如 '净销售额'）。"
         },
         "metric_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Metric Id"
+          "type": "string",
+          "description": "已确认的正式指标资产 ID；存在同名多口径歧义时省略以触发用户选择卡。"
         },
-        "dimensions": {
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 8,
-          "title": "Dimensions",
-          "type": "array"
+        "start": {
+          "type": "string",
+          "description": "统计起始日期（YYYY-MM-DD，含当日）。"
         },
-        "parameters": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Parameters"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "end": {
+          "type": "string",
+          "description": "统计结束日期（YYYY-MM-DD，含当日）。"
         },
-        "historical_as_of": {
-          "anyOf": [
-            {
-              "maxLength": 40,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "User-specified historical data cutoff; omit to use the Run start.",
-          "title": "Historical As Of"
+        "group_by": {
+          "type": "string",
+          "description": "分组拆解维度编码（如 region、channel）；总体汇总省略。"
+        },
+        "filters": {
+          "type": "object",
+          "description": "维度等值筛选键值对（如 {\"channel\": \"online\"}）。"
         }
       },
-      "required": ["mention"],
-      "title": "Input",
-      "type": "object"
+      "required": ["mention"]
     }
   },
   "examples": []

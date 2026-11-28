@@ -21,6 +21,55 @@ from compass_agent.schemas import RUN_STREAM_LIMITS, GenerateInput, ModelTokenLi
 from compass_agent.tools.contracts import PhaseCanceled
 
 
+def refresh_owner_context(draft, decisions, previous):
+    """A new confirmed meaning invalidates native context once, including after replay."""
+    signature = hashlib.sha256(canonical(decisions)).hexdigest()
+    if (
+        decisions
+        and draft.continuation_token
+        and (previous or {}).get("ownerDecisionDigest") != signature
+    ):
+        draft = draft.model_copy(
+            update={"continuation_token": None, "thinking": False, "reasoning_effort": None}
+        )
+    return draft, signature
+
+
+def reconcile_continuation(draft, prepared, continuation):
+    """Rebuild safely when compilation changes an otherwise valid sealed prefix."""
+    if not continuation:
+        return prepared, continuation
+    from dataclasses import replace
+
+    from compass_agent.llm.continuation import visible_messages
+
+    count = continuation.get("visible_count")
+    expected = continuation.get("visible_digest")
+    if type(count) is not int or not isinstance(expected, str):
+        return prepared, continuation
+    original = visible_messages(draft)
+    compiled = visible_messages(prepared.request)
+    if (
+        not 0 < count < len(original)
+        or hashlib.sha256(canonical(original[:count])).hexdigest() != expected
+        or hashlib.sha256(canonical(compiled[:count])).hexdigest() == expected
+    ):
+        return prepared, continuation
+    request = prepared.request.model_copy(
+        update={"continuation_token": None, "thinking": False, "reasoning_effort": None}
+    )
+    receipt = {**prepared.receipt, "continuationReset": "context_prefix_changed"}
+    receipt["requestDigest"] = hashlib.sha256(
+        canonical(request.model_dump(mode="json", exclude={"continuation_token"}))
+    ).hexdigest()
+    if "contextOps" in receipt:
+        receipt["contextOps"] = {
+            **receipt["contextOps"],
+            "frozen": {**receipt["contextOps"]["frozen"], "continuation": False},
+        }
+    return replace(prepared, request=request, receipt=receipt), None
+
+
 def model_limits(route, budget):
     if route.limits and (route.limits.max_input_tokens or route.limits.context_window_tokens):
         return route.limits
@@ -86,6 +135,8 @@ def observe(root, receipt, *, restored=False):
                 )
             ),
         )
+        if receipt.get("toolAssembly"):
+            span.native("metadata.tool_assembly", receipt["toolAssembly"])
         events = []
 
         def add(name, **fields):
@@ -151,6 +202,25 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
     node_key = f"{path}/model:{step.id}"
     binding = journal.context_binding
     child = "/subagent:" in path
+    previous = journal.context_receipts.get(path)
+    decisions = (
+        []
+        if child
+        else [
+            {
+                "mention": choice["args"]["mention"],
+                **(
+                    {"definition": choice["customDefinition"]}
+                    if choice.get("customDefinition")
+                    else {"metric_id": choice["choiceId"]}
+                ),
+            }
+            for choice in getattr(journal, "approved_proposals", ())
+            if choice.get("kind") == "semantic_choice"
+            and (choice.get("choiceId") or choice.get("customDefinition"))
+        ]
+    )
+    draft, decision_digest = refresh_owner_context(draft, decisions, previous)
     phase = "analyze" if child else journal.context_phase
     scope = trusted.scope
     ctx = ContextRequest(
@@ -202,19 +272,7 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
                 }
             if not child:
                 journal.registry_initial_context = registry_context
-                registry_context["owner_clarifications"] = [
-                    {
-                        "mention": choice["args"]["mention"],
-                        **(
-                            {"definition": choice["customDefinition"]}
-                            if choice.get("customDefinition")
-                            else {"metric_id": choice["choiceId"]}
-                        ),
-                    }
-                    for choice in getattr(journal, "approved_proposals", ())
-                    if choice.get("kind") == "semantic_choice"
-                    and (choice.get("choiceId") or choice.get("customDefinition"))
-                ]
+                registry_context["owner_clarifications"] = decisions
 
             from compass_agent.semantic.service import session_results
 
@@ -241,11 +299,25 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             update={"continuation_token": None, "thinking": False, "reasoning_effort": None}
         )
     inputs = await finish_context_read(read_inputs())
-    previous = journal.context_receipts.get(path)
+    if binding.get("answerProtocol") == 3 and phase != "identify":
+        from compass_agent.context_runtime.tool_assembly import freeze_work_entry
+
+        await finish_context_read(
+            asyncio.to_thread(
+                freeze_work_entry,
+                journal,
+                requires_plan=route.requires_plan,
+                required_tools=getattr(route, "required_tools", ()),
+                is_semantic_maintainer=bool(inputs and inputs[0].get("semantic_maintainer")),
+            )
+        )
     frame = {}
     fresh = False
     optimizer = getattr(journal, "context_optimizer", None)
-    if child or getattr(journal, "answer_turn", {}).get(path, {}).get("purpose") == "verify":
+    if child or getattr(journal, "answer_turn", {}).get(path, {}).get("purpose") in {
+        "verify",
+        "answer_stream",
+    }:
         optimizer = None
 
     def build(tx):
@@ -269,7 +341,7 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
         budget_extra = len(canonical(continuation)) if continuation else 0
         schema = None
         answer_turn = getattr(journal, "answer_turn", {}).get(path, {})
-        if binding.get("answerProtocol") == 2:
+        if binding.get("answerProtocol") in {2, 3}:
             schema = answer_turn.get("schema")
         elif phase == "generate" and not child and binding.get("search"):
             if binding["search"].get("reportFormat") == "comparison_brief":
@@ -313,7 +385,9 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
         # Root search proposals are published only after verification. Request one
         # JSON response so per-token SSE framing does not consume their wire budget.
         # Recording this choice in the frame also preserves earlier steps on replay.
-        if binding.get("answerProtocol") == 2 or (path == "root" and binding.get("search")):
+        if binding.get("answerProtocol") == 2 or (
+            binding.get("answerProtocol", 1) < 3 and path == "root" and binding.get("search")
+        ):
             model_draft = model_draft.model_copy(update={"stream": False})
             # Search opens a fresh phase with verified tool observations. Native
             # reasoning can resume only with the provider's original sealed prefix.
@@ -321,6 +395,13 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
                 model_draft = model_draft.model_copy(
                     update={"thinking": False, "reasoning_effort": None}
                 )
+        assembly = None
+        if binding.get("answerProtocol") == 3:
+            from compass_agent.context_runtime.tool_assembly import assemble
+
+            model_draft, assembly = assemble(
+                journal, tx, ctx, model_draft, permitted, requires_plan=route.requires_plan
+            )
         value = prepare_input(
             tx,
             ctx,
@@ -343,11 +424,16 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
                 "tool_limit": str(RUN_STREAM_LIMITS["toolsPerStep"]),
                 "max_tasks": "4",
                 "max_parallel": "2",
+                "ordered_evidences": answer_turn.get("ordered_evidences", ""),
             },
             as_of=journal.context_date,
             continuation_extra=budget_extra,
             previous=previous,
             output_schema=schema,
+            answer_mode=answer_turn.get("mode")
+            if answer_turn.get("purpose") == "answer_stream"
+            else None,
+            tool_assembly=assembly,
             question=journal.context_questions.get(path),
             support_paths=support,
             fit_budget=optimizer is None,
@@ -355,6 +441,8 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             security_mode=journal.store.source_settings.compass_context_security_mode,
             reviewing=getattr(journal, "answer_turn", {}).get(path, {}).get("purpose") == "verify",
         )
+        value, continuation = reconcile_continuation(draft, value, continuation)
+        value.receipt["ownerDecisionDigest"] = decision_digest
         data = value.request.model_dump(mode="json", exclude={"continuation_token"})
         return {
             "input": {
@@ -444,7 +532,16 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             ):
                 raise ModelError("context_access_changed", 403)
         if (
-            not now.get("analysis")
+            (
+                binding.get("answerProtocol", 1) >= 3
+                and any(
+                    journal.tool_entries.get(name)
+                    and journal.tool_entries[name].governance.requires_semantic_maintainer
+                    for name in receipt["tools"]
+                )
+                and not now.get("semantic_maintainer")
+            )
+            or not now.get("analysis")
             or not now.get("model")
             or (
                 (
@@ -477,7 +574,7 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
                 if (
                     "database_query" in receipt["tools"]
                     and not current
-                    and binding.get("answerProtocol") != 2
+                    and binding.get("answerProtocol", 1) < 2
                 ):
                     raise ModelError("context_access_changed", 403)
 
@@ -521,7 +618,9 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
                 control,
                 budget,
                 emit,
-                publish_text=False,
+                publish_text=binding.get("answerProtocol") == 3
+                and getattr(journal, "answer_turn", {}).get(path, {}).get("purpose")
+                == "answer_stream",
             )
 
     from compass_agent.harness.context import ContextLimit
@@ -541,7 +640,8 @@ async def call_model(journal, executor, step, draft, route, trusted, control, bu
             # Review results remain durably checkpointed. Complete the delivery check
             # on this worker so the final reserve does not require a full journal replay.
             yield_boundary=not binding.get("search")
-            and getattr(journal, "answer_turn", {}).get(path, {}).get("purpose") != "verify",
+            and getattr(journal, "answer_turn", {}).get(path, {}).get("purpose")
+            not in {"verify", "answer_stream"},
         )
     except (ContextLimit, ModelError, PromptError) as error:
         observe_failure(getattr(executor.models, "root_observation", None), binding, phase, error)

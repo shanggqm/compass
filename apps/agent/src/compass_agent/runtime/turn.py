@@ -56,6 +56,12 @@ class RuntimeTurn(AgentExecutor):
         from compass_agent.execution_context import current_execution, execution_path
 
         journal = current_execution.get()
+        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 3:
+            from compass_agent.runtime.stream_answer_turn import execute_stream_answer_turn
+
+            return await execute_stream_answer_turn(
+                self, state, route, context, control, controlled, emit, max_steps=max_steps
+            )
         if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2:
             from compass_agent.runtime.answer_turn import execute_answer_turn
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnalysisMarkdown } from "./analysis-markdown";
 import { useDocumentSession } from "./shell/session-boundary";
 import { Modal } from "./ui/dialog";
@@ -30,7 +30,9 @@ export async function validAnchors(source: string, message: Message, index: Inde
   return index.anchors.every((anchor) => {
     if (anchor.start < end || anchor.end > chars.length || anchor.end <= anchor.start) return false;
     end = anchor.end;
-    return chars.slice(anchor.start, end).join("") === "[" + anchor.ordinal + "]";
+    return [`[${anchor.ordinal}]`, `^[${anchor.ordinal}]^`].includes(
+      chars.slice(anchor.start, end).join(""),
+    );
   });
 }
 
@@ -105,48 +107,34 @@ export function CitedAnswer({
   }, [api, path, query, selected]);
   if (!index || !index.anchors.length) return children;
   const chars = Array.from(source);
-  const pieces: ReactNode[] = [];
-  function segment(start: number, end: number) {
-    const original = chars.slice(start, end).join("");
-    const text = original.trim();
-    const lines = text.split("\n");
-    if (
-      lines.length >= 3 &&
-      lines.every((line) => line.startsWith("|") && line.trimEnd().endsWith("|")) &&
-      /^\|(?:\s*:?-{3,}:?\s*\|)+$/.test(lines[1])
-    ) {
-      return <AnalysisMarkdown source={text} embedded />;
-    }
-    return original.replace(/\\([\\`*_{}\[\]()<>#!|~])/g, "$1");
-  }
+  let markdown = "";
+  const citationLinks = new Map<string, ReactNode>();
   let cursor = 0;
   for (const anchor of index.anchors) {
-    pieces.push(
-      <Fragment key={anchor.start}>
-        {segment(cursor, anchor.start)}
-        <button
-          type="button"
-          className="analysis-citation"
-          aria-label={"查看引用 " + anchor.ordinal}
-          onClick={(event) => {
-            opener.current = event.currentTarget;
-            setError(false);
-            setDetail(undefined);
-            setSelected(anchor);
-          }}
-        >
-          [{anchor.ordinal}]
-        </button>
-      </Fragment>,
+    const key = `#compass-citation-${anchor.citationId}-${anchor.start}`;
+    markdown += chars.slice(cursor, anchor.start).join("") + `[${anchor.ordinal}](${key})`;
+    citationLinks.set(
+      key,
+      <button
+        type="button"
+        className="analysis-citation"
+        aria-label={"查看引用 " + anchor.ordinal}
+        onClick={(event) => {
+          opener.current = event.currentTarget;
+          setError(false);
+          setDetail(undefined);
+          setSelected(anchor);
+        }}
+      >
+        [{anchor.ordinal}]
+      </button>,
     );
     cursor = anchor.end;
   }
+  markdown += chars.slice(cursor).join("");
   return (
     <>
-      <div className="analysis-cited-text">
-        {pieces}
-        {segment(cursor, chars.length)}
-      </div>
+      <AnalysisMarkdown source={markdown} citationLinks={citationLinks} />
       {selected && (
         <Modal
           title={"引用 " + selected.ordinal}

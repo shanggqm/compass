@@ -74,13 +74,11 @@ def code_definition(name: str) -> dict:
     from compass_agent.tools.catalog_contracts import CatalogContext
 
     if name == "report_to_parent":
-        from compass_agent.goal.contracts import ReportToParentInput
+        from compass_agent.goal.report_schema import SCHEMA
 
         value = parse(raw_factory_text("support/subagent/report-to-parent.json"))
-        value["function"]["parameters"] = {
-            "type": "object",
-            **ReportToParentInput.model_json_schema(by_alias=True),
-        }
+        value["function"]["parameters"] = SCHEMA
+        value.pop("examples", None)
         return value
     spec = next((spec for spec in TOOLS if spec.name == name), None)
     if spec is None:
@@ -93,12 +91,12 @@ def code_definition(name: str) -> dict:
     return definition.model_dump(mode="json", exclude_none=True)
 
 
-def validate_tool(path: str, document: dict) -> None:
+def validate_tool(path: str, document: dict, *, expected=None, historical=False) -> None:
     from compass_agent.tools.contracts import ToolRejected
     from compass_agent.tools.registry import parse_arguments, validate_schema
 
     name = path.removeprefix("tools/").removesuffix(".json")
-    expected = code_definition(name)
+    expected = expected or code_definition(name)
     candidate = copy.deepcopy(document)
     examples = candidate.pop("examples", [])
     try:
@@ -106,9 +104,28 @@ def validate_tool(path: str, document: dict) -> None:
             validate_schema(candidate["function"]["parameters"])
         except ToolRejected as exc:
             raise ValueError("参数说明超出 Runtime 支持的 Schema 大小或结构限制。") from exc
+        if not historical:
+
+            def descriptions(schema):
+                if not isinstance(schema, dict):
+                    return
+                for parameter in schema.get("properties", {}).values():
+                    if (
+                        not isinstance(parameter.get("description"), str)
+                        or not parameter["description"].strip()
+                    ):
+                        raise ValueError("每个参数须有非空说明")
+                    descriptions(parameter)
+                descriptions(schema.get("items"))
+
+            descriptions(candidate["function"]["parameters"])
         description = candidate["function"].pop("description")
-        if not isinstance(description, str) or not description.strip() or len(description) > 2000:
-            raise ValueError("工具描述须为 1–2000 个字符")
+        if (
+            not isinstance(description, str)
+            or not description.strip()
+            or len(description) > (2000 if historical else 1200)
+        ):
+            raise ValueError("工具描述须为 1–1200 个字符")
         candidate["function"]["parameters"] = schema_structure(candidate["function"]["parameters"])
         baseline = copy.deepcopy(expected)
         baseline["function"].pop("description", None)
@@ -122,8 +139,8 @@ def validate_tool(path: str, document: dict) -> None:
             baseline, sort_keys=True, allow_nan=False
         ):
             raise ValueError("工具名称和参数 Schema 由代码维护，后台只允许编辑描述与示例")
-        if not isinstance(examples, list) or len(examples) > 10:
-            raise ValueError("调用示例须为数组，最多 10 条")
+        if not isinstance(examples, list) or len(examples) > (10 if historical else 3):
+            raise ValueError("调用示例须为数组，最多 3 条")
         validator = Draft202012Validator(
             expected["function"]["parameters"], format_checker=Draft202012Validator.FORMAT_CHECKER
         )
@@ -142,8 +159,8 @@ def validate_tool(path: str, document: dict) -> None:
                 )
             except ToolRejected as exc:
                 raise ValueError("示例参数超出 Runtime 的 JSON 大小或嵌套限制。") from exc
-        if len(model_description(document)) > 2000:
-            raise ValueError("工具描述和示例合计超过模型工具声明的 2000 字符限制。")
+        if len(model_description(document)) > (2000 if historical else 1200):
+            raise ValueError("工具描述和示例合计超过模型工具声明的 1200 字符限制。")
     except (KeyError, TypeError, ValueError, RecursionError, SchemaError) as exc:
         raise PromptError("tool_contract_readonly", str(exc)) from exc
 
@@ -256,7 +273,24 @@ def enrich_definition(definition):
     if definition.function.name not in {spec.name for spec in TOOLS}:
         return definition
     document = parse(prompt_text(path))
-    validate_tool(path, document)
+    from compass_agent.execution_context import current_execution
+
+    journal = current_execution.get()
+    historical = (
+        journal is not None
+        and (getattr(journal, "context_binding", None) or {}).get("answerProtocol", 1) < 3
+    )
+    expected = definition.model_dump(mode="json", exclude_none=True)
+    if historical:
+        # Frozen declarations are restored by RunToolBindings. A new-format bundled
+        # prompt must never replace the internal contract of an old protocol.
+        if schema_structure(document["function"]["parameters"]) != schema_structure(
+            expected["function"]["parameters"]
+        ):
+            return definition
+        validate_tool(path, document, expected=expected, historical=True)
+    else:
+        validate_tool(path, document)
     value = {key: child for key, child in document.items() if key != "examples"}
     value = copy.deepcopy(value)
     value["function"]["description"] = model_description(document)

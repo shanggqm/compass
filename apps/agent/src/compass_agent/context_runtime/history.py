@@ -113,7 +113,8 @@ def load_history(journal, trusted):
             text = final_text(store, tx, run.id)
             if (
                 not text
-                and run.config_snapshot.get("contextRuntime", {}).get("answerProtocol") != 2
+                and run.config_snapshot.get("contextRuntime", {}).get("answerProtocol")
+                not in {2, 3}
                 and answer
                 and answer.public_content
             ):

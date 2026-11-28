@@ -33,6 +33,7 @@ from compass_agent.tools.contracts import (
     ToolRejected,
     json_bytes,
 )
+from compass_agent.tools.errors import ActionableToolRejected
 from compass_agent.tools.registry import ToolRegistry, bounded_payload, check_depth
 
 
@@ -137,7 +138,7 @@ class ToolDispatcher:
         self.registry, self.slots, self.artifacts = registry, slots, artifacts
         self.sandbox, self.mcp = sandbox, mcp
 
-    def prepare(self, call: ToolCall, context: ToolExecutionContext) -> PreparedToolCall:
+    async def prepare(self, call: ToolCall, context: ToolExecutionContext) -> PreparedToolCall:
         context.require_running()
         tool = self.registry.resolve(call.function.name)
         if context.caller == "model" and (
@@ -146,10 +147,36 @@ class ToolDispatcher:
             raise ToolRejected("tool_not_exposed")
         try:
             args = tool.parse_arguments(call.function.arguments)
-            if tool.definition and not Draft202012Validator(
-                tool.definition.function.parameters
-            ).is_valid(cast(Any, args)):
-                raise ToolRejected("invalid_parameters")
+            if tool.definition:
+                from compass_agent.tools.errors import invalid_arguments
+
+                error = next(
+                    Draft202012Validator(tool.definition.function.parameters).iter_errors(
+                        cast(Any, args)
+                    ),
+                    None,
+                )
+                if error is not None:
+                    journal = current_execution.get()
+                    protocol = (getattr(journal, "context_binding", None) or {}).get(
+                        "answerProtocol", 1
+                    )
+                    legacy = tool.legacy_definition
+                    if not (
+                        (context.caller == "workflow" or protocol < 3)
+                        and legacy
+                        and Draft202012Validator(legacy.function.parameters).is_valid(
+                            cast(Any, args)
+                        )
+                    ):
+                        raise invalid_arguments(error)
+            if tool.normalize_input is not None:
+                from compass_agent.tools.input_adapter import normalize_arguments
+
+                args = await normalize_arguments(
+                    tool.normalize_input, args, replace(context, call_id=call.id)
+                )
+                context.require_running()
             tool.authorize(args, replace(context, call_id=call.id))
             return PreparedToolCall(call.id, tool, args)
         except ToolRejected:
@@ -299,7 +326,13 @@ class ToolDispatcher:
                     )
                 except ToolRejected as error:
                     receipt = ExecutionReceipt(
-                        prepared.call_id, "rejected", "not_started", reason_code=error.code
+                        prepared.call_id,
+                        "rejected",
+                        "not_started",
+                        reason_code=error.code,
+                        payload=error.error.payload()
+                        if isinstance(error, ActionableToolRejected)
+                        else None,
                     )
                 except ToolBusinessStopped:
                     raise
@@ -333,7 +366,14 @@ class ToolDispatcher:
                     result = self._receive(prepared, receipt, context)
                 return result
         except ToolRejected as error:
-            result = ToolExecutionResult(prepared.call_id, "rejected", reason_code=error.code)
+            result = ToolExecutionResult(
+                prepared.call_id,
+                "rejected",
+                reason_code=error.code,
+                payload=error.error.payload()
+                if isinstance(error, ActionableToolRejected)
+                else None,
+            )
             return result
         except ToolBusinessStopped:
             result = ToolExecutionResult(
@@ -384,7 +424,21 @@ class ToolDispatcher:
             from dataclasses import asdict
 
             async def invoke():
-                receipt = await self._invoke_live(prepared, context)
+                try:
+                    receipt = await self._invoke_live(prepared, context)
+                except ToolRejected as error:
+                    # Admission refusal is a known outcome. Persist it inside the
+                    # effect boundary so lease recovery cannot mistake it for a
+                    # backend request whose response was lost.
+                    receipt = ExecutionReceipt(
+                        prepared.call_id,
+                        "rejected",
+                        "not_started",
+                        reason_code=error.code,
+                        payload=error.error.payload()
+                        if isinstance(error, ActionableToolRejected)
+                        else None,
+                    )
                 value = asdict(receipt)
                 value["file"] = base64.b64encode(receipt.file).decode() if receipt.file else None
                 return value

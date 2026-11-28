@@ -171,40 +171,53 @@ export function UiExecutionExample() {
         completed={status === "completed"}
         durationMs={status === "completed" ? 138000 : undefined}
       />
-      <AnalysisGoalPanel
-        goal={{
-          goalId: id(200),
-          revision: 1,
-          status: goalStatus,
-          reason: null,
-          reasonCode: null,
-          contract: {
-            objective: "完成月度销售与库存复盘",
-            acceptance: [
-              { id: "a1", text: "销售结论附来源" },
-              { id: "a2", text: "库存结论附来源" },
-            ],
-            constraints: ["仅查询当前获准数据"],
-          },
-          budget: { tokens: 2000000, costMicrousd: 20000000, maxRounds: 12 },
-          usage: {
-            rounds: 2,
-            tokens: 10000,
-            costMicrousd: 10000,
-            tokensPct: 0.5,
-            costPct: 0.05,
-            overrun: false,
-          },
-          counts: { openTodos: 1, conflicts: 0, stale: 0, reusedCalls: 1 },
-          satisfied: ["a1"],
-        }}
-        busy={false}
-        error=""
-        action={async (action) =>
-          setGoalStatus(action === "pause" ? "paused" : action === "resume" ? "active" : "canceled")
-        }
-        edit={() => setEditingGoal(true)}
-      />
+      <div className="analysis-goal-example">
+        <p>目标进度显示在输入框上方，悬停或点击展开管理；对话中输入 / 可选择 Goal 模式。</p>
+        <AnalysisGoalPanel
+          goal={{
+            goalId: id(200),
+            revision: 1,
+            status: goalStatus,
+            reason: null,
+            reasonCode: null,
+            contract: {
+              objective: "完成月度销售与库存复盘",
+              acceptance: [
+                { id: "a1", text: "销售结论附来源" },
+                { id: "a2", text: "库存结论附来源" },
+              ],
+              constraints: ["仅查询当前获准数据"],
+            },
+            budget: { tokens: 2000000, costMicrousd: 20000000, maxRounds: 12 },
+            usage: {
+              rounds: 2,
+              tokens: 10000,
+              costMicrousd: 10000,
+              tokensPct: 0.5,
+              costPct: 0.05,
+              overrun: false,
+            },
+            counts: { openTodos: 1, conflicts: 0, stale: 0, reusedCalls: 1 },
+            satisfied: ["a1"],
+          }}
+          busy={false}
+          error=""
+          action={async (action) =>
+            setGoalStatus(
+              action === "pause" ? "paused" : action === "resume" ? "active" : "canceled",
+            )
+          }
+          edit={() => setEditingGoal(true)}
+        />
+        <label className="ui-field">
+          <span>目标模式演示输入</span>
+          <textarea
+            className="ui-input"
+            readOnly
+            placeholder="给 Compass 发送消息，输入 / 选择模式"
+          />
+        </label>
+      </div>
       {editingGoal && (
         <label>
           修改目标

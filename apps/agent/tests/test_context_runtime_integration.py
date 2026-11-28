@@ -60,6 +60,14 @@ PROVIDER_TOOLS = [
 ]
 
 
+def model_json(content):
+    """Read protocol JSON inside the production observation isolation boundary."""
+    if content.startswith("<untrusted_context "):
+        assert content.endswith("\n</untrusted_context>")
+        content = content.split("\n", 1)[1].rsplit("\n", 1)[0]
+    return json.loads(content)
+
+
 def test_published_assembly_matrix_and_durable_deliveries(targets):
     url, _ = targets("context_matrix")
     db.migrate()
@@ -262,8 +270,10 @@ def test_published_assembly_matrix_and_durable_deliveries(targets):
                 system, first, *turns = compiled.request.messages
                 assert turns[-1].role == "user"
                 assert "看看近期经营变化" in (turns[-1].content or "")
-                assert "按验收日期去重计件" in (turns[-1].content or "")
-                assert "按验收日期去重计件" not in (first.content or "")
+                assert turns[-1].content == "看看近期经营变化"
+                assert json.loads(first.content or "{}")["owner_confirmed_meanings"] == [
+                    {"mention": "返工量", "definition": "按验收日期去重计件"}
+                ]
                 assert system.role == "system" and scenes["SC-03"]["sop"] in system.content
                 assert scenes["SC-01"]["sop"] not in system.content
                 assert (
@@ -325,6 +335,7 @@ class FixtureTurn(RuntimeTurn):
         if (
             not request.continuation_token
             and request.tools
+            and request.messages[-1].tool_call_id != "plan"
             and "obs-current" not in (request.messages[-1].content or "")
         ):
             planning = [t.function.name for t in request.tools] == ["todo_write"]
@@ -343,7 +354,7 @@ class FixtureTurn(RuntimeTurn):
             assert any(str(count) in (m.content or "") for m in request.messages)
             content = request.messages[-1].content
             assert content is not None and isinstance(route, RunRoute)
-            material = json.loads(content)
+            material = model_json(content)
             assert material["acceptedViews"] == [{"factRef": "obs-current", "columns": [label]}]
             source = material["acceptedViews"][0]
             if route.deliverable == "data_analysis" and "formatCorrection" not in material:
@@ -466,15 +477,16 @@ async def exercise_delivery(engine, store, key, owner, task, topic):
             assert messages[0]["content"].count("本轮运行环境") == 1
             assert accepted.isoformat(timespec="seconds") in messages[0]["content"]
             assert sum(m.get("content") == messages[1]["content"] for m in messages) == 1
-            assert json.loads(messages[1]["content"]) == {
+            assert model_json(messages[1]["content"]) == {
                 "source": "runOrganization",
                 "tenantName": "集成租户",
                 "workspaceName": "经营团队",
             }
             phases.append(frame["receipt"]["phase"])
-            assert frame["input"]["request"]["thinking"] is not (
-                phases[-1] == "generate" and task != "business_qa"
-            )
+            if len(phases) == 1:
+                assert frame["input"]["request"]["thinking"] is True
+            if phases[-1] == "generate" and task != "business_qa":
+                assert frame["input"]["request"]["thinking"] is False
             assert frame["receipt"]["task"] == task and frame["receipt"]["generation"] > 0
         if task == "data_analysis":
             assert phases == ["query", "query", "analyze", "generate", "generate"]
@@ -513,7 +525,7 @@ async def exercise_classifiers(engine, store, owner):
             assert prepared.state["runOrganization"]["tenantName"] == env["tenantName"]
         else:
             assert journal.prompt_facts.instructions in prepared.messages[0].content
-            assert json.loads(prepared.messages[1].content)["tenantName"] == env["tenantName"]
+            assert model_json(prepared.messages[1].content)["tenantName"] == env["tenantName"]
         assert "latest-private-query" in prepared.model_dump_json()
         assert "old-private-query" not in prepared.model_dump_json()
         return model_result(text="{}")
@@ -619,7 +631,7 @@ def test_empty_registry_release_accepts_and_pins_first_run(targets, monkeypatch,
     try:
         run_id = UUID(store.submit(command, owner)["runId"])
         binding = store.read_run(run_id).config_snapshot["contextRuntime"]
-        assert binding["answerProtocol"] == 2
+        assert binding["answerProtocol"] == 3
         assert "glossary" not in binding
         assert binding["registry"] == {
             "pins": [],
@@ -683,6 +695,13 @@ def test_answer_protocol_uses_generic_loop_private_submission_and_durable_replay
         selection=cast(Any, {"mode": "fixed", "provider_id": PROVIDER_ID}),
     )
     run_id = UUID(store.submit(command, owner)["runId"])
+    # A persisted v2 Run retains its candidate/review protocol after the v3 upgrade.
+    with store.transaction() as tx:
+        _, run = store.lock(tx, run_id)
+        run.config_snapshot = {
+            **run.config_snapshot,
+            "contextRuntime": {**run.config_snapshot["contextRuntime"], "answerProtocol": 2},
+        }
     assert store.read_run(run_id).config_snapshot["contextRuntime"]["answerProtocol"] == 2
     assert "searchSnapshot" not in store.read_run(run_id).config_snapshot
     epoch = store.claim(run_id, uuid4())
@@ -742,7 +761,7 @@ def test_answer_protocol_uses_generic_loop_private_submission_and_durable_replay
                 if any(m.role == "tool" for m in request.messages):
                     assert "recordRef" in str(request.messages)
                     observations = [
-                        json.loads(message.content or "{}")
+                        model_json(message.content or "{}")
                         for message in request.messages
                         if message.role == "tool"
                     ]
@@ -790,7 +809,7 @@ def test_answer_protocol_uses_generic_loop_private_submission_and_durable_replay
             if purpose == "verify":
                 reviewed = True
                 assert not request.tools and request.output_format == "schema"
-                material = json.loads(request.messages[-1].content or "")
+                material = model_json(request.messages[-1].content or "")
                 if mode == "deadline":
                     assert material["remaining"]["workToolsAvailable"] is False
                 value = {
@@ -839,7 +858,7 @@ def test_answer_protocol_uses_generic_loop_private_submission_and_durable_replay
                         assert [t.function.name for t in request.tools] == ["final_answer"]
                     if mode == "child":
                         child_result = next(
-                            json.loads(m.content or "{}")["result"]
+                            model_json(m.content or "{}")["result"]
                             for m in request.messages
                             if m.role == "tool" and "evidenceIds" in (m.content or "")
                         )

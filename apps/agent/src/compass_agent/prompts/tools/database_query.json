@@ -2,157 +2,17 @@
   "type": "function",
   "function": {
     "name": "database_query",
-    "description": "- 列出可查询的表、查看字段，或执行一条只读 PostgreSQL SELECT。\n- 先用 list_connections 发现连接，多个连接时指定 connectionId。SQL 使用 schema.table。\n- 查询按当前授权、超时和执行资源边界运行。小结果直接返回，大结果返回实际规模、字段、少量样本、完整性和原件引用。\n- 需要核对预览之外的数据时，使用 read_tool_result 读取已有原件。返回量与完整性以本次工具结果为准。",
+    "description": "- 执行只读 PostgreSQL 查询（仅在无 query_metric 正式指标绑定、排查底层异常明细流水或自定义临时口径时使用）。最佳实践：先查 information_schema.tables / information_schema.columns 核实可见表名与字段，再查业务表（所有业务表须带 schema.table 前缀）。 每次调用仅查询业务表或仅查询 information_schema 元数据表；禁止在同一 SQL 中通过 JOIN、CTE、子查询或 UNION / UNION ALL 混用两类表。需要同时获取结构与业务数据时，拆成独立工具调用。",
     "parameters": {
       "type": "object",
-      "$defs": {
-        "DescribeTable": {
-          "additionalProperties": false,
-          "properties": {
-            "connectionId": {
-              "anyOf": [
-                {
-                  "maxLength": 36,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Connectionid"
-            },
-            "op": {
-              "const": "describe_table",
-              "title": "Op",
-              "type": "string"
-            },
-            "schema": {
-              "maxLength": 63,
-              "minLength": 1,
-              "title": "Schema",
-              "type": "string"
-            },
-            "table": {
-              "maxLength": 63,
-              "minLength": 1,
-              "title": "Table",
-              "type": "string"
-            },
-            "offset": {
-              "default": 0,
-              "maximum": 10000,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          "required": ["op", "schema", "table"],
-          "title": "DescribeTable",
-          "type": "object"
-        },
-        "ListConnections": {
-          "additionalProperties": false,
-          "properties": {
-            "op": {
-              "const": "list_connections",
-              "title": "Op",
-              "type": "string"
-            }
-          },
-          "required": ["op"],
-          "title": "ListConnections",
-          "type": "object"
-        },
-        "ListTables": {
-          "additionalProperties": false,
-          "properties": {
-            "connectionId": {
-              "anyOf": [
-                {
-                  "maxLength": 36,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Connectionid"
-            },
-            "op": {
-              "const": "list_tables",
-              "title": "Op",
-              "type": "string"
-            },
-            "offset": {
-              "default": 0,
-              "maximum": 10000,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          "required": ["op"],
-          "title": "ListTables",
-          "type": "object"
-        },
-        "ReadSql": {
-          "additionalProperties": false,
-          "properties": {
-            "connectionId": {
-              "anyOf": [
-                {
-                  "maxLength": 36,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Connectionid"
-            },
-            "op": {
-              "const": "query",
-              "title": "Op",
-              "type": "string"
-            },
-            "sql": {
-              "maxLength": 8192,
-              "minLength": 1,
-              "title": "Sql",
-              "type": "string"
-            }
-          },
-          "required": ["op", "sql"],
-          "title": "ReadSql",
-          "type": "object"
+      "additionalProperties": false,
+      "properties": {
+        "sql": {
+          "type": "string",
+          "description": "单条只读 PostgreSQL SELECT 语句，支持表结构查询及业务明细、聚合查询。业务表查询与 information_schema 元数据查询必须分开调用；禁止在同一 SQL 中通过 JOIN、CTE、子查询或 UNION / UNION ALL 混用两类表。"
         }
       },
-      "discriminator": {
-        "mapping": {
-          "describe_table": "#/$defs/DescribeTable",
-          "list_connections": "#/$defs/ListConnections",
-          "list_tables": "#/$defs/ListTables",
-          "query": "#/$defs/ReadSql"
-        },
-        "propertyName": "op"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ListConnections"
-        },
-        {
-          "$ref": "#/$defs/ListTables"
-        },
-        {
-          "$ref": "#/$defs/DescribeTable"
-        },
-        {
-          "$ref": "#/$defs/ReadSql"
-        }
-      ]
+      "required": ["sql"]
     }
   },
   "examples": []

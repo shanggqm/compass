@@ -51,7 +51,7 @@ class ContextDecisionSummary(Base):
     error_code: Mapped[str | None] = mapped_column(String(64))
     source_breakdown_json: Mapped[list] = mapped_column(DOCUMENT)
     funnel_json: Mapped[list] = mapped_column(DOCUMENT)
-    decisions_json: Mapped[list] = mapped_column(DOCUMENT)
+    decisions_json: Mapped[list | dict] = mapped_column(DOCUMENT)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

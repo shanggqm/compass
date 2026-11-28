@@ -16,11 +16,14 @@
 | 973 | [第 23 课 Agentic Search：企业知识库与跨源经营诊断](973-lesson-23-agentic-search/BRIEF.md) | standard | P1 | 为学员提供合成企业知识库、可复算的零售样本和需要多轮跨源检索的经营任务。 |
 | 972 | [第 24 课｜动态上下文选择与压缩](972-lesson-24-context-selection-compression/BRIEF.md) | standard | P1 | 为 SQL、异常归因与经营报告按预算选择和压缩上下文，验证关键事实与任务质量。 |
 | 971 | [第 26 课｜ContextOps](971-lesson-26-context-ops/BRIEF.md) | standard | P1 | 从经营分析错误定位上下文决策，回放策略并经评测、灰度和回滚完成发布。 |
+| 969 | [第 28 课｜轻量插件市场、云端 MCP 接入与 Tool Search](969-lesson-28-custom-plugins-marketplace/BRIEF.md) | standard | P1 | 点亮 Web「插件 → 全部插件」，交付云端/内网 Streamable HTTP MCP 轻量插件市场、个人接入默认装载、极简准入上架骨架与参考 Claude Code 的 Tool Search 延迟发现机制。 |
+| 968 | [意图分类体系极简重构与全局动态装配](968-intent-taxonomy-global-assembly/BRIEF.md) | standard | P1 | 废弃 40 场景扁平字典与双轨意图模型，建立极简正交的任务意图、业务域与复杂度三维度分类体系，打通 PromptOps、语义检索、工具与 Skill 装配、Context Runtime、契约与 ContextOps 可观测全链路（不兼容历史数据，零历史债）。 |
 
 ## 进行中
 
 | 需求 | 标题                                                                                                       | 规格     | 优先级 | 说明                                                                                                           |
 | ---- | ---------------------------------------------------------------------------------------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| 970 | [第 27 课｜内建工具体系诊断与场景化动态组装](970-lesson-27-tool-diagnosis-dynamic-assembly/BRIEF.md) | standard | P1 | 六批实现及分批验收已执行，进入 review；AC-12 参数合法率与错误恢复率提升目标保留待验，详见实施记录。 |
 | 974 | [第 22 课｜企业经营语义治理](974-lesson-22-enterprise-semantic-governance/BRIEF.md) | standard | P1 | 交付 Compass 经营语义资产库、AI 治理、人工审批与发布、语义解析与受控查询，以及效果验收。 |
 | 975 | [第 21 课｜系统提示词与 Context Runtime](975-lesson-21-context-runtime-promptops/BRIEF.md) | standard | P1 | 四类经营任务和 PromptOps 已完成开发与端到端验收，进入交付评审。 |
 | 996  | [RAG 业务知识文档数据生产](996-rag-knowledge-document-seeding/BRIEF.md)                                    | standard | P1     | 23 篇文档已生成，附 206 条原句引用、101 个章节片段与 14 个演示案例；离线检查通过，待业务审阅，向量接入未执行。 |

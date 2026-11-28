@@ -3,7 +3,7 @@
   "databaseKey": "main",
   "feature": "983",
   "from": "empty",
-  "to": "0020",
+  "to": "0021",
   "engine": "PostgreSQL 17",
   "tool": "Alembic 1.20.0",
   "sourceRevision": "working-tree; fixed by source SHA-256",
@@ -87,10 +87,14 @@
     {
       "source": "../../migrations/versions/0020_context_ops.py",
       "sha256": "d85a29bb7ce0869f55ed36d338a2442460aaa3606dd06f15473c3e9f608eef43"
+    },
+    {
+      "source": "../../migrations/versions/0021_shared_sandbox.py",
+      "sha256": "cd350c7cd0514715720db5018c375ddb61fe981f748408c46bed36c6019e4172"
     }
   ],
   "files": {
-    "bootstrap.sql": "2ef4578483d220f51e3e0513dc1a426eecad66a703ccba9ddfee0d5637e745dc",
+    "bootstrap.sql": "9b631872f926be563b5bc84879c5ce91941c98777cdf40eecac923dc758c7734",
     "upgrades/0001__0002.sql": "471825e3af6e2d456e1973e62bd3545a5fc47fa4a84a6e599df86173753772ea",
     "upgrades/0001__0003.sql": "80d749841c34b3567a5d085892068d7de4e273c92c2248ebb7f99e173ae77565",
     "upgrades/0002__0003.sql": "fbc8e5d4c434c7d06c4326a697b62789ea959ee8d1df59bb26cbd2b1daaf96e1",
@@ -239,10 +243,30 @@
     "upgrades/0016__0020.sql": "0f55acae4108093e7d8fd49094405d92a184b85ab91e70e2d123d4ea70dd05dc",
     "upgrades/0017__0020.sql": "f3e5d54b34d52e8bafc5a52f7efa79538821ebc5f9cfb4168f655fb5f1933cc9",
     "upgrades/0018__0020.sql": "414879fc14d2b6206b9e1e42574ba172c31616a251ba88802643ee3e039e8dcc",
-    "upgrades/0019__0020.sql": "088d22cac5bb4e7ef705bac9aa50d27d14d04c964dcccf50aa3f98111c223fda"
+    "upgrades/0019__0020.sql": "088d22cac5bb4e7ef705bac9aa50d27d14d04c964dcccf50aa3f98111c223fda",
+    "upgrades/0001__0021.sql": "17c6c278c8224b2147a96a9133618c9742c6f6f69d0c5f07ea48ef679c0dc5d6",
+    "upgrades/0002__0021.sql": "dc19a46a98f226bc9d22e13f0ccfff25fa337822ad836ee81e02494f8276ed9c",
+    "upgrades/0003__0021.sql": "8ceea46c5fb886fd3b445ba5d2fe1cbd6d90bff404f1a94860a67e7f4fb6665a",
+    "upgrades/0004__0021.sql": "f07b2a5bb71b3905892df8eca66e7828805371dbb0c412e92ef71f5f5b6d7d6a",
+    "upgrades/0005__0021.sql": "ddf6a47fd01bea4f7b9ddc606ddf64876c7ba611422d0b1a229ef8c442541a83",
+    "upgrades/0006__0021.sql": "820a1991fafc35914ccd90f835d6e682bf093b74921bca9e6700cfa72f079e14",
+    "upgrades/0007__0021.sql": "4e75128900dce6ae6b9f9d168258273b6b60ca3c566909f11759ec11dfcc6712",
+    "upgrades/0008__0021.sql": "37086b4d23271135e58126c7f0e96343f9379347af21ba789747f83a1782faf0",
+    "upgrades/0009__0021.sql": "c5f75f31853254ae4ba37d19fa4cc3c9ece1cf514bff42c9e06aa6676e6981cf",
+    "upgrades/0010__0021.sql": "2755c2443b15256d3e0fb8ba40364323eebf4850617fcfdee434fe1dda07c4a2",
+    "upgrades/0011__0021.sql": "41607bfd4a03a2e6bf40d90d98a2540d63d119ed18291ee0d7ad26f737b508be",
+    "upgrades/0012__0021.sql": "79db89c7bc0a45f5241f02895a24acd4c306228236f9c1caa5325ea058439402",
+    "upgrades/0013__0021.sql": "f91cafec5baa19c3ecb063777ccdf908fdb6bd2cadf15802faa6f3932f0db5f4",
+    "upgrades/0014__0021.sql": "ae09e411b1fb045ba40c0dfb0bc4c1cfbbd4ce011daa57b372d509d8e877d2a0",
+    "upgrades/0015__0021.sql": "267545a358ff6e0773eb48dc6ff601fb0ab7ddd34e4ede15ce8413f028d371f9",
+    "upgrades/0016__0021.sql": "8c7e148e073890efe37d06774e7f754573cccc98f0e7956b7c1e021225a11f44",
+    "upgrades/0017__0021.sql": "e5a942f09ccc02d12511aaeaa1b3e5deb25d6a4660ecd5f8ef62ea0a0d44791d",
+    "upgrades/0018__0021.sql": "8c5f14e216a2d9721305a3863f40cf3763d76d20538b2a41e77d69b762c0d725",
+    "upgrades/0019__0021.sql": "4d26226d8e12d66e4f88e165fc60867971c20cf3dd7dccea35a502817742aab0",
+    "upgrades/0020__0021.sql": "15d1dc60845ef64574106866f12fe8f28c046256f5f918e74f27b121da97fe9e"
   },
   "generate": "pnpm db:sql -F agent",
-  "apply": "pnpm db:apply-sql -F agent -- --from empty --to 0020",
+  "apply": "pnpm db:apply-sql -F agent -- --from empty --to 0021",
   "transaction": "single transaction with advisory lock",
   "prerequisites": "Provisioned Agent-owned database; expected start and source checksums",
   "dataImpact": "Removes duplicated registry bindings after checking the retained Run snapshots; adds model configuration and metadata; renames decision adapter; adds execution summaries and multi-engine workspace connections; adds durable runs, checkpoints, HITL and immutable artifacts; adds asynchronous session titles, session deletion metadata and workflow tool contracts and soft deletion; adds plans, triggers and replica execution and publication leases; backfills historical model attempt metadata without raw content; preserves existing Retail configuration, credentials and revisions",

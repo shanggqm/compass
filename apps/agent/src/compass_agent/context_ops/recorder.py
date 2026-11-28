@@ -208,6 +208,7 @@ class ContextOpsRecorder:
             scope = {"access_refs": [asdict(r) for r in lineage.access_scope], "source_refs": refs}
             snapshot = {
                 **frozen,
+                "toolAssembly": receipt.get("toolAssembly"),
                 "policy_digest": receipt.get("policyDigest", ""),
                 "prompt_generation": receipt.get("generation", 0),
                 "semantic_version": receipt.get("dictionaryDigest"),
@@ -291,7 +292,9 @@ class ContextOpsRecorder:
                     error_code=None,
                     source_breakdown_json=sources,
                     funnel_json=funnel,
-                    decisions_json=decisions,
+                    decisions_json={"items": decisions, "toolAssembly": receipt["toolAssembly"]}
+                    if receipt.get("toolAssembly")
+                    else decisions,
                     created_at=now,
                 )
             )

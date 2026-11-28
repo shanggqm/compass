@@ -1,0 +1,2410 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Compass · 插件市场与 Tool Search 高保真原型</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f8f9f6;
+        --surface: #ffffff;
+        --surface-subtle: #f3f6f2;
+        --rail-bg: #f1f4ee;
+        --ink: #202b27;
+        --muted: #62716a;
+        --primary: #1c5145;
+        --primary-hover: #153e35;
+        --primary-soft: #e5eee7;
+        --border: #dce2da;
+        --border-strong: #788b80;
+        --danger: #a34236;
+        --danger-soft: #fff4f1;
+        --warning: #745018;
+        --warning-soft: #fff4de;
+        --focus-ring: #28725e;
+        --code-surface: #182620;
+        --code-toolbar: #22352b;
+        --code-border: #385144;
+        --code-text: #e1eee5;
+        --code-muted: #aec5b6;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+          sans-serif;
+        --font-code: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        --radius-control: 8px;
+        --radius-panel: 14px;
+        --ease: cubic-bezier(0.23, 1, 0.32, 1);
+        --fast: 140ms;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 14px/1.6 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+
+      /* Prototype control bar */
+      .proto-bar {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 16px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--border);
+        background: #eef3ec;
+        font-size: 12px;
+        color: var(--ink);
+      }
+      .proto-bar-left,
+      .proto-bar-right {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .proto-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 600;
+        font-size: 11px;
+      }
+      .proto-seg {
+        display: inline-flex;
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+      .proto-seg button {
+        min-height: 28px;
+        padding: 2px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .proto-seg button[aria-pressed="true"] {
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      /* Compass AppShell */
+      .app-shell {
+        display: grid;
+        grid-template-columns: 60px 236px minmax(0, 1fr);
+        min-height: calc(100dvh - 45px);
+      }
+      .mobile-topbar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+      .rail {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 14px 8px;
+        border-right: 1px solid var(--border);
+        background: var(--rail-bg);
+      }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        margin-bottom: 10px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: -0.02em;
+      }
+      .rail-btn {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition:
+          background var(--fast) var(--ease),
+          color var(--fast) var(--ease);
+      }
+      .rail-btn:hover {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .rail-btn[aria-current="page"] {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .rail-spacer {
+        flex: 1;
+      }
+
+      .secondary-nav {
+        display: flex;
+        flex-direction: column;
+        padding: 18px 14px 14px;
+        border-right: 1px solid var(--border);
+        background: var(--canvas);
+      }
+      .nav-header {
+        padding: 0 8px 14px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+      .nav-header h1 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 650;
+        color: var(--ink);
+      }
+      .nav-header p {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .nav-list {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 38px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .nav-item[aria-current="page"] {
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .nav-item-badge {
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: #eaece7;
+        color: var(--muted);
+      }
+      .workspace-chip {
+        margin-top: auto;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        font-size: 12px;
+      }
+      .workspace-chip strong {
+        display: block;
+        color: var(--ink);
+        font-size: 13px;
+      }
+      .workspace-chip span {
+        color: var(--muted);
+      }
+
+      /* Main area */
+      .main-content {
+        min-width: 0;
+        padding: 24px 28px 40px;
+        max-width: 1240px;
+        width: 100%;
+      }
+      .ui-page-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px 16px;
+        margin-bottom: 18px;
+      }
+      .ui-page-heading h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 650;
+        color: var(--ink);
+        line-height: 1.3;
+      }
+      .ui-page-heading p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+      .ui-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* Buttons */
+      .ui-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 38px;
+        padding: 6px 14px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-control);
+        background: var(--primary);
+        color: #fff;
+        font-size: 13.5px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background var(--fast) var(--ease),
+          border-color var(--fast) var(--ease),
+          transform var(--fast) var(--ease);
+      }
+      .ui-button:hover:not(:disabled) {
+        background: var(--primary-hover);
+      }
+      .ui-button:active:not(:disabled) {
+        transform: scale(0.985);
+      }
+      .ui-button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .ui-button[data-variant="secondary"] {
+        border-color: var(--border-strong);
+        background: var(--surface);
+        color: var(--primary);
+      }
+      .ui-button[data-variant="secondary"]:hover:not(:disabled) {
+        background: var(--surface-subtle);
+      }
+      .ui-button[data-variant="quiet"] {
+        background: transparent;
+        color: var(--muted);
+        padding: 6px 10px;
+      }
+      .ui-button[data-variant="quiet"]:hover:not(:disabled) {
+        background: var(--surface-subtle);
+        color: var(--primary);
+      }
+      .ui-button[data-variant="danger"] {
+        background: var(--danger);
+        color: #fff;
+      }
+      .ui-button[data-variant="danger"]:hover:not(:disabled) {
+        filter: brightness(0.92);
+      }
+      .ui-button[data-variant="danger-outline"] {
+        border-color: #d7a69f;
+        background: var(--surface);
+        color: var(--danger);
+      }
+      .ui-button[data-variant="danger-outline"]:hover:not(:disabled) {
+        background: var(--danger-soft);
+      }
+      .ui-button[data-size="sm"] {
+        min-height: 32px;
+        padding: 4px 10px;
+        font-size: 12.5px;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 18px;
+      }
+      .tab-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 40px;
+        padding: 8px 14px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-bottom: -1px;
+      }
+      .tab-btn:hover {
+        color: var(--ink);
+      }
+      .tab-btn[aria-selected="true"] {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+        font-weight: 650;
+      }
+      .count-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: var(--surface-subtle);
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .tab-btn[aria-selected="true"] .count-pill {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .count-pill[data-tone="warning"] {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      /* Filter bar */
+      .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .ui-input,
+      .ui-select,
+      .ui-textarea {
+        min-height: 38px;
+        padding: 6px 12px;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-control);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 13.5px;
+      }
+      .ui-input::placeholder,
+      .ui-textarea::placeholder {
+        color: var(--muted);
+      }
+      .filter-search {
+        flex: 1 1 240px;
+        max-width: 340px;
+      }
+      .filter-select {
+        width: auto;
+        min-width: 148px;
+      }
+
+      /* Cards & Panels */
+      .ui-panel {
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+      }
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .plugin-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+        transition: border-color var(--fast) var(--ease);
+      }
+      .plugin-card:hover {
+        border-color: var(--border-strong);
+      }
+      .card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .card-title-group {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        min-width: 0;
+      }
+      .plugin-icon {
+        display: grid;
+        place-items: center;
+        flex: 0 0 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .plugin-card h3 {
+        margin: 0;
+        font-size: 15.5px;
+        font-weight: 650;
+        color: var(--ink);
+        line-height: 1.35;
+      }
+      .card-desc {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-weight: 550;
+        background: var(--surface-subtle);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .badge[data-tone="primary"] {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .badge[data-tone="warning"] {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+      .badge[data-tone="danger"] {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        font-size: 12px;
+        color: var(--muted);
+        padding-top: 8px;
+        border-top: 1px solid #edf1eb;
+      }
+      .card-footer {
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding-top: 4px;
+      }
+
+      /* Tool Search live meter banner */
+      .ts-banner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px 20px;
+        padding: 16px 18px;
+        margin-bottom: 16px;
+        border: 1px solid #c9d9ce;
+        border-radius: var(--radius-panel);
+        background: linear-gradient(180deg, #f3f8f4 0%, #ffffff 100%);
+      }
+      .ts-banner-info {
+        flex: 1 1 360px;
+        min-width: 0;
+      }
+      .ts-banner-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+        color: var(--ink);
+      }
+      .ts-banner-desc {
+        margin: 4px 0 0;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .ts-meter-wrap {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 10px;
+      }
+      .ts-bar {
+        flex: 1;
+        max-width: 260px;
+        height: 8px;
+        border-radius: 999px;
+        background: #e3eae4;
+        overflow: hidden;
+      }
+      .ts-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--primary);
+        transition: width 220ms var(--ease);
+      }
+      .ts-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        font-size: 12px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .ts-metrics strong {
+        color: var(--primary);
+      }
+
+      /* Table */
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 960px;
+        text-align: left;
+      }
+      th,
+      td {
+        padding: 12px 12px;
+        border-bottom: 1px solid #edf1eb;
+        vertical-align: middle;
+        font-size: 13px;
+      }
+      th {
+        background: var(--surface-subtle);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      .mono {
+        font-family: var(--font-code);
+        font-size: 12px;
+        color: var(--muted);
+        word-break: break-all;
+      }
+      td .mono {
+        white-space: nowrap;
+        word-break: normal;
+      }
+      .mode-select {
+        min-height: 32px;
+        padding: 2px 8px;
+        font-size: 12px;
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        background: var(--surface);
+      }
+
+      /* Switch */
+      .switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .switch input {
+        position: absolute;
+        opacity: 0;
+        width: 40px;
+        height: 24px;
+        margin: 0;
+        cursor: pointer;
+      }
+      .switch-track {
+        position: relative;
+        width: 38px;
+        height: 22px;
+        border-radius: 999px;
+        background: #cfd7d0;
+        transition: background var(--fast) var(--ease);
+        flex: 0 0 auto;
+      }
+      .switch-track::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform var(--fast) var(--ease);
+      }
+      .switch input:checked + .switch-track {
+        background: var(--primary);
+      }
+      .switch input:checked + .switch-track::after {
+        transform: translateX(16px);
+      }
+      .switch input:focus-visible + .switch-track {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+      .switch input:disabled + .switch-track {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      /* Notices & states */
+      .ui-notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: var(--radius-control);
+        background: var(--surface-subtle);
+        color: var(--ink);
+        font-size: 13px;
+      }
+      .ui-notice[data-tone="success"] {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .ui-notice[data-tone="warning"] {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+      .ui-notice[data-tone="error"] {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+      .empty-state {
+        display: grid;
+        place-items: center;
+        text-align: center;
+        gap: 10px;
+        padding: 44px 20px;
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+        color: var(--muted);
+      }
+      .empty-state h3 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 16px;
+      }
+      .empty-state p {
+        margin: 0;
+        max-width: 460px;
+        font-size: 13.5px;
+      }
+
+      /* Right Drawer (Modal placement="right") */
+      .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: flex;
+        justify-content: flex-end;
+        background: rgb(20 35 28 / 42%);
+      }
+      .drawer {
+        display: flex;
+        flex-direction: column;
+        width: min(560px, 100%);
+        height: 100dvh;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        box-shadow: -12px 0 32px rgb(20 35 28 / 14%);
+      }
+      .drawer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .drawer-header h3 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 650;
+      }
+      .drawer-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .drawer-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 14px 20px;
+        border-top: 1px solid var(--border);
+        background: var(--canvas);
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .field-hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .field-error {
+        font-size: 12px;
+        color: var(--danger);
+      }
+
+      /* Code block matching Compass UiCodeBlock */
+      .ui-code {
+        border: 1px solid var(--code-border);
+        border-radius: var(--radius-control);
+        background: var(--code-surface);
+        color: var(--code-text);
+        overflow: hidden;
+      }
+      .ui-code-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--code-border);
+        background: var(--code-toolbar);
+        font-size: 12px;
+        color: var(--code-muted);
+      }
+      .ui-code pre {
+        margin: 0;
+        max-height: 18rem;
+        padding: 12px 14px;
+        overflow: auto;
+        font: 12.5px/1.55 var(--font-code);
+        white-space: pre;
+      }
+      .ui-code pre[data-wrap="true"] {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      /* Tool checkbox list inside drawer */
+      .tool-check-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-control);
+        padding: 10px;
+        background: var(--canvas);
+      }
+      .tool-check-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid #e6ece4;
+      }
+      .tool-check-main {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        min-width: 0;
+      }
+      .tool-check-main input[type="checkbox"] {
+        margin-top: 3px;
+        width: 16px;
+        height: 16px;
+        accent-color: var(--primary);
+      }
+
+      /* Review cards */
+      .review-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .review-card {
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      /* Native Dialog */
+      dialog.ui-dialog {
+        width: min(440px, calc(100% - 32px));
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+        color: var(--ink);
+      }
+      dialog.ui-dialog::backdrop {
+        background: rgb(20 35 28 / 45%);
+      }
+      dialog.ui-dialog h3 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+      dialog.ui-dialog p {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+
+      /* Toast */
+      .toast {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 80;
+        padding: 10px 16px;
+        border-radius: 10px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 13px;
+        box-shadow: 0 8px 24px rgb(20 35 28 / 22%);
+      }
+
+      /* Spinner */
+      .spinner {
+        display: inline-block;
+        width: 15px;
+        height: 15px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spin 750ms linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Responsive <= 1080px & <= 900px (390px narrow screen safe) */
+      @media (max-width: 1120px) {
+        .card-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 900px) {
+        .mobile-topbar {
+          display: flex;
+        }
+        .app-shell {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .rail,
+        .secondary-nav {
+          display: none;
+        }
+        .secondary-nav.mobile-open {
+          display: flex;
+          position: fixed;
+          inset: 0 auto 0 0;
+          width: min(280px, 84vw);
+          z-index: 70;
+          box-shadow: 12px 0 32px rgb(20 35 28 / 18%);
+        }
+        .main-content {
+          padding: 16px 14px 36px;
+        }
+        .card-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .filter-search {
+          max-width: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Prototype Controls -->
+    <div class="proto-bar" role="region" aria-label="原型演示控制栏">
+      <div class="proto-bar-left">
+        <span class="proto-tag">静态高保真原型 · 演示数据（未连接后端）</span>
+        <span>Feature 969 · 第 28 课轻量插件市场 &amp; Tool Search</span>
+      </div>
+      <div class="proto-bar-right">
+        <span style="color: var(--muted)">视角：</span>
+        <div class="proto-seg" role="group" aria-label="切换演示角色">
+          <button type="button" id="role-member" aria-pressed="false">普通成员</button>
+          <button type="button" id="role-admin" aria-pressed="true">平台管理员</button>
+        </div>
+        <span style="color: var(--muted)">状态：</span>
+        <div class="proto-seg" role="group" aria-label="切换演示界面状态">
+          <button type="button" data-sim-state="normal" aria-pressed="true">正常</button>
+          <button type="button" data-sim-state="loading" aria-pressed="false">加载</button>
+          <button type="button" data-sim-state="empty" aria-pressed="false">空态</button>
+          <button type="button" data-sim-state="error" aria-pressed="false">错误</button>
+        </div>
+        <button type="button" class="ui-button" data-variant="secondary" data-size="sm" id="btn-open-ts-demo">
+          试测 Tool Search
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Top Bar -->
+    <div class="mobile-topbar">
+      <button type="button" class="ui-button" data-variant="secondary" data-size="sm" id="btn-mobile-nav">
+        ☰ 插件导航
+      </button>
+      <strong>Compass · 全部插件</strong>
+      <span class="badge" data-tone="primary">华东空间</span>
+    </div>
+
+    <div class="app-shell">
+      <!-- Primary Icon Rail -->
+      <nav class="rail" aria-label="一级导航">
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <button class="rail-btn" type="button" title="分析" aria-label="分析">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
+        <button class="rail-btn" type="button" title="报告空间" aria-label="报告空间">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6" />
+          </svg>
+        </button>
+        <button class="rail-btn" type="button" title="插件" aria-label="插件" aria-current="page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+        </button>
+        <button class="rail-btn" type="button" title="定时任务" aria-label="定时任务">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+        <button class="rail-btn" type="button" title="看板" aria-label="看板">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3v18h18" />
+            <path d="M7 15v-4M12 15V7M17 15v-6" />
+          </svg>
+        </button>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" type="button" title="管理与治理" aria-label="管理与治理">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.25.4-1.51 1z" />
+          </svg>
+        </button>
+      </nav>
+
+      <!-- Secondary Navigation -->
+      <aside class="secondary-nav" id="secondary-nav" aria-label="插件二级导航">
+        <div class="nav-header">
+          <div style="display: flex; align-items: center; justify-content: space-between">
+            <h1>插件</h1>
+            <button
+              type="button"
+              class="ui-button"
+              data-variant="quiet"
+              data-size="sm"
+              id="btn-close-mobile-nav"
+              style="display: none"
+            >
+              关闭
+            </button>
+          </div>
+          <p>把好方法，带进每一次分析</p>
+        </div>
+        <ul class="nav-list">
+          <li><a class="nav-item" href="#plugins" aria-current="page"><span>全部插件</span></a></li>
+          <li><span class="nav-item"><span>Skill</span><span class="nav-item-badge">第 29 课</span></span></li>
+          <li><span class="nav-item"><span>Prompt</span><span class="nav-item-badge">待接入</span></span></li>
+          <li><span class="nav-item"><span>Agent</span><span class="nav-item-badge">待接入</span></span></li>
+          <li><span class="nav-item"><span>Workflow</span></span></li>
+          <li><span class="nav-item"><span>报告模板</span><span class="nav-item-badge">待接入</span></span></li>
+          <li><span class="nav-item"><span>数据集</span><span class="nav-item-badge">待接入</span></span></li>
+        </ul>
+        <div class="workspace-chip">
+          <strong>远山零售</strong>
+          <span>华东运营空间 · 个人凭据隔离</span>
+        </div>
+      </aside>
+
+      <!-- Main Workspace -->
+      <main class="main-content" id="main-content" tabindex="-1">
+        <header class="ui-page-heading">
+          <div>
+            <h2>全部插件</h2>
+            <p>接入内置与自定义 Streamable HTTP MCP 工具；个人开启后自动纳入工具池，并按 Tool Search 策略按需装载。</p>
+          </div>
+          <div class="ui-actions">
+            <button type="button" class="ui-button" data-variant="secondary" id="btn-submit-catalog">
+              提交插件上架
+            </button>
+            <button type="button" class="ui-button" id="btn-custom-connect">
+              + 自定义 MCP 接入
+            </button>
+          </div>
+        </header>
+
+        <!-- View Tabs -->
+        <div class="tabs" role="tablist" aria-label="插件中心视图">
+          <button type="button" class="tab-btn" role="tab" id="tab-market" aria-selected="true" aria-controls="panel-market">
+            插件市场 <span class="count-pill" id="count-market">0</span>
+          </button>
+          <button type="button" class="tab-btn" role="tab" id="tab-mine" aria-selected="false" aria-controls="panel-mine">
+            我的插件 <span class="count-pill" id="count-mine">0</span>
+          </button>
+          <button type="button" class="tab-btn" role="tab" id="tab-review" aria-selected="false" aria-controls="panel-review">
+            上架审核 <span class="count-pill" data-tone="warning" id="count-review">0</span>
+          </button>
+        </div>
+
+        <!-- Simulated non-normal states -->
+        <div id="state-overlay" hidden></div>
+
+        <!-- Panel 1: Marketplace -->
+        <section id="panel-market" role="tabpanel" aria-labelledby="tab-market">
+          <div class="filter-bar">
+            <input
+              type="search"
+              id="market-search"
+              class="ui-input filter-search"
+              placeholder="搜索插件名称、简介或工具名…"
+              aria-label="搜索插件市场"
+            />
+            <select id="market-source" class="ui-select filter-select" aria-label="按来源筛选">
+              <option value="all">全部来源</option>
+              <option value="builtin_preset">内置预置</option>
+              <option value="platform_public">平台公共</option>
+              <option value="tenant_private">租户私有</option>
+            </select>
+            <span class="badge" data-tone="primary">仅支持 Streamable HTTP MCP</span>
+          </div>
+          <div class="card-grid" id="market-grid"></div>
+        </section>
+
+        <!-- Panel 2: My Plugins -->
+        <section id="panel-mine" role="tabpanel" aria-labelledby="tab-mine" hidden>
+          <div class="ts-banner" id="ts-banner"></div>
+          <div class="table-wrap" id="mine-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>连接名称</th>
+                  <th>来源</th>
+                  <th>Streamable HTTP Endpoint</th>
+                  <th>加载策略（Tool Search）</th>
+                  <th>启用工具</th>
+                  <th>凭据</th>
+                  <th>自动装载</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="mine-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Panel 3: Admin Review -->
+        <section id="panel-review" role="tabpanel" aria-labelledby="tab-review" hidden>
+          <div class="ui-notice" style="margin-bottom: 16px">
+            <span>一期采用极简准入骨架：展示基础静态校验与真实 Streamable HTTP 握手探测到的工具列表，审核通过即上架，异常可一键下架。</span>
+          </div>
+          <h3 style="margin: 0 0 12px; font-size: 15px">待审核队列</h3>
+          <div class="review-list" id="pending-review-list"></div>
+          <h3 style="margin: 24px 0 12px; font-size: 15px">已上架条目管理（支持一键下架）</h3>
+          <div class="review-list" id="published-manage-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Drawer 1: Connect / Custom MCP -->
+    <div class="drawer-backdrop" id="connect-drawer-backdrop" hidden>
+      <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="connect-drawer-title">
+        <div class="drawer-header">
+          <h3 id="connect-drawer-title">自定义 Streamable HTTP MCP 接入</h3>
+          <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-close-drawer>关闭 ✕</button>
+        </div>
+        <div class="drawer-body">
+          <div id="connect-banner" class="ui-notice" hidden></div>
+          <div class="field">
+            <label for="c-name">连接名称</label>
+            <input id="c-name" class="ui-input" placeholder="例如：公司内部大促与竞品 MCP" />
+          </div>
+          <div class="field">
+            <label for="c-endpoint">Streamable HTTP Endpoint</label>
+            <input id="c-endpoint" class="ui-input mono" placeholder="https://mcp.example.com/mcp 或 http://10.20.1.88:8198/mcp" />
+            <span class="field-hint">支持标准云端 HTTPS 与公司内部 Streamable HTTP MCP；云元数据地址与 3xx 重定向自动拦截。</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="field">
+              <label for="c-auth">认证方式</label>
+              <select id="c-auth" class="ui-select">
+                <option value="bearer">Bearer Token（个人凭据）</option>
+                <option value="none">无认证</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="c-loading">加载策略（Tool Search）</label>
+              <select id="c-loading" class="ui-select">
+                <option value="deferred">延迟按需搜索（deferred，默认）</option>
+                <option value="always_load">始终常驻（always_load）</option>
+                <option value="auto">自动阈值（auto，超 6 工具按需搜索）</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" id="c-token-field">
+            <label for="c-token">个人 Bearer Token（只写不回显）</label>
+            <input id="c-token" type="password" class="ui-input" placeholder="输入个人访问令牌，服务端加密保存" />
+            <span class="field-hint" id="c-token-hint">每个用户独立维护自己的凭据，其他成员与管理员均不可见。</span>
+          </div>
+          <div class="ui-actions">
+            <button type="button" class="ui-button" data-variant="secondary" id="btn-probe-mcp">
+              测试连通并拉取工具
+            </button>
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted)">
+              <input type="checkbox" id="c-sim-fail" /> 模拟连通失败
+            </label>
+          </div>
+          <div id="probe-feedback"></div>
+          <div id="probe-tools-wrap" hidden>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px">
+              <strong style="font-size: 13px">已发现工具（勾选启用）</strong>
+              <span class="field-hint">写操作可按需标记为需人工确认</span>
+            </div>
+            <div class="tool-check-list" id="probe-tools-list"></div>
+          </div>
+        </div>
+        <div class="drawer-footer">
+          <button type="button" class="ui-button" data-variant="secondary" data-close-drawer>取消</button>
+          <button type="button" class="ui-button" id="btn-save-connect">保存并开启</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer 2: Submit to Marketplace -->
+    <div class="drawer-backdrop" id="submit-drawer-backdrop" hidden>
+      <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="submit-drawer-title">
+        <div class="drawer-header">
+          <h3 id="submit-drawer-title">提交 Streamable HTTP MCP 上架市场</h3>
+          <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-close-drawer>关闭 ✕</button>
+        </div>
+        <div class="drawer-body">
+          <div class="ui-notice">
+            <span>提交后只需通过轻量两步检查（静态校验 + 真实 MCP 握手），即可进入管理员审核队列。</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="field">
+              <label for="s-name">插件名称</label>
+              <input id="s-name" class="ui-input" placeholder="例如：供应链补货预警 MCP" />
+            </div>
+            <div class="field">
+              <label for="s-slug">短标识（slug）</label>
+              <input id="s-slug" class="ui-input mono" placeholder="supply_replenish" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="s-summary">一句话简介</label>
+            <input id="s-summary" class="ui-input" placeholder="查询华东仓安全库存缺口与供应商交期预警" />
+          </div>
+          <div class="field">
+            <label for="s-endpoint">Streamable HTTP Endpoint</label>
+            <input id="s-endpoint" class="ui-input mono" placeholder="http://10.20.1.92:8199/mcp" />
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="field">
+              <label for="s-vis">目标可见范围</label>
+              <select id="s-vis" class="ui-select">
+                <option value="tenant_private">租户私有（远山零售）</option>
+                <option value="platform_public">平台公共市场</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="s-auth">接入认证方式</label>
+              <select id="s-auth" class="ui-select">
+                <option value="bearer">个人 Bearer Token</option>
+                <option value="none">无认证</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="s-token">临时测试 Token（可选，仅用于本次握手，不入库）</label>
+            <input id="s-token" type="password" class="ui-input" placeholder="留空则标注待个人接入时验密" />
+          </div>
+          <div>
+            <button type="button" class="ui-button" data-variant="secondary" id="btn-run-admission">
+              运行轻量准入检查（静态 + 握手）
+            </button>
+          </div>
+          <div id="admission-result"></div>
+        </div>
+        <div class="drawer-footer">
+          <button type="button" class="ui-button" data-variant="secondary" data-close-drawer>取消</button>
+          <button type="button" class="ui-button" id="btn-confirm-submit" disabled>提交审核</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer 3: Inspect Tools Schema -->
+    <div class="drawer-backdrop" id="tools-drawer-backdrop" hidden>
+      <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="tools-drawer-title">
+        <div class="drawer-header">
+          <h3 id="tools-drawer-title">插件工具清单与契约</h3>
+          <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-close-drawer>关闭 ✕</button>
+        </div>
+        <div class="drawer-body" id="tools-drawer-body"></div>
+        <div class="drawer-footer">
+          <button type="button" class="ui-button" data-variant="secondary" data-close-drawer>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer 4: Tool Search Live Simulator -->
+    <div class="drawer-backdrop" id="ts-drawer-backdrop" hidden>
+      <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="ts-drawer-title">
+        <div class="drawer-header">
+          <h3 id="ts-drawer-title">Tool Search 延迟检索模拟器（Claude Code 风格）</h3>
+          <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-close-drawer>关闭 ✕</button>
+        </div>
+        <div class="drawer-body">
+          <div class="ui-notice" data-tone="success">
+            <span>模拟 Compass 运行期 <code>tool_search(query, max_results)</code>：仅在当前用户已开启且落入 <code>deferred_pool</code> 的工具内执行本地 BM25 + 字符 bigram / <code>select:</code> 精确检索，零向量库依赖，命中后单调尾部追加保护 Prefix Cache。</span>
+          </div>
+          <div class="field">
+            <label for="ts-query">输入检索词或精确 select: 表达式</label>
+            <div style="display: flex; gap: 8px">
+              <input id="ts-query" class="ui-input" value="库存 补货" placeholder="如：大促 排期 / 物流 轨迹 / select:check_stock_gap" />
+              <button type="button" class="ui-button" id="btn-run-ts">执行检索</button>
+            </div>
+            <div class="ui-actions" style="margin-top: 4px">
+              <button type="button" class="ui-button" data-variant="secondary" data-size="sm" data-ts-preset="库存 补货">库存 补货</button>
+              <button type="button" class="ui-button" data-variant="secondary" data-size="sm" data-ts-preset="大促 竞品">大促 竞品</button>
+              <button type="button" class="ui-button" data-variant="secondary" data-size="sm" data-ts-preset="select:check_stock_gap">select:check_stock_gap</button>
+            </div>
+          </div>
+          <div id="ts-sim-output"></div>
+        </div>
+        <div class="drawer-footer">
+          <button type="button" class="ui-button" data-variant="secondary" data-close-drawer>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Native Confirmation Dialog -->
+    <dialog class="ui-dialog" id="confirm-dialog">
+      <h3 id="confirm-title">确认操作</h3>
+      <p id="confirm-desc"></p>
+      <div class="field" id="confirm-reason-wrap" hidden style="margin-bottom: 14px">
+        <label for="confirm-reason">原因说明</label>
+        <input id="confirm-reason" class="ui-input" placeholder="例如：上游接口维护中，暂时下架" />
+      </div>
+      <div class="ui-actions" style="justify-content: flex-end">
+        <button type="button" class="ui-button" data-variant="secondary" id="confirm-cancel">取消</button>
+        <button type="button" class="ui-button" data-variant="danger" id="confirm-ok">确认</button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <script>
+      (() => {
+        const EAGER_THRESHOLD = 6;
+        let role = "admin";
+        let simState = "normal";
+        let activeTab = "market";
+        let lastTrigger = null;
+        let editingConnectionId = null;
+        let connectingCatalogId = null;
+        let lastProbedTools = [];
+        let admissionPassed = false;
+        let admissionTools = [];
+        let activatedInDemo = [];
+
+        const catalog = [
+          {
+            id: "cat-promo",
+            slug: "retail_promo_mcp",
+            source: "builtin_preset",
+            visibility: "platform_public",
+            status: "published",
+            name: "零售大促与竞品价格 MCP",
+            summary: "查询公司内部大促活动排期、满减规则与核心单品竞品实时价格监测数据。",
+            endpoint: "http://127.0.0.1:8198/mcp",
+            authType: "bearer",
+            tools: [
+              {
+                name: "get_promotion_schedule",
+                desc: "按日期区间与渠道查询大促活动排期、券折扣力度与核心主推 SKU",
+                effect: "read_only",
+                schema: { type: "object", properties: { start_date: { type: "string" }, channel: { type: "string" } }, required: ["start_date"] },
+              },
+              {
+                name: "get_competitor_prices",
+                desc: "查询指定 SKU 近 7 天竞品平台券后价与价差变化",
+                effect: "read_only",
+                schema: { type: "object", properties: { sku_code: { type: "string" }, days: { type: "integer" } }, required: ["sku_code"] },
+              },
+            ],
+          },
+          {
+            id: "cat-web",
+            slug: "cloud_web_research",
+            source: "builtin_preset",
+            visibility: "platform_public",
+            status: "published",
+            name: "标准云端行业检索 MCP",
+            summary: "标准云端 Streamable HTTP MCP，支持公开行业研报、政策公告与外部资讯检索。",
+            endpoint: "https://mcp.cloud-search.example.com/mcp",
+            authType: "none",
+            tools: [
+              { name: "search_industry_news", desc: "按关键词检索公开零售行业资讯与公告", effect: "read_only", schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+              { name: "fetch_public_article", desc: "抓取指定公开报道正文摘要", effect: "read_only", schema: { type: "object", properties: { url: { type: "string" } }, required: ["url"] } },
+              { name: "list_macro_indicators", desc: "查询消费品零售总额等公开宏观指标", effect: "read_only", schema: { type: "object", properties: { month: { type: "string" } } } },
+            ],
+          },
+          {
+            id: "cat-erp",
+            slug: "erp_inventory_suite",
+            source: "submitted",
+            visibility: "tenant_private",
+            status: "published",
+            name: "ERP 库存与补货协同 MCP",
+            summary: "远山零售内部 ERP 套件（含 10 个供应链、仓储与补货查询工具，适合演示 Tool Search 延迟加载）。",
+            endpoint: "http://10.20.1.60:8200/mcp",
+            authType: "bearer",
+            tools: [
+              { name: "check_stock_gap", desc: "按大区与仓库排查 SKU 安全库存缺口与断货预警", effect: "read_only", schema: { type: "object", properties: { region: { type: "string" }, warehouse: { type: "string" } }, required: ["region"] } },
+              { name: "list_purchase_orders", desc: "查询在途采购单状态与预计到仓日期", effect: "read_only", schema: { type: "object", properties: { supplier_id: { type: "string" } } } },
+              { name: "get_warehouse_capacity", desc: "查看各区域前置仓剩余库容与周转天数", effect: "read_only", schema: { type: "object", properties: { region: { type: "string" } } } },
+              { name: "query_supplier_leadtime", desc: "核对供应商历史交付准时率与平均交期", effect: "read_only", schema: { type: "object", properties: { supplier_id: { type: "string" } } } },
+              { name: "estimate_replenish_qty", desc: "基于近 30 天动销估算建议补货量", effect: "read_only", schema: { type: "object", properties: { sku_code: { type: "string" } }, required: ["sku_code"] } },
+              { name: "list_slow_moving_skus", desc: "列出库龄超 60 天滞销品清单", effect: "read_only", schema: { type: "object", properties: { region: { type: "string" } } } },
+              { name: "query_transfer_orders", desc: "查询跨仓调拨单执行进度", effect: "read_only", schema: { type: "object", properties: { status: { type: "string" } } } },
+              { name: "get_inbound_exceptions", desc: "检索近期入库质检不合格与短少记录", effect: "read_only", schema: { type: "object", properties: { days: { type: "integer" } } } },
+              { name: "query_lot_expiry_risk", desc: "排查临期批次库存与货值占比", effect: "read_only", schema: { type: "object", properties: { days_left: { type: "integer" } } } },
+              { name: "submit_replenish_draft", desc: "创建一条待确认的补货申请草稿（外部写操作）", effect: "external_write", schema: { type: "object", properties: { sku_code: { type: "string" }, qty: { type: "integer" } }, required: ["sku_code", "qty"] } },
+            ],
+          },
+          {
+            id: "cat-logistics",
+            slug: "fulfillment_trace",
+            source: "submitted",
+            visibility: "platform_public",
+            status: "published",
+            name: "全渠道物流履约轨迹 MCP",
+            summary: "聚合干线与末端快递揽收、签收时效与异常滞留诊断工具。",
+            endpoint: "https://mcp.logistics.example.com/mcp",
+            authType: "bearer",
+            tools: [
+              { name: "trace_waybill", desc: "按运单号查询实时物流节点与异常滞留原因", effect: "read_only", schema: { type: "object", properties: { waybill_no: { type: "string" } }, required: ["waybill_no"] } },
+              { name: "get_carrier_sla", desc: "按区域与承运商统计 48 小时揽收率与妥投率", effect: "read_only", schema: { type: "object", properties: { region: { type: "string" } } } },
+              { name: "list_delayed_routes", desc: "排查近 7 天超时履约线路 Top 10", effect: "read_only", schema: { type: "object", properties: { days: { type: "integer" } } } },
+            ],
+          },
+        ];
+
+        const connections = [
+          {
+            id: "conn-1",
+            catalogItemId: "cat-promo",
+            source: "catalog",
+            name: "零售大促与竞品价格 MCP",
+            endpoint: "http://127.0.0.1:8198/mcp",
+            authType: "bearer",
+            hasToken: true,
+            enabled: true,
+            checkStatus: "passed",
+            loadingMode: "deferred",
+            tools: catalog[0].tools.map((t) => ({ ...t, enabled: true })),
+          },
+          {
+            id: "conn-2",
+            catalogItemId: null,
+            source: "custom",
+            name: "华东门店巡检内部 MCP",
+            endpoint: "http://10.20.1.60:8200/mcp",
+            authType: "bearer",
+            hasToken: true,
+            enabled: true,
+            checkStatus: "passed",
+            loadingMode: "deferred",
+            tools: catalog[2].tools.map((t) => ({ ...t, enabled: true })),
+          },
+        ];
+
+        const pendingReviews = [
+          {
+            id: "rev-1",
+            slug: "cs_ticket_collab",
+            name: "客服工单与客诉协同 MCP",
+            summary: "查询退换货客诉高频原因，并支持在人工确认后提交协同排查工单。",
+            endpoint: "http://10.20.1.75:8210/mcp",
+            visibility: "tenant_private",
+            authType: "bearer",
+            submitter: "华东运营 · 张敏",
+            check: {
+              passed: true,
+              elapsedMs: 412,
+              findings: [
+                { severity: "ok", text: "Step 1 静态检查通过：合法 Streamable HTTP URL，未命中云元数据网段，Schema 校验通过" },
+                { severity: "ok", text: "Step 2 握手探测通过：协议 2025-11-25，拉取 2 个工具" },
+              ],
+            },
+            tools: [
+              { name: "query_complaint_summary", desc: "按品类与时间统计客诉热点与退货原因分布", effect: "read_only", schema: { type: "object", properties: { category: { type: "string" } } } },
+              { name: "create_collab_ticket", desc: "创建跨部门排查工单（外部写操作）", effect: "external_write", schema: { type: "object", properties: { title: { type: "string" }, priority: { type: "string" } }, required: ["title"] } },
+            ],
+          },
+        ];
+
+        const $ = (sel) => document.querySelector(sel);
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;");
+
+        function toast(msg) {
+          const el = $("#toast");
+          el.textContent = msg;
+          el.hidden = false;
+          clearTimeout(toast._t);
+          toast._t = setTimeout(() => (el.hidden = true), 2600);
+        }
+
+        function isCatalogDisabled(conn) {
+          if (!conn.catalogItemId) return false;
+          const item = catalog.find((c) => c.id === conn.catalogItemId);
+          return item && item.status === "disabled";
+        }
+
+        function computeToolSearchStats() {
+          const activeConns = connections.filter((c) => c.enabled && !isCatalogDisabled(c));
+          const allTools = activeConns.flatMap((c) =>
+            c.tools
+              .filter((t) => t.enabled)
+              .map((t) => ({ ...t, connName: c.name, loadingMode: c.loadingMode })),
+          );
+          const alwaysLoad = allTools.filter((t) => t.loadingMode === "always_load");
+          const forcedDeferred = allTools.filter((t) => t.loadingMode === "deferred");
+          const autoTools = allTools.filter((t) => t.loadingMode === "auto");
+          const autoTriggered = autoTools.length + alwaysLoad.length > EAGER_THRESHOLD;
+          const eagerTools = autoTriggered ? alwaysLoad : [...alwaysLoad, ...autoTools];
+          const deferredTools = autoTriggered ? [...forcedDeferred, ...autoTools] : forcedDeferred;
+          const toolSearchActive = deferredTools.length > 0;
+          const fullTokens = allTools.length * 460;
+          const initTokens = eagerTools.length * 460 + (toolSearchActive ? 340 + activeConns.length * 24 : 0);
+          const savedPct = fullTokens > 0 && toolSearchActive ? Math.max(0, Math.round(((fullTokens - initTokens) / fullTokens) * 100)) : 0;
+          return { activeConns, allTools, eagerTools, deferredTools, toolSearchActive, fullTokens, initTokens, savedPct };
+        }
+
+        function renderAll() {
+          const pubCatalog = catalog.filter((c) => c.status === "published");
+          $("#count-market").textContent = pubCatalog.length;
+          $("#count-mine").textContent = connections.filter((c) => c.enabled && !isCatalogDisabled(c)).length;
+          $("#count-review").textContent = pendingReviews.length;
+          $("#tab-review").hidden = role !== "admin";
+          if (role !== "admin" && activeTab === "review") activeTab = "market";
+
+          ["market", "mine", "review"].forEach((t) => {
+            $(`#tab-${t}`).setAttribute("aria-selected", String(activeTab === t));
+            $(`#panel-${t}`).hidden = simState !== "normal" || activeTab !== t;
+          });
+
+          const overlay = $("#state-overlay");
+          if (simState === "normal") {
+            overlay.hidden = true;
+          } else {
+            overlay.hidden = false;
+            if (simState === "loading") {
+              overlay.innerHTML = `<div class="ui-panel"><div class="ui-notice"><span class="spinner" aria-hidden="true"></span><span>正在加载插件列表…</span></div></div>`;
+            } else if (simState === "empty") {
+              const copy =
+                activeTab === "market"
+                  ? ["暂无已上架的插件", "你可以点击「自定义 MCP 接入」直接连接 Streamable HTTP MCP 服务。"]
+                  : activeTab === "mine"
+                    ? ["你尚未接入任何插件", "前往「插件市场」一键接入内置插件，或添加自定义 MCP。"]
+                    : ["当前没有待审核的插件条目", "成员提交新插件并完成两步准入检查后会出现在此处。"];
+              overlay.innerHTML = `<div class="empty-state"><h3>${copy[0]}</h3><p>${copy[1]}</p><button type="button" class="ui-button" onclick="document.querySelector('[data-sim-state=normal]').click()">返回正常态</button></div>`;
+            } else if (simState === "error") {
+              overlay.innerHTML = `<div class="ui-panel" style="display:flex;flex-direction:column;gap:12px"><div class="ui-notice" data-tone="error" role="alert"><span>插件列表暂时无法加载，请稍后重试。</span></div><div><button type="button" class="ui-button" data-variant="secondary" onclick="document.querySelector('[data-sim-state=normal]').click()">重新加载</button></div></div>`;
+            }
+            return;
+          }
+
+          renderMarket();
+          renderMine();
+          renderReview();
+        }
+
+        function renderMarket() {
+          const q = $("#market-search").value.trim().toLowerCase();
+          const src = $("#market-source").value;
+          const items = catalog.filter((item) => {
+            if (item.status !== "published") return false;
+            if (src === "builtin_preset" && item.source !== "builtin_preset") return false;
+            if (src === "platform_public" && (item.source === "builtin_preset" || item.visibility !== "platform_public")) return false;
+            if (src === "tenant_private" && item.visibility !== "tenant_private") return false;
+            if (q) {
+              const hay = `${item.name} ${item.summary} ${item.tools.map((t) => t.name).join(" ")}`.toLowerCase();
+              if (!hay.includes(q)) return false;
+            }
+            return true;
+          });
+          const grid = $("#market-grid");
+          if (!items.length) {
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>未找到匹配的插件</h3><p>换一个关键词或切换来源筛选，也可以点击右上角「自定义 MCP 接入」。</p></div>`;
+            return;
+          }
+          grid.innerHTML = items
+            .map((item) => {
+              const conn = connections.find((c) => c.catalogItemId === item.id);
+              const sourceLabel =
+                item.source === "builtin_preset"
+                  ? "内置预置"
+                  : item.visibility === "tenant_private"
+                    ? "租户私有"
+                    : "平台公共";
+              const tone = item.source === "builtin_preset" ? "primary" : "default";
+              return `<article class="plugin-card">
+                <div class="card-top">
+                  <div class="card-title-group">
+                    <div class="plugin-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 16v6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M16 12h6"/></svg>
+                    </div>
+                    <div>
+                      <h3>${esc(item.name)}</h3>
+                      <div class="badges" style="margin-top:5px">
+                        <span class="badge" data-tone="${tone}">${sourceLabel}</span>
+                        <span class="badge">${item.authType === "bearer" ? "个人 Bearer" : "无认证"}</span>
+                        ${item.tools.length > EAGER_THRESHOLD ? '<span class="badge" data-tone="warning">推荐 Tool Search</span>' : ""}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p class="card-desc">${esc(item.summary)}</p>
+                <div class="meta-row">
+                  <span>工具：<strong>${item.tools.length}</strong> 个</span>
+                  <span>协议：Streamable HTTP</span>
+                  ${conn ? `<span class="badge" data-tone="${conn.enabled ? "primary" : "default"}">${conn.enabled ? "已接入 · 已开启" : "已接入 · 已关闭"}</span>` : "<span>未接入</span>"}
+                </div>
+                <div class="card-footer">
+                  <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-inspect-catalog="${item.id}">查看工具</button>
+                  <button type="button" class="ui-button" data-variant="${conn ? "secondary" : "primary"}" data-size="sm" data-connect-catalog="${item.id}">
+                    ${conn ? "管理接入" : "接入"}
+                  </button>
+                </div>
+              </article>`;
+            })
+            .join("");
+        }
+
+        function renderMine() {
+          const stats = computeToolSearchStats();
+          const banner = $("#ts-banner");
+          const pct = Math.min(100, Math.round((stats.allTools.length / 32) * 100));
+          banner.innerHTML = `
+            <div class="ts-banner-info">
+              <div class="ts-banner-title">
+                <span>个人工具上下文与 Tool Search 状态</span>
+                <span class="badge" data-tone="${stats.toolSearchActive ? "primary" : "default"}">
+                  ${stats.toolSearchActive ? "已启用 Tool Search 按需加载" : "Eager 直接装载"}
+                </span>
+              </div>
+              <p class="ts-banner-desc">
+                ${
+                  stats.toolSearchActive
+                    ? `当前已开启 ${stats.activeConns.length} 个插件（共 ${stats.allTools.length} 个外部工具，超过 ${EAGER_THRESHOLD} 个直出阈值或含延迟插件）。初始仅暴露 ${stats.eagerTools.length} 个常驻外部工具 + 1 个 tool_search 元工具，其余 ${stats.deferredTools.length} 个放入延迟池按需激活，预计节省约 ${stats.savedPct}% 工具声明 Token。`
+                    : `当前已开启 ${stats.activeConns.length} 个插件（共 ${stats.allTools.length} 个外部工具，未超 ${EAGER_THRESHOLD} 个阈值），新分析对话自动直接装载到工具上下文，零搜索开销。`
+                }
+              </p>
+              <div class="ts-meter-wrap">
+                <div class="ts-bar" aria-hidden="true"><div class="ts-bar-fill" style="width:${pct}%"></div></div>
+                <div class="ts-metrics">
+                  <span>延迟池：<strong>${stats.deferredTools.length}</strong> 个</span>
+                  <span>初始声明估算：<strong>${stats.initTokens.toLocaleString()}</strong> / ${stats.fullTokens.toLocaleString()} Tokens</span>
+                </div>
+              </div>
+            </div>
+            <div class="ui-actions">
+              <button type="button" class="ui-button" data-variant="secondary" data-size="sm" id="btn-banner-ts">
+                试测 Tool Search 检索
+              </button>
+            </div>`;
+          $("#btn-banner-ts").addEventListener("click", (e) => openTsDrawer(e.currentTarget));
+
+          const tbody = $("#mine-tbody");
+          if (!connections.length) {
+            $("#mine-table-wrap").hidden = true;
+            return;
+          }
+          $("#mine-table-wrap").hidden = false;
+          tbody.innerHTML = connections
+            .map((conn) => {
+              const disabledByMarket = isCatalogDisabled(conn);
+              const enabledTools = conn.tools.filter((t) => t.enabled).length;
+              return `<tr>
+                <td>
+                  <strong>${esc(conn.name)}</strong>
+                  <div class="badges" style="margin-top:4px">
+                    <span class="badge" data-tone="${conn.checkStatus === "failed" ? "danger" : "primary"}">${conn.checkStatus === "failed" ? "机审未通过" : "机审通过"}</span>
+                    ${disabledByMarket ? '<span class="badge" data-tone="danger">市场已下架 · 停用</span>' : ""}
+                  </div>
+                </td>
+                <td><span class="badge" data-tone="${conn.source === "catalog" ? "primary" : "default"}">${conn.source === "catalog" ? "市场接入" : "自定义"}</span></td>
+                <td><span class="mono">${esc(conn.endpoint)}</span></td>
+                <td>
+                  <select class="mode-select" data-mode-conn="${conn.id}" aria-label="${esc(conn.name)}加载策略" ${disabledByMarket ? "disabled" : ""}>
+                    <option value="deferred" ${conn.loadingMode === "deferred" ? "selected" : ""}>延迟搜索 (默认)</option>
+                    <option value="always_load" ${conn.loadingMode === "always_load" ? "selected" : ""}>始终常驻</option>
+                    <option value="auto" ${conn.loadingMode === "auto" ? "selected" : ""}>自动 (auto)</option>
+                  </select>
+                </td>
+                <td>${enabledTools} / ${conn.tools.length}</td>
+                <td>${conn.authType === "none" ? '<span class="badge">无认证</span>' : '<span class="badge" data-tone="primary">已加密</span>'}</td>
+                <td>
+                  <label class="switch">
+                    <input type="checkbox" data-toggle-conn="${conn.id}" ${conn.enabled && !disabledByMarket ? "checked" : ""} ${disabledByMarket || conn.checkStatus === "failed" ? "disabled" : ""} aria-label="开启或关闭${esc(conn.name)}" />
+                    <span class="switch-track"></span>
+                    <span style="font-size:12px;color:var(--muted)">${disabledByMarket ? "已下架" : conn.enabled ? "已开启" : "已关闭"}</span>
+                  </label>
+                </td>
+                <td>
+                  <div class="ui-actions" style="flex-wrap:nowrap">
+                    <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-quick-probe="${conn.id}" ${disabledByMarket ? "disabled" : ""}>测试</button>
+                    <button type="button" class="ui-button" data-variant="quiet" data-size="sm" data-edit-conn="${conn.id}">编辑</button>
+                    ${conn.source === "custom" && conn.checkStatus !== "failed" ? `<button type="button" class="ui-button" data-variant="secondary" data-size="sm" data-promote-conn="${conn.id}">提交上架</button>` : ""}
+                    <button type="button" class="ui-button" data-variant="danger-outline" data-size="sm" data-del-conn="${conn.id}">删除</button>
+                  </div>
+                </td>
+              </tr>`;
+            })
+            .join("");
+        }
+
+        function renderReview() {
+          const pList = $("#pending-review-list");
+          if (!pendingReviews.length) {
+            pList.innerHTML = `<div class="empty-state"><h3>当前没有待审核的插件条目</h3><p>可通过右上角「提交插件上架」新增一个待审示例。</p></div>`;
+          } else {
+            pList.innerHTML = pendingReviews
+              .map(
+                (r) => `<article class="review-card">
+                  <div class="card-top">
+                    <div>
+                      <h4 style="margin:0;font-size:15px">${esc(r.name)} <span class="mono">(${esc(r.slug)})</span></h4>
+                      <p class="card-desc" style="margin-top:4px">${esc(r.summary)}</p>
+                    </div>
+                    <div class="badges">
+                      <span class="badge" data-tone="warning">待审核</span>
+                      <span class="badge">${r.visibility === "tenant_private" ? "租户私有" : "平台公共"}</span>
+                    </div>
+                  </div>
+                  <div class="meta-row">
+                    <span>提交人：${esc(r.submitter)}</span>
+                    <span>Endpoint：<span class="mono">${esc(r.endpoint)}</span></span>
+                    <span>探测工具：<strong>${r.tools.length}</strong> 个（${r.tools.map((t) => esc(t.name)).join("、")}）</span>
+                  </div>
+                  <div class="ui-notice" data-tone="success">
+                    <span>${r.check.findings.map((f) => esc(f.text)).join("；")}（${r.check.elapsedMs} ms）</span>
+                  </div>
+                  <div class="ui-actions" style="justify-content:flex-end">
+                    <button type="button" class="ui-button" data-variant="secondary" data-size="sm" data-reject-rev="${r.id}">驳回</button>
+                    <button type="button" class="ui-button" data-size="sm" data-approve-rev="${r.id}">批准上架</button>
+                  </div>
+                </article>`,
+              )
+              .join("");
+          }
+
+          const mList = $("#published-manage-list");
+          mList.innerHTML = catalog
+            .map(
+              (c) => `<article class="review-card">
+                <div class="card-top">
+                  <div>
+                    <h4 style="margin:0;font-size:14.5px">${esc(c.name)} <span class="mono">(${esc(c.slug)})</span></h4>
+                    <span class="mono">${esc(c.endpoint)}</span>
+                  </div>
+                  <div class="ui-actions">
+                    <span class="badge" data-tone="${c.status === "published" ? "primary" : "danger"}">${c.status === "published" ? "已上架" : "已下架"}</span>
+                    ${
+                      c.status === "published"
+                        ? `<button type="button" class="ui-button" data-variant="danger-outline" data-size="sm" data-disable-cat="${c.id}">一键下架</button>`
+                        : `<button type="button" class="ui-button" data-variant="secondary" data-size="sm" data-restore-cat="${c.id}">恢复上架</button>`
+                    }
+                  </div>
+                </div>
+              </article>`,
+            )
+            .join("");
+        }
+
+        function openDrawer(backdropId, triggerEl) {
+          lastTrigger = triggerEl || document.activeElement;
+          const el = $(backdropId);
+          el.hidden = false;
+          const first = el.querySelector("input:not([disabled]), select:not([disabled]), button:not([data-close-drawer])");
+          if (first) first.focus();
+        }
+        function closeAllDrawers() {
+          document.querySelectorAll(".drawer-backdrop").forEach((b) => (b.hidden = true));
+          if (lastTrigger && typeof lastTrigger.focus === "function") lastTrigger.focus();
+        }
+
+        function openConnectDrawer({ catalogItem = null, connection = null, trigger = null }) {
+          editingConnectionId = connection ? connection.id : null;
+          connectingCatalogId = catalogItem ? catalogItem.id : connection ? connection.catalogItemId : null;
+          $("#connect-drawer-title").textContent = connection
+            ? `管理接入：${connection.name}`
+            : catalogItem
+              ? `接入市场插件：${catalogItem.name}`
+              : "自定义 Streamable HTTP MCP 接入";
+          $("#c-name").value = connection ? connection.name : catalogItem ? catalogItem.name : "";
+          $("#c-endpoint").value = connection ? connection.endpoint : catalogItem ? catalogItem.endpoint : "";
+          $("#c-endpoint").disabled = Boolean(catalogItem);
+          $("#c-auth").value = connection ? connection.authType : catalogItem ? catalogItem.authType : "bearer";
+          $("#c-loading").value = connection ? connection.loadingMode : "deferred";
+          $("#c-token").value = "";
+          $("#c-token").placeholder = connection && connection.hasToken ? "已加密保存，留空保持当前凭据不变" : "输入个人访问令牌，服务端加密保存";
+          $("#c-token-field").hidden = $("#c-auth").value === "none";
+          $("#c-sim-fail").checked = false;
+          $("#probe-feedback").innerHTML = "";
+          const banner = $("#connect-banner");
+          if (catalogItem) {
+            banner.hidden = false;
+            banner.textContent = `来自市场「${catalogItem.name}」：已自动填入受信任 Endpoint，你只需配置个人凭据并开启即可。`;
+          } else {
+            banner.hidden = true;
+          }
+          lastProbedTools = connection
+            ? connection.tools.map((t) => ({ ...t }))
+            : catalogItem
+              ? catalogItem.tools.map((t) => ({ ...t, enabled: true }))
+              : [];
+          renderProbeTools();
+          openDrawer("#connect-drawer-backdrop", trigger);
+        }
+
+        function renderProbeTools() {
+          const wrap = $("#probe-tools-wrap");
+          if (!lastProbedTools.length) {
+            wrap.hidden = true;
+            return;
+          }
+          wrap.hidden = false;
+          $("#probe-tools-list").innerHTML = lastProbedTools
+            .map(
+              (t, idx) => `<div class="tool-check-row">
+                <div class="tool-check-main">
+                  <input type="checkbox" data-pt-check="${idx}" ${t.enabled ? "checked" : ""} />
+                  <div>
+                    <strong style="font-size:13px">${esc(t.name)}</strong>
+                    <div class="field-hint">${esc(t.desc)}</div>
+                  </div>
+                </div>
+                <select class="mode-select" data-pt-effect="${idx}" aria-label="${esc(t.name)}执行策略">
+                  <option value="read_only" ${t.effect === "read_only" ? "selected" : ""}>只读直跑</option>
+                  <option value="external_write" ${t.effect === "external_write" ? "selected" : ""}>需人工审批</option>
+                </select>
+              </div>`,
+            )
+            .join("");
+        }
+
+        function openToolsInspect(catId, trigger) {
+          const item = catalog.find((c) => c.id === catId);
+          if (!item) return;
+          $("#tools-drawer-title").textContent = `${item.name} · 工具契约（${item.tools.length}）`;
+          $("#tools-drawer-body").innerHTML = `
+            <div class="ui-notice"><span>Endpoint：<code class="mono">${esc(item.endpoint)}</code>（Streamable HTTP MCP）</span></div>
+            ${item.tools
+              .map(
+                (t) => `<div class="ui-panel" style="padding:14px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+                    <strong>${esc(t.name)}</strong>
+                    <span class="badge" data-tone="${t.effect === "external_write" ? "warning" : "primary"}">${t.effect === "external_write" ? "外部写操作 · 建议 HITL" : "只读查询"}</span>
+                  </div>
+                  <p class="card-desc" style="margin-bottom:10px">${esc(t.desc)}</p>
+                  <div class="ui-code">
+                    <div class="ui-code-toolbar"><span>inputSchema (JSON)</span></div>
+                    <pre><code>${esc(JSON.stringify(t.schema, null, 2))}</code></pre>
+                  </div>
+                </div>`,
+              )
+              .join("")}`;
+          openDrawer("#tools-drawer-backdrop", trigger);
+        }
+
+        function runToolSearchSim() {
+          const q = $("#ts-query").value.trim();
+          const stats = computeToolSearchStats();
+          const pool = stats.deferredTools.length ? stats.deferredTools : stats.allTools;
+          const out = $("#ts-sim-output");
+          if (!pool.length) {
+            out.innerHTML = `<div class="ui-notice" data-tone="warning"><span>当前没有已开启的外部 MCP 工具。请先在「我的插件」开启至少一个插件。</span></div>`;
+            return;
+          }
+          let hits = [];
+          const isSelect = q.toLowerCase().startsWith("select:");
+          if (isSelect) {
+            const targets = q
+              .slice(7)
+              .split(",")
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean);
+            hits = pool
+              .filter((t) => targets.some((x) => t.name.toLowerCase() === x || t.name.toLowerCase().includes(x)))
+              .map((t) => ({ tool: t, score: 1.0, mode: "exact_select" }));
+          } else {
+            const grams = (str) => {
+              const clean = str.toLowerCase().replace(/\s+/g, "");
+              const set = new Set();
+              for (const tok of str.toLowerCase().split(/[\s,，。_/-]+/).filter(Boolean)) set.add(tok);
+              for (let i = 0; i < clean.length - 1; i++) set.add(clean.slice(i, i + 2));
+              return set;
+            };
+            const qGrams = grams(q);
+            hits = pool
+              .map((t) => {
+                const text = `${t.name} ${t.desc} ${t.connName} ${Object.keys(t.schema.properties || {}).join(" ")}`;
+                const tGrams = grams(text);
+                let overlap = 0;
+                qGrams.forEach((g) => {
+                  if (tGrams.has(g)) overlap += t.name.toLowerCase().includes(g) ? 2.2 : 1.0;
+                });
+                const score = qGrams.size ? Number((overlap / (qGrams.size + 1.5)).toFixed(3)) : 0;
+                return { tool: t, score, mode: "bm25_bigram" };
+              })
+              .filter((h) => h.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 5);
+          }
+          hits.forEach((h) => {
+            if (!activatedInDemo.includes(h.tool.name)) activatedInDemo.push(h.tool.name);
+          });
+          const refs = hits.map((h) => ({
+            type: "tool_reference",
+            tool_name: `mcp_${h.tool.name}`,
+            source: h.tool.connName,
+            score: h.score,
+            status: "activated",
+          }));
+          out.innerHTML = `
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="ui-notice" data-tone="${hits.length ? "success" : "warning"}">
+                <span>${hits.length ? `本地检索耗时 1.4 ms，命中 ${hits.length} 个延迟工具并单调追加激活（前缀顺序不变）。` : "未在当前延迟池中命中相关工具，请尝试其他关键词或 select: 精确名。"}</span>
+              </div>
+              <div class="ui-code">
+                <div class="ui-code-toolbar"><span>tool_search 返回结果 (tool_references)</span><span>${isSelect ? "select: 精确选择" : "BM25 + Bigram"}</span></div>
+                <pre data-wrap="true"><code>${esc(JSON.stringify({ query: q, matches: refs }, null, 2))}</code></pre>
+              </div>
+              <div class="ui-panel" style="padding:14px">
+                <strong style="font-size:13px">下一轮模型上下文工具顺序（Prefix Cache 保护示意）</strong>
+                <div class="badges" style="margin-top:8px">
+                  <span class="badge">1. final_answer (稳定前缀)</span>
+                  <span class="badge">2. query_metric (稳定前缀)</span>
+                  <span class="badge">3. database_query (稳定前缀)</span>
+                  <span class="badge" data-tone="primary">4. tool_search (常驻元工具)</span>
+                  ${activatedInDemo.map((n, i) => `<span class="badge" data-tone="warning">${5 + i}. mcp_${esc(n)} (尾部增量激活)</span>`).join("")}
+                </div>
+              </div>
+            </div>`;
+        }
+
+        function openTsDrawer(trigger) {
+          openDrawer("#ts-drawer-backdrop", trigger);
+          runToolSearchSim();
+        }
+
+        function askConfirm({ title, desc, needReason = false, okLabel = "确认", onOk, trigger }) {
+          lastTrigger = trigger || document.activeElement;
+          const dlg = $("#confirm-dialog");
+          $("#confirm-title").textContent = title;
+          $("#confirm-desc").textContent = desc;
+          $("#confirm-reason-wrap").hidden = !needReason;
+          $("#confirm-reason").value = "";
+          $("#confirm-ok").textContent = okLabel;
+          dlg.showModal();
+          $("#confirm-cancel").focus();
+          const cleanup = () => {
+            $("#confirm-ok").onclick = null;
+            $("#confirm-cancel").onclick = null;
+            dlg.close();
+            if (lastTrigger && typeof lastTrigger.focus === "function") lastTrigger.focus();
+          };
+          $("#confirm-cancel").onclick = cleanup;
+          $("#confirm-ok").onclick = () => {
+            const reason = $("#confirm-reason").value.trim();
+            cleanup();
+            onOk(reason);
+          };
+        }
+
+        // Event bindings
+        $("#role-member").addEventListener("click", () => {
+          role = "member";
+          $("#role-member").setAttribute("aria-pressed", "true");
+          $("#role-admin").setAttribute("aria-pressed", "false");
+          renderAll();
+        });
+        $("#role-admin").addEventListener("click", () => {
+          role = "admin";
+          $("#role-admin").setAttribute("aria-pressed", "true");
+          $("#role-member").setAttribute("aria-pressed", "false");
+          renderAll();
+        });
+        document.querySelectorAll("[data-sim-state]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            simState = btn.dataset.simState;
+            document.querySelectorAll("[data-sim-state]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+            renderAll();
+          });
+        });
+
+        ["market", "mine", "review"].forEach((t) => {
+          $(`#tab-${t}`).addEventListener("click", () => {
+            activeTab = t;
+            renderAll();
+          });
+        });
+        $(".tabs").addEventListener("keydown", (e) => {
+          const tabs = ["market", "mine", ...(role === "admin" ? ["review"] : [])];
+          const idx = tabs.indexOf(activeTab);
+          if (e.key === "ArrowRight") {
+            activeTab = tabs[(idx + 1) % tabs.length];
+            renderAll();
+            $(`#tab-${activeTab}`).focus();
+          } else if (e.key === "ArrowLeft") {
+            activeTab = tabs[(idx - 1 + tabs.length) % tabs.length];
+            renderAll();
+            $(`#tab-${activeTab}`).focus();
+          }
+        });
+
+        $("#market-search").addEventListener("input", renderMarket);
+        $("#market-source").addEventListener("change", renderMarket);
+        $("#btn-custom-connect").addEventListener("click", (e) => openConnectDrawer({ trigger: e.currentTarget }));
+        $("#btn-open-ts-demo").addEventListener("click", (e) => openTsDrawer(e.currentTarget));
+        $("#btn-run-ts").addEventListener("click", runToolSearchSim);
+        document.querySelectorAll("[data-ts-preset]").forEach((b) =>
+          b.addEventListener("click", () => {
+            $("#ts-query").value = b.dataset.tsPreset;
+            runToolSearchSim();
+          }),
+        );
+
+        $("#btn-submit-catalog").addEventListener("click", (e) => {
+          admissionPassed = false;
+          admissionTools = [];
+          $("#s-name").value = "";
+          $("#s-slug").value = "";
+          $("#s-summary").value = "";
+          $("#s-endpoint").value = "";
+          $("#s-token").value = "";
+          $("#admission-result").innerHTML = "";
+          $("#btn-confirm-submit").disabled = true;
+          openDrawer("#submit-drawer-backdrop", e.currentTarget);
+        });
+
+        $("#c-auth").addEventListener("change", () => {
+          $("#c-token-field").hidden = $("#c-auth").value === "none";
+        });
+
+        $("#btn-probe-mcp").addEventListener("click", () => {
+          const ep = $("#c-endpoint").value.trim();
+          const fb = $("#probe-feedback");
+          if (!ep || (!ep.startsWith("http://") && !ep.startsWith("https://"))) {
+            fb.innerHTML = `<div class="ui-notice" data-tone="error" role="alert"><span>请输入合法的 http:// 或 https:// Streamable HTTP Endpoint。</span></div>`;
+            return;
+          }
+          if (ep.includes("169.254.169.254")) {
+            fb.innerHTML = `<div class="ui-notice" data-tone="error" role="alert"><span>安全底线拦截：禁止访问云元数据地址 169.254.169.254。</span></div>`;
+            return;
+          }
+          if ($("#c-sim-fail").checked) {
+            fb.innerHTML = `<div class="ui-notice" data-tone="error" role="alert"><span>无法连接到目标 Streamable HTTP MCP：连接超时或鉴权失败（HTTP 401）。请核对地址或凭据后重试。</span></div>`;
+            return;
+          }
+          if (!lastProbedTools.length) {
+            lastProbedTools = [
+              { name: "query_internal_campaign", desc: "查询公司内部营销排期与活动预算执行", effect: "read_only", enabled: true, schema: { type: "object", properties: { month: { type: "string" } } } },
+              { name: "get_sku_channel_price", desc: "拉取指定 SKU 各渠道实付价与毛利参考", effect: "read_only", enabled: true, schema: { type: "object", properties: { sku: { type: "string" } } } },
+            ];
+          }
+          renderProbeTools();
+          fb.innerHTML = `<div class="ui-notice" data-tone="success"><span>连通成功，共发现 ${lastProbedTools.length} 个可用工具（协议 2025-11-25，耗时 286 ms）。</span></div>`;
+        });
+
+        $("#probe-tools-list").addEventListener("change", (e) => {
+          if (e.target.dataset.ptCheck !== undefined) {
+            lastProbedTools[Number(e.target.dataset.ptCheck)].enabled = e.target.checked;
+          }
+          if (e.target.dataset.ptEffect !== undefined) {
+            lastProbedTools[Number(e.target.dataset.ptEffect)].effect = e.target.value;
+          }
+        });
+
+        $("#btn-save-connect").addEventListener("click", () => {
+          const name = $("#c-name").value.trim();
+          const endpoint = $("#c-endpoint").value.trim();
+          if (!name || !endpoint || (!endpoint.startsWith("http://") && !endpoint.startsWith("https://"))) {
+            $("#probe-feedback").innerHTML = `<div class="ui-notice" data-tone="error"><span>请填写连接名称与合法的 http(s):// Streamable HTTP Endpoint。</span></div>`;
+            return;
+          }
+          if (endpoint.includes("169.254.169.254") || $("#c-sim-fail").checked) {
+            $("#probe-feedback").innerHTML = `<div class="ui-notice" data-tone="error"><span>自动化机审质检未通过：安全底线或握手探测失败，已阻断开启。</span></div>`;
+            return;
+          }
+          if (!lastProbedTools.length) {
+            lastProbedTools = [{ name: "default_tool", desc: "已发现默认 MCP 工具", effect: "read_only", enabled: true, schema: { type: "object", properties: {} } }];
+          }
+          const authType = $("#c-auth").value;
+          const loadingMode = $("#c-loading").value;
+          if (editingConnectionId) {
+            const c = connections.find((x) => x.id === editingConnectionId);
+            if (c) {
+              c.name = name;
+              c.endpoint = endpoint;
+              c.authType = authType;
+              c.loadingMode = loadingMode;
+              c.hasToken = authType === "bearer" ? true : false;
+              c.checkStatus = "passed";
+              c.tools = lastProbedTools.map((t) => ({ ...t }));
+              c.enabled = true;
+            }
+            toast(`已通过机审并更新开启「${name}」`);
+          } else {
+            connections.push({
+              id: "conn-" + Date.now(),
+              catalogItemId: connectingCatalogId,
+              source: connectingCatalogId ? "catalog" : "custom",
+              name,
+              endpoint,
+              authType,
+              hasToken: authType === "bearer",
+              checkStatus: "passed",
+              enabled: true,
+              loadingMode,
+              tools: lastProbedTools.map((t) => ({ ...t })),
+            });
+            toast(`已通过自动化机审并开启「${name}」（默认 Tool Search 按需发现）`);
+          }
+          closeAllDrawers();
+          activeTab = "mine";
+          renderAll();
+        });
+
+        $("#btn-run-admission").addEventListener("click", () => {
+          const ep = $("#s-endpoint").value.trim();
+          const slug = $("#s-slug").value.trim();
+          const res = $("#admission-result");
+          if (!ep || (!ep.startsWith("http://") && !ep.startsWith("https://")) || !/^[a-z][a-z0-9_]{2,39}$/.test(slug)) {
+            admissionPassed = false;
+            $("#btn-confirm-submit").disabled = true;
+            res.innerHTML = `<div class="ui-notice" data-tone="error"><span>Step 1 静态检查未通过：请检查 slug（小写字母/数字/下划线，3–40 位）与合法 Streamable HTTP URL。</span></div>`;
+            return;
+          }
+          if (ep.includes("169.254.169.254")) {
+            admissionPassed = false;
+            $("#btn-confirm-submit").disabled = true;
+            res.innerHTML = `<div class="ui-notice" data-tone="error"><span>Step 1 拦截：禁止指向云元数据地址 169.254.169.254。</span></div>`;
+            return;
+          }
+          admissionPassed = true;
+          admissionTools = [
+            { name: `${slug}_query`, desc: "握手探测拉取的业务查询工具", effect: "read_only", schema: { type: "object", properties: { keyword: { type: "string" } } } },
+          ];
+          $("#btn-confirm-submit").disabled = false;
+          res.innerHTML = `<div class="ui-notice" data-tone="success"><span>两步准入检查通过：① 静态格式与基础安全底线通过；② Streamable HTTP 握手探测通过（发现 ${admissionTools.length} 个工具，耗时 310 ms）。</span></div>`;
+        });
+
+        $("#btn-confirm-submit").addEventListener("click", () => {
+          if (!admissionPassed) return;
+          pendingReviews.unshift({
+            id: "rev-" + Date.now(),
+            slug: $("#s-slug").value.trim(),
+            name: $("#s-name").value.trim() || $("#s-slug").value.trim(),
+            summary: $("#s-summary").value.trim() || "通过轻量准入提交的 Streamable HTTP MCP 插件。",
+            endpoint: $("#s-endpoint").value.trim(),
+            visibility: $("#s-vis").value,
+            authType: $("#s-auth").value,
+            submitter: "当前用户",
+            check: {
+              passed: true,
+              elapsedMs: 310,
+              findings: [
+                { severity: "ok", text: "Step 1 静态校验通过" },
+                { severity: "ok", text: `Step 2 握手探测发现 ${admissionTools.length} 个工具` },
+              ],
+            },
+            tools: admissionTools,
+          });
+          closeAllDrawers();
+          toast("已提交至管理员审核队列");
+          if (role === "admin") activeTab = "review";
+          renderAll();
+        });
+
+        document.body.addEventListener("click", (e) => {
+          const t = e.target.closest("[data-close-drawer]");
+          if (t) return closeAllDrawers();
+          if (e.target.classList.contains("drawer-backdrop")) return closeAllDrawers();
+
+          const inspectId = e.target.closest("[data-inspect-catalog]")?.dataset.inspectCatalog;
+          if (inspectId) return openToolsInspect(inspectId, e.target);
+
+          const connCatId = e.target.closest("[data-connect-catalog]")?.dataset.connectCatalog;
+          if (connCatId) {
+            const cat = catalog.find((c) => c.id === connCatId);
+            const existing = connections.find((c) => c.catalogItemId === connCatId);
+            return openConnectDrawer({ catalogItem: cat, connection: existing || null, trigger: e.target });
+          }
+
+          const editId = e.target.closest("[data-edit-conn]")?.dataset.editConn;
+          if (editId) {
+            const c = connections.find((x) => x.id === editId);
+            const cat = c?.catalogItemId ? catalog.find((x) => x.id === c.catalogItemId) : null;
+            return openConnectDrawer({ catalogItem: cat, connection: c, trigger: e.target });
+          }
+
+          const promoteId = e.target.closest("[data-promote-conn]")?.dataset.promoteConn;
+          if (promoteId) {
+            const c = connections.find((x) => x.id === promoteId);
+            if (c) {
+              admissionPassed = true;
+              admissionTools = c.tools.map((t) => ({ ...t }));
+              $("#s-name").value = c.name;
+              $("#s-slug").value = "custom_" + c.id.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase();
+              $("#s-summary").value = `${c.name}（由个人已过机审自定义 MCP 一键提交共享）`;
+              $("#s-endpoint").value = c.endpoint;
+              $("#s-auth").value = c.authType;
+              $("#s-token").value = "";
+              $("#btn-confirm-submit").disabled = false;
+              $("#admission-result").innerHTML = `<div class="ui-notice" data-tone="success"><span>已复用个人连接自动化机审结果（${admissionTools.length} 个工具通过检查），可直接提交管理员审核。</span></div>`;
+              return openDrawer("#submit-drawer-backdrop", e.target);
+            }
+          }
+
+          const quickProbeId = e.target.closest("[data-quick-probe]")?.dataset.quickProbe;
+          if (quickProbeId) {
+            const c = connections.find((x) => x.id === quickProbeId);
+            return toast(`「${c.name}」连通正常，${c.tools.length} 个工具在线（218 ms）`);
+          }
+
+          const delId = e.target.closest("[data-del-conn]")?.dataset.delConn;
+          if (delId) {
+            const c = connections.find((x) => x.id === delId);
+            return askConfirm({
+              title: "删除个人插件连接",
+              desc: `删除「${c.name}」后将立即清除你的个人加密凭据，后续分析对话不再装载该连接。`,
+              okLabel: "确认删除",
+              trigger: e.target,
+              onOk: () => {
+                const idx = connections.findIndex((x) => x.id === delId);
+                if (idx >= 0) connections.splice(idx, 1);
+                toast(`已删除「${c.name}」`);
+                renderAll();
+              },
+            });
+          }
+
+          const appId = e.target.closest("[data-approve-rev]")?.dataset.approveRev;
+          if (appId) {
+            const idx = pendingReviews.findIndex((x) => x.id === appId);
+            if (idx >= 0) {
+              const r = pendingReviews.splice(idx, 1)[0];
+              catalog.unshift({
+                id: "cat-" + Date.now(),
+                slug: r.slug,
+                source: "submitted",
+                visibility: r.visibility,
+                status: "published",
+                name: r.name,
+                summary: r.summary,
+                endpoint: r.endpoint,
+                authType: r.authType,
+                tools: r.tools,
+              });
+              toast(`已批准上架「${r.name}」`);
+              renderAll();
+            }
+          }
+
+          const rejId = e.target.closest("[data-reject-rev]")?.dataset.rejectRev;
+          if (rejId) {
+            const r = pendingReviews.find((x) => x.id === rejId);
+            return askConfirm({
+              title: "驳回上架申请",
+              desc: `将「${r.name}」退回草稿，提交者修订后可重新检查提交。`,
+              needReason: true,
+              okLabel: "确认驳回",
+              trigger: e.target,
+              onOk: () => {
+                const idx = pendingReviews.findIndex((x) => x.id === rejId);
+                if (idx >= 0) pendingReviews.splice(idx, 1);
+                toast(`已驳回「${r.name}」`);
+                renderAll();
+              },
+            });
+          }
+
+          const disId = e.target.closest("[data-disable-cat]")?.dataset.disableCat;
+          if (disId) {
+            const c = catalog.find((x) => x.id === disId);
+            return askConfirm({
+              title: "一键下架市场插件",
+              desc: `下架「${c.name}」后，市场将停止展示且禁止新接入；已接入该条目的个人连接将在下次分析任务中自动停用。`,
+              needReason: true,
+              okLabel: "确认下架",
+              trigger: e.target,
+              onOk: () => {
+                c.status = "disabled";
+                toast(`已下架「${c.name}」，关联连接已同步停用`);
+                renderAll();
+              },
+            });
+          }
+
+          const resId = e.target.closest("[data-restore-cat]")?.dataset.restoreCat;
+          if (resId) {
+            const c = catalog.find((x) => x.id === resId);
+            c.status = "published";
+            toast(`已恢复上架「${c.name}」`);
+            renderAll();
+          }
+        });
+
+        $("#mine-tbody").addEventListener("change", (e) => {
+          const toggleId = e.target.dataset.toggleConn;
+          if (toggleId) {
+            const c = connections.find((x) => x.id === toggleId);
+            c.enabled = e.target.checked;
+            toast(c.enabled ? `已开启「${c.name}」，新对话自动生效` : `已关闭「${c.name}」`);
+            renderAll();
+          }
+          const modeId = e.target.dataset.modeConn;
+          if (modeId) {
+            const c = connections.find((x) => x.id === modeId);
+            c.loadingMode = e.target.value;
+            toast(`「${c.name}」加载策略已切换为 ${c.loadingMode}`);
+            renderAll();
+          }
+        });
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            const openBackdrop = document.querySelector(".drawer-backdrop:not([hidden])");
+            if (openBackdrop) closeAllDrawers();
+            $("#secondary-nav").classList.remove("mobile-open");
+          }
+        });
+
+        $("#btn-mobile-nav").addEventListener("click", () => {
+          $("#secondary-nav").classList.add("mobile-open");
+          $("#btn-close-mobile-nav").style.display = "inline-flex";
+          $("#btn-close-mobile-nav").focus();
+        });
+        $("#btn-close-mobile-nav").addEventListener("click", () => {
+          $("#secondary-nav").classList.remove("mobile-open");
+          $("#btn-mobile-nav").focus();
+        });
+
+        renderAll();
+      })();
+    </script>
+  </body>
+</html>

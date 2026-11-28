@@ -125,7 +125,7 @@ Agent 在受理时固定工作区的发布清单。正式查询通过 Registry �
 
 工具结果通过注册的 evidence_adapter 接入 after_tool_batch。模型调用 final_answer 提交 plain / evidence 候选；before_delivery 检查结构、引用与计算，再由同主模型在既有 Loop 中执行 purpose=verify 审阅。缺口回到工作步骤；合格的部分回答可以交付。最终正文、引用、附件与出箱事件原子保存，前端按 answerMode 划分正文呈现。
 
-新 Run 固定 answerProtocol=2，候选与 Review 使用既有私有运行记录。旧 Run 保留原协议恢复。模型上游需支持工具调用或结构化输出，提示词更新沿既有 PromptOps 发布入口进行。通用方法和工具说明随源码提供，运行前核对发布版本。
+第 23–26 课的存量 Run 使用 answerProtocol=2，候选与 Review 使用既有私有运行记录。旧 Run 保留原协议恢复。模型上游需支持工具调用或结构化输出，提示词更新沿既有 PromptOps 发布入口进行。通用方法和工具说明随源码提供，运行前核对发布版本。
 
 课堂资料、受限数据库、教学分析员的资产授权及独立金标准由[第 23 课课堂入口](../../examples/showcases/lesson-23-agentic-search/README.md)装配。当前实现与验证见[技术方案](../../mai-specs/973-lesson-23-agentic-search/design/TECH_DESIGN.md)。
 
@@ -153,7 +153,7 @@ JEV 复用平台启用的 decision Provider；可通过 `COMPASS_ROUTING_JEV_PRO
 
 目标控制接口为 `GET /v1/analysis/sessions/{id}/goal` 和 `POST /v1/analysis/sessions/{id}/goal/actions`。子任务详情通过 `GET /v1/analysis/runs/{id}/children/{childId}` 按当前权限读取独立执行子树与完整交付回答（`answer`）；回答从已接受的私有回执读取，并在每次请求复核来源权限。尚未交付时 `answer` 为 `null`，主 SSE 契约保持兼容。
 
-升级至 [agent/main 0019](db/main/README.md#0019-目标与进度账本)，导入并发布随包 Goal、委派与子任务回传提示词。Goal 需要调度消费者、受控自主预算和答案协议 2 同时启用。课程对比实验见[三种上下文策略](../../examples/showcases/lesson25_context_strategies/README.md)。
+升级至 [agent/main 0019](db/main/README.md#0019-目标与进度账本)，导入并发布随包 Goal、委派与子任务回传提示词。Goal 需要调度消费者、受控自主预算和答案协议 2 或 3 同时启用。课程对比实验见[三种上下文策略](../../examples/showcases/lesson25_context_strategies/README.md)。
 
 ## 第 26 课 ContextOps
 
@@ -177,3 +177,23 @@ uv run --locked --package compass-agent python -m compass_agent.context_ops.mcp_
 连接 `<Agent 地址>/v1/contextops/mcp`，设置 `Authorization: Bearer <专用令牌>`。协议版本为 `2025-06-18`，支持 initialize、tools/list、tools/call 与 ping；GET 返回 405。工具为 `contextops_list_runs`、`contextops_get_run_flow`、`contextops_get_stats`、`contextops_list_badcases`，不暴露快照解密或写操作。调用落 `mcp_queried` 审计；浏览器 Origin 须与 Agent 地址同源。
 
 Context spans 使用 `compass.context.retrieve` / `compass.context.guardrail` / `compass.context.compile`，挂在真实 `compass.logical` 下，遵循字段白名单，Context 调用关闭正文采集。Langfuse 导出不可用时，本地摘要与统计继续可用。
+
+## 第 27 课工具契约、装配与流式交付
+
+新 Run 固定 `answerProtocol=3`。19 个静态工具与子任务回传采用扁平模型参数；适配层生成服务端幂等键、当前版本、时区和会话模型。运行状态机与审批乐观锁保持原契约。`database_query(sql)` 支持授权元信息聚合、唯一连接路由及列名错误恢复；指标结果与 SQL 结果均可作为 Python 的授权输入。
+
+工具按常驻、手选和场景三通道确定性装配。授权注册池最多 128 项，单步最多 32 项 / 64 KiB；手选工作流与 MCP 的实际工具总数最多 12。未选择的 MCP 连接不探测。工作入口与交付阶段决定持久冻结，恢复保留工具顺序；旧协议继续使用原冻结声明。详见[工具说明](src/compass_agent/tools/README.md)。
+
+`final_answer(mode, artifactFormat?)` 打开独立的 plain / evidence Answer Prompt，先复核来源再流式输出，结束后再次复核并保存正文、双格式引用与 Markdown / CSV / Dashboard 附件。回答 Prompt 使用至多 128 项排序来源的有界预览，完整记录保留在私有存储。混批中的完成调用返回延期回执，工作工具正常执行；流式答案接受后直接结束。`SC-33/37/39` 在无扩展选择和活动目标时直接进入回答。
+
+协议 3 的文本回调只写入受 32 KiB 正文上限约束的内存缓冲；首批立即提交，后续按 100 毫秒合并，由单个串行任务将加密正文和 Outbox 引用同事务保存。发布复用执行租约校验、发布租约及 Redis 原子索引，SSE 在投影提交并复核读取权限后还原 `message.delta`。运行结束先收束缓冲，再按最新已提交消息版本保存最终回答；普通发布失败由既有发布扫描补发，已接受的模型结果保持完成。取消或进程退出保留已提交片段，未确认的模型调用沿用人工恢复流程。旧回答协议继续使用原有交付路径。
+
+文本发布专项测试为 `apps/agent/tests/test_stream_publication_integration.py`，已纳入 `test:integration`，覆盖跨进程发布接管、重复提交、发布失败、过期写入、取消、授权回放及 HTTP SSE 延迟。执行需要专用 PostgreSQL / Redis 测试环境，禁止对正在使用的 Redis 注入故障。
+
+上线前通过既有 PromptOps 导入并发布随包工具声明与 `answer/plain.md`、`answer/evidence.md`。本课无 DDL；ContextOps 的原 JSONB 决策摘要兼容保存工具装配明细。专项检查为 `uv run --locked --package compass-agent pytest apps/agent/tests/test_tool_assembly.py apps/agent/tests/test_tool_slim_contracts.py apps/agent/tests/tool_eval`；真实数据库验收使用配置好的专用 `AGENT_TEST_*` 环境运行 `pnpm test:integration -F agent`。
+
+### 共享 Sandbox 运行契约
+
+Agent/main 0021 后，生产入口 `tools/sandbox/shared.py` 按 tenant/workspace/actor 复用环境，两个 worker 共用 PostgreSQL 租约和 OpenSandbox ID。环境空闲 600 秒回收；各次命令最多 20 秒、并发默认 2，独立取消。`python_analysis` 的输入字段和 `data`/`result` 保持；PNG 用 `chart_path` 或相对 `chart.png`，跨 Run 文件用 `shared_dir`。工作目录是有期限上下文，下载产物使用原 ArtifactStore。
+
+镜像提供 matplotlib、NumPy、pandas。修改镜像后按 `deploy/compose/sandbox.yaml` 重建 python-image；重建前已有环境仍使用旧镜像，发布时排空活动调用并完成回收。历史 unknown 无 ID 记录经远端空列表和最大存活期限核对后收敛，清理不消耗计算配额；控制面不可达时保持隔离，不手工清表释放卷。

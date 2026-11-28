@@ -1,10 +1,14 @@
 """Model-generated workflow definition and trial inputs."""
 
+from dataclasses import replace
+
 from pydantic import Field
 
 from compass_agent.prompt_assets import tool_text
 from compass_agent.schemas import RunContractModel, ToolDefinition, ToolFunction
+from compass_agent.tools.builtin.create_workflow.model_schema import SCHEMA
 from compass_agent.tools.catalog_contracts import ToolSpec
+from compass_agent.tools.contracts import ToolGovernance
 
 NAME = "create_workflow"
 
@@ -33,3 +37,19 @@ def definition(_context):
 SPEC = ToolSpec(
     NAME, "builtin", "workflow", definition, lambda context: context.workflow, orchestrates=True
 )
+
+
+SPEC = replace(SPEC, governance=ToolGovernance(channel="user_selected", pack="workflow_pack"))
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="create_workflow",
+            description=tool_text("create_workflow"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

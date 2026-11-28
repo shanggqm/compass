@@ -1,5 +1,6 @@
 """Business-independent model loop and model execution boundary."""
 
+import inspect
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
@@ -55,13 +56,13 @@ class AgentLoop:
         context: TrustedContext | None,
         control: ToolControl,
         emit: EmitProgress,
-        prepare: Callable[[], tuple[GenerateInput, T]],
+        prepare: Callable[[], tuple[GenerateInput, T] | Awaitable[tuple[GenerateInput, T]]],
         handle: Callable[
             [Step, CallResponse, tuple[GenerateInput, T]], Awaitable[RunResult | None]
         ],
         *,
         budget: AutonomyBudget | None = None,
-        publish_text: bool = True,
+        publish_text: bool | Callable[[], bool] = True,
         model_timeout: float | None = 25,
         handle_incomplete: IncompleteHandler | None = None,
         public_response: Callable[[CallResponse], bool] | None = None,
@@ -84,10 +85,19 @@ class AgentLoop:
                 )
             )
             prepared = prepare()
+            if inspect.isawaitable(prepared):
+                prepared = await prepared
             request = prepared[0]
             result = await control.perform(
                 lambda step=step, request=request: self._invoke_model(
-                    step, request, route, context, control, budget, emit, publish_text=publish_text
+                    step,
+                    request,
+                    route,
+                    context,
+                    control,
+                    budget,
+                    emit,
+                    publish_text=publish_text() if callable(publish_text) else publish_text,
                 ),
                 timeout_s=model_timeout if budget is not None else None,
             )
@@ -128,7 +138,7 @@ class AgentLoop:
         context: TrustedContext | None,
         control: ToolControl,
         emit: EmitProgress,
-        prepare: Callable[[], tuple[GenerateInput, T]],
+        prepare: Callable[[], tuple[GenerateInput, T] | Awaitable[tuple[GenerateInput, T]]],
         accept: Callable[
             [Step, CallResponse, tuple[GenerateInput, T]],
             Awaitable[RunResult | RepeatStep | None],
@@ -136,7 +146,7 @@ class AgentLoop:
         dispatch: Callable[[Step, GenerateInput], Awaitable[RunResult | None]],
         *,
         budget: AutonomyBudget | None = None,
-        publish_text: bool = True,
+        publish_text: bool | Callable[[], bool] = True,
         model_timeout: float | None = 25,
         handle_incomplete: IncompleteHandler | None = None,
         public_response: Callable[[CallResponse], bool] | None = None,
@@ -316,7 +326,7 @@ class AgentExecutor(AgentLoop):
         budget: AutonomyBudget | None,
         emit: EmitProgress | None = None,
         *,
-        publish_text: bool = True,
+        publish_text: bool | Callable[[], bool] = True,
     ):
         preparing: set[int] = set()
 

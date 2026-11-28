@@ -1,0 +1,17 @@
+{
+  "lesson": 27,
+  "title": "全量 20 个工具极简 ACI 契约、三通道分类与 Schema 对照详单",
+  "subtitle": "按“内建默认常驻 + 场景分流触发 + 前端用户手动选择”三大通道分组，呈现全部 20 个工具的去复合单一原语重构与左右深色代码块逐行 Diff。",
+  "brand": "Compass",
+  "label": "工具契约专题 · 设计示意",
+  "topics": [
+    "三通道装载分类",
+    "去复合单一原语",
+    "清零确定性参数",
+    "100% 参数说明",
+    "Schema Diff"
+  ],
+  "source": "../TOOL_CONTRACTS.md",
+  "guide": "contracts-guide.md",
+  "output": "../TOOL_CONTRACTS.html"
+}

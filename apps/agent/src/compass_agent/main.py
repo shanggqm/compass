@@ -45,8 +45,8 @@ from compass_agent.tools.mcp.client import EndpointPolicy
 from compass_agent.tools.mcp.entities import McpConnection
 from compass_agent.tools.mcp.repository import McpRepository
 from compass_agent.tools.sandbox.allocations import Allocations
-from compass_agent.tools.sandbox.client import SandboxBackend
 from compass_agent.tools.sandbox.entities import SandboxAllocation
+from compass_agent.tools.sandbox.shared import SandboxBackend
 from compass_agent.workflows.assets import WorkflowAsset
 from compass_agent.workflows.drafts import WorkflowDrafts
 

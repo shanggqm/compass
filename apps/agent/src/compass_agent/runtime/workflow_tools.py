@@ -69,7 +69,7 @@ class WorkflowTools:
             )
         journal = current_execution.get()
         dependencies = None
-        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2:
+        if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") in {2, 3}:
             identifiers = {
                 key
                 for delivery in result.get("deliveries", [result])
@@ -109,6 +109,10 @@ class WorkflowTools:
             child_id = str(uuid5(context.step_id, f"{context.call_id}:child:{request_id}"))
             child_context = replace(context, call_id=child_id, caller="workflow")
             context.budget.start_tool()
+            if isinstance(prompt, SubAgentInput) and prompt.tasks:
+                return await self.bindings.subagent.tasks(
+                    prompt.tasks, child_context, group=groups.get(group, parent)
+                )
             return await self.bindings.subagent.run(
                 prompt,
                 child_context,

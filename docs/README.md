@@ -2,7 +2,7 @@
 
 - [0001：M0 workspace 与工程边界](adr/0001-workspace.md)
 - [数据所有权与 SQL 迁移管理规范](database-migrations.md)：跨 app 数据归属、完整/增量 SQL、版本、SDD 交付与验收。
-- [项目协作规则](agent-rules.md)
+- [项目协作规则](../AGENTS.md)
 - [Compass UI 样式规范](ui-style-guide.md)
 - [验证记录](verification.md)
 - [编码规范与格式化](coding-style.md)：TypeScript / React、Python、EditorConfig 和编辑器保存动作。

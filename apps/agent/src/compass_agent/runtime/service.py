@@ -103,7 +103,7 @@ ToolsProvider = Callable[
 
 
 def route_supports_tools(selected, journal):
-    if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") == 2:
+    if (getattr(journal, "context_binding", None) or {}).get("answerProtocol") in {2, 3}:
         return selected.provider.capabilities.tools.state == "supported"
     if getattr(journal, "context_binding", None) and selected.deliverable in {
         "existing",
@@ -192,7 +192,7 @@ class RunService(RuntimeTurn):
             entries = (*self.definition.tools, *provided)
             snapshot = (
                 await control.perform(lambda: asyncio.to_thread(journal.catalog_declarations))
-                if journal and self.workflow_assets is not None
+                if journal
                 else None
             )
             catalog, declarations, workflow = await self.tool_catalog(
@@ -200,6 +200,9 @@ class RunService(RuntimeTurn):
             )
             budget = controlled.budget if controlled else None
             stage = "routing"
+            from compass_agent.routing.intent import bind_tool_requirements
+
+            bind_tool_requirements(journal, declarations)
             selected = await control.perform(
                 lambda: self._select_route(
                     command,
@@ -219,6 +222,7 @@ class RunService(RuntimeTurn):
                 model_label=selected.provider.alias,
                 scene_id=selected.intent.scene_id,
                 task_type=selected.features.task_type,
+                required_tools=getattr(selected, "required_tools", ()),
                 schema_output=capabilities.schema_output.state == "supported",
                 route_prompt=selected.prompt,
                 stream=capabilities.stream.state == "supported",
@@ -402,22 +406,37 @@ class RunService(RuntimeTurn):
             from compass_agent.context_runtime.profiles import discover_plugins
 
             if grants.get("plugins") is not True or (
-                binding.get("answerProtocol") != 2
+                binding.get("answerProtocol", 1) < 2
                 and not discover_plugins(binding["scopeProfile"], bool(binding.get("registry")))
             ):
                 return None
-        options = (
+        options: dict = (
             {"defer_catalog_limit": True}
             if self.schedules and journal and journal.schedule_tools
             else {}
         )
+        if binding and binding.get("answerProtocol", 1) >= 3:
+            from uuid import UUID
+
+            snapshot = await asyncio.to_thread(journal.catalog_declarations)
+            selected = {UUID(v) for v in journal.tool_selection.get("mcpServerIds", [])}
+            if snapshot is not None:
+                selected = {
+                    UUID(meta["connection_id"])
+                    for _, meta in snapshot.values()
+                    if meta.get("environment") == "mcp" and meta.get("connection_id")
+                }
+            if not selected:
+                return None
+            options = {"defer_catalog_limit": True, "selected_connection_ids": frozenset(selected)}
         return await control.perform(lambda: self.tool_loader.discover(context, control, **options))
 
     async def tool_catalog(self, context, journal, entries, discovered, snapshot):
         capabilities = self.definition.builtin_tools
         answer_protocol = (getattr(journal, "context_binding", None) or {}).get(
             "answerProtocol"
-        ) == 2
+        ) in {2, 3}
+        modern = (getattr(journal, "context_binding", None) or {}).get("answerProtocol", 1) >= 3
         if answer_protocol:
             capabilities |= {"completion", "documents"}
         schedules = self.schedules if journal and journal.schedule_tools else None
@@ -471,7 +490,11 @@ class RunService(RuntimeTurn):
         declarations = [entry.definition for entry in entries if entry.definition is not None]
         declarations.extend(catalog_definitions(catalog))
         if discovered:
-            if schedules or answer_protocol:
+            if modern:
+                declarations.extend(
+                    entry.definition for entry in discovered.entries if entry.definition
+                )
+            elif schedules or answer_protocol:
                 self.fit_mcp_tools(declarations, discovered, snapshot)
             else:
                 declarations.extend(
@@ -486,12 +509,13 @@ class RunService(RuntimeTurn):
             and (
                 CREATE_WORKFLOW in snapshot
                 if snapshot is not None
-                else has_catalog_room([*declarations, *workflow_definitions])
+                else modern or has_catalog_room([*declarations, *workflow_definitions])
             )
         )
         if workflow:
             declarations.extend(workflow_definitions)
-        validate_catalog(declarations)
+        if not modern:
+            validate_catalog(declarations)
         return catalog, declarations, workflow
 
     async def schedule_capabilities(self, context, journal, snapshot):

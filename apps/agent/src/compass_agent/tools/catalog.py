@@ -58,7 +58,7 @@ def definitions(context: CatalogContext):
     return [
         enrich_definition(value)
         for spec in selected(context)
-        if (value := spec.definition(context)) is not None
+        if (value := spec.current_definition(context)) is not None
     ]
 
 

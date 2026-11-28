@@ -2,19 +2,17 @@
   "type": "function",
   "function": {
     "name": "review_semantic_change",
-    "description": "**用途与调用规则**\n\n- 检查草稿来源、声明、依赖、冲突与已登记影响，说明阻断项及修正建议。",
+    "description": "- 送审前校验语义草稿公式与冲突（通过后取回执 digest 送审）。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "version_id": {
-          "format": "uuid",
-          "title": "Version Id",
-          "type": "string"
+          "type": "string",
+          "description": "草稿版本 ID。"
         }
       },
-      "required": ["version_id"],
-      "title": "Input",
-      "type": "object"
+      "required": ["version_id"]
     }
   },
   "examples": []

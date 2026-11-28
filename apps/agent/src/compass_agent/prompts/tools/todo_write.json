@@ -2,200 +2,33 @@
   "type": "function",
   "function": {
     "name": "todo_write",
-    "description": "**用途与调用规则**\n\n- 登记、选择、完成或跳过任务事项，提交当前 baseVersion。",
+    "description": "- 维护单轮多步分析清单（3..6 步复杂分析时用；1..2 步快查勿调，跨轮长任务用 goal）。",
     "parameters": {
       "type": "object",
-      "$defs": {
-        "CompleteTodo": {
-          "additionalProperties": false,
-          "properties": {
-            "baseVersion": {
-              "maximum": 400,
-              "minimum": 0,
-              "title": "Baseversion",
-              "type": "integer"
-            },
-            "op": {
-              "const": "complete",
-              "title": "Op",
-              "type": "string"
-            },
-            "todoId": {
-              "pattern": "^t[1-9][0-9]{0,2}$",
-              "title": "Todoid",
-              "type": "string"
-            },
-            "selectTodoId": {
-              "anyOf": [
-                {
-                  "pattern": "^t[1-9][0-9]{0,2}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Selecttodoid"
-            }
-          },
-          "required": ["baseVersion", "op", "todoId"],
-          "title": "CompleteTodo",
-          "type": "object"
-        },
-        "ReplaceTodo_TodoDefinition_": {
-          "additionalProperties": false,
-          "properties": {
-            "baseVersion": {
-              "maximum": 400,
-              "minimum": 0,
-              "title": "Baseversion",
-              "type": "integer"
-            },
-            "op": {
-              "const": "replace",
-              "title": "Op",
-              "type": "string"
-            },
-            "items": {
-              "items": {
-                "$ref": "#/$defs/TodoDefinition"
+      "additionalProperties": false,
+      "properties": {
+        "todos": {
+          "type": "array",
+          "description": "完整步骤列表（2..6 项），每次全量覆盖最新状态。",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["step", "status"],
+            "properties": {
+              "step": {
+                "type": "string",
+                "description": "本步具体子问题或动作。"
               },
-              "maxItems": 6,
-              "minItems": 1,
-              "title": "Items",
-              "type": "array"
-            },
-            "selectTodoId": {
-              "anyOf": [
-                {
-                  "pattern": "^t[1-9][0-9]{0,2}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Selecttodoid"
+              "status": {
+                "type": "string",
+                "enum": ["pending", "in_progress", "done", "skipped"],
+                "description": "步骤状态（保持 1 项 in_progress）。"
+              }
             }
-          },
-          "required": ["baseVersion", "op", "items"],
-          "title": "ReplaceTodo[TodoDefinition]",
-          "type": "object"
-        },
-        "SelectTodo": {
-          "additionalProperties": false,
-          "properties": {
-            "baseVersion": {
-              "maximum": 400,
-              "minimum": 0,
-              "title": "Baseversion",
-              "type": "integer"
-            },
-            "op": {
-              "const": "select",
-              "title": "Op",
-              "type": "string"
-            },
-            "todoId": {
-              "pattern": "^t[1-9][0-9]{0,2}$",
-              "title": "Todoid",
-              "type": "string"
-            }
-          },
-          "required": ["baseVersion", "op", "todoId"],
-          "title": "SelectTodo",
-          "type": "object"
-        },
-        "SkipReason": {
-          "enum": ["out_of_scope", "duplicate_optional"],
-          "type": "string"
-        },
-        "SkipTodo": {
-          "additionalProperties": false,
-          "properties": {
-            "baseVersion": {
-              "maximum": 400,
-              "minimum": 0,
-              "title": "Baseversion",
-              "type": "integer"
-            },
-            "op": {
-              "const": "skip",
-              "title": "Op",
-              "type": "string"
-            },
-            "todoId": {
-              "pattern": "^t[1-9][0-9]{0,2}$",
-              "title": "Todoid",
-              "type": "string"
-            },
-            "reason": {
-              "$ref": "#/$defs/SkipReason"
-            }
-          },
-          "required": ["baseVersion", "op", "todoId", "reason"],
-          "title": "SkipTodo",
-          "type": "object"
-        },
-        "TodoDefinition": {
-          "additionalProperties": false,
-          "properties": {
-            "id": {
-              "pattern": "^t[1-9][0-9]{0,2}$",
-              "title": "Id",
-              "type": "string"
-            },
-            "goal": {
-              "maxLength": 200,
-              "minLength": 1,
-              "title": "Goal",
-              "type": "string"
-            },
-            "dependsOn": {
-              "items": {
-                "pattern": "^t[1-9][0-9]{0,2}$",
-                "type": "string"
-              },
-              "maxItems": 5,
-              "title": "Dependson",
-              "type": "array"
-            },
-            "optional": {
-              "default": false,
-              "title": "Optional",
-              "type": "boolean"
-            }
-          },
-          "required": ["id", "goal"],
-          "title": "TodoDefinition",
-          "type": "object"
+          }
         }
       },
-      "discriminator": {
-        "mapping": {
-          "complete": "#/$defs/CompleteTodo",
-          "replace": "#/$defs/ReplaceTodo_TodoDefinition_",
-          "select": "#/$defs/SelectTodo",
-          "skip": "#/$defs/SkipTodo"
-        },
-        "propertyName": "op"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ReplaceTodo_TodoDefinition_"
-        },
-        {
-          "$ref": "#/$defs/SelectTodo"
-        },
-        {
-          "$ref": "#/$defs/CompleteTodo"
-        },
-        {
-          "$ref": "#/$defs/SkipTodo"
-        }
-      ]
+      "required": ["todos"]
     }
   },
   "examples": []

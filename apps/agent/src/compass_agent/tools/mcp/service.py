@@ -26,6 +26,7 @@ from compass_agent.tools.registry import (
     ToolRegistry,
     bounded_payload,
     parse_arguments,
+    validate_catalog,
     validate_schema,
 )
 
@@ -54,8 +55,10 @@ class McpRun:
         owner: Owner,
         *,
         defer_catalog_limit: bool = False,
+        selected_connection_ids: frozenset | None = None,
     ):
         self.defer_catalog_limit = defer_catalog_limit
+        self.selected_connection_ids = selected_connection_ids
         self.repository, self.policy, self.owner = repository, policy, owner
         self.sessions: dict = {}
         self.entries: tuple[RegisteredTool, ...] = ()
@@ -64,7 +67,9 @@ class McpRun:
 
     async def open(self):
         configs = await asyncio.to_thread(self.repository.load, self.owner)
-        if len(configs) > 4:
+        if self.selected_connection_ids is not None:
+            configs = [c for c in configs if c.id in self.selected_connection_ids]
+        if len(configs) > (8 if self.selected_connection_ids is not None else 4):
             raise ToolRejected("mcp_connection_limit")
         slots = asyncio.Semaphore(2)
         self.sessions = {c.id: McpSession(c, self.policy) for c in configs}
@@ -121,6 +126,7 @@ class McpRun:
                     raise ToolRejected("tool_name_conflict")
             else:
                 ToolRegistry(entries)
+                validate_catalog([e.definition for e in entries if e.definition])
             self.entries = tuple(entries)
             self.required_tools = frozenset(
                 entry.name
@@ -176,6 +182,7 @@ class McpRun:
             .decode(errors="ignore")
         )
         from compass_agent.context_runtime.receipt_evidence import receipt
+        from compass_agent.tools.contracts import ToolGovernance
 
         return RegisteredTool(
             name,
@@ -192,6 +199,10 @@ class McpRun:
             bounded_payload,
             proposal,
             parallel_safe=True,
+            mcp_server_id=config.id,
+            governance=ToolGovernance(
+                subagent_allowed=policy.effect == "read_only" and policy.approval == "none"
+            ),
             revalidate=revalidate,
             evidence_adapter=receipt,
         )

@@ -367,6 +367,7 @@ class ChatMessage(StrictModel):
 
 RUN_CONTEXT_MESSAGES = 512
 TOOL_CATALOG_LIMIT = 32
+TOOL_REGISTRY_POOL_LIMIT = 128
 
 
 class GenerateInput(StrictModel):
@@ -578,7 +579,36 @@ class WorkflowDraftView(RunContractModel):
     parameters: dict | None = None
 
 
+class ToolSelection(RunContractModel):
+    packs: list[Literal["long_task", "workflow_pack", "semantic_govern", "python_sandbox"]] = Field(
+        default_factory=list, max_length=4, json_schema_extra={"uniqueItems": True}
+    )
+    # UUIDs arrive as JSON text in HTTP requests and persisted Run commands.
+    workflow_ids: list[Annotated[UUID, Field(strict=False)]] = Field(
+        default_factory=list,
+        alias="workflowIds",
+        max_length=12,
+        json_schema_extra={"uniqueItems": True},
+    )
+    mcp_server_ids: list[Annotated[UUID, Field(strict=False)]] = Field(
+        default_factory=list,
+        alias="mcpServerIds",
+        max_length=8,
+        json_schema_extra={"uniqueItems": True},
+    )
+
+    @model_validator(mode="after")
+    def unique_items(self):
+        if any(
+            len(values) != len(set(values))
+            for values in (self.packs, self.workflow_ids, self.mcp_server_ids)
+        ):
+            raise ValueError("tool selections must be unique")
+        return self
+
+
 class RunConstraints(RunContractModel):
+    tool_selection: ToolSelection | None = Field(default=None, alias="toolSelection")
     plan: Literal["required"] | None = None
     max_steps: int | None = Field(
         default=None, alias="maxSteps", ge=1, le=RUN_STREAM_LIMITS["steps"]
@@ -2284,7 +2314,15 @@ class PromptTree(StrictModel):
     next_cursor: str | None
 
 
+class ToolGovernanceView(StrictModel):
+    channel: Literal["always_on", "scene_routed", "user_selected"]
+    pack: str
+    effect: str
+    approval: str
+
+
 class PromptFileDetail(PromptFileEntry):
+    governance: ToolGovernanceView | None = None
     body: str | None
     draft_body: str | None
     draft_base_version: int | None
@@ -2657,7 +2695,33 @@ class ContextDecision(StrictModel):
     access: list[dict[str, str]]
 
 
+class ToolAssemblyItemView(StrictModel):
+    name: str
+    label: str
+    channel: Literal["always_on", "scene_routed", "user_selected"]
+    pack: str
+
+
+class ToolExcludedItemView(StrictModel):
+    name: str
+    reason: Literal["scene", "stage", "role", "budget"]
+
+
+class ToolAssemblyTraceView(StrictModel):
+    authorized_count: int = Field(ge=0)
+    exposed_count: int = Field(ge=0)
+    deferred_count: int = Field(ge=0)
+    excluded_count: int = Field(ge=0)
+    permission_filtered_count: int = Field(ge=0)
+    declaration_bytes: int = Field(ge=0)
+    declaration_tokens: int = Field(ge=0)
+    exposed: list[ToolAssemblyItemView]
+    deferred: list[str] = Field(max_length=20)
+    excluded: list[ToolExcludedItemView]
+
+
 class ContextFlowNode(StrictModel):
+    tool_assembly: ToolAssemblyTraceView | None = Field(default=None, alias="toolAssembly")
     id: str
     step_id: UUID
     label: str

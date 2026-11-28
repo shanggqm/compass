@@ -3,12 +3,22 @@
 import base64
 import json
 import os
+import re
 import stat
 import sys
 
+root_fd = os.open("/workspace", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+if len(sys.argv) > 1 and sys.argv[1] != "clean":
+    if not re.fullmatch(r"[0-9a-f]{32}", sys.argv[1]):
+        raise ValueError("invalid invocation")
+    for name in ("executions", sys.argv[1]):
+        child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root_fd)
+        os.close(root_fd)
+        root_fd = child
+
 
 def read(name, limit):
-    descriptor = os.open("/workspace/" + name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > limit:

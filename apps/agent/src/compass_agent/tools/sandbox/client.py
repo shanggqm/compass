@@ -59,9 +59,14 @@ class SandboxBackend:
             raise TimeoutError()
         sandbox = await Sandbox.create(
             self.image,
-            timeout=timedelta(seconds=120),
+            timeout=timedelta(
+                seconds=900 if allocation.shared and allocation.phase == "compute" else 120
+            ),
             ready_timeout=timedelta(seconds=min(30, remaining)),
-            resource={"cpu": "1", "memory": "512Mi"},
+            resource={
+                "cpu": "1",
+                "memory": "1Gi" if allocation.shared and allocation.phase == "compute" else "512Mi",
+            },
             metadata=allocation.metadata,
             network_policy=NetworkPolicy(defaultAction="deny"),
             volumes=[
@@ -77,7 +82,11 @@ class SandboxBackend:
             ],
             connection_config=self.connection,
         )
-        attached = await asyncio.to_thread(self.allocations.attach, allocation, sandbox.id)
+        try:
+            attached = await asyncio.to_thread(self.allocations.attach, allocation, sandbox.id)
+        except BaseException:
+            await sandbox.close()
+            raise
         return sandbox, attached
 
     async def _delete_confirmed(self, allocation: Allocation) -> bool:
@@ -291,6 +300,12 @@ class SandboxBackend:
             environment_id=str(allocation.id),
         )
 
+    def inspection_target(self, identifier, owner):
+        return self.allocations.get(identifier, owner)
+
+    def inspection_runs(self, identifier, owner):
+        return [self.inspection_target(identifier, owner).run_id]
+
     async def inspect(self, identifier, owner) -> ExecutionReceipt:
         allocation = await asyncio.to_thread(self.allocations.get, identifier, owner)
         allocation = await asyncio.to_thread(self.allocations.phase, allocation, "inspect", owner)
@@ -318,12 +333,17 @@ class SandboxBackend:
                 matches = await manager.list_sandbox_infos(
                     SandboxFilter(metadata=allocation.metadata, page_size=100, page=1)
                 )
+                if allocation.sandbox_id is None and len(matches.sandbox_infos) == 1:
+                    allocation = await asyncio.to_thread(
+                        self.allocations.observe_resource, allocation, matches.sandbox_infos[0].id
+                    )
                 if not matches.sandbox_infos:
-                    # An unacknowledged create can still arrive late. Without an observed ID,
-                    # keep its lease quarantined until reconciliation locates the resource.
-                    if allocation.sandbox_id is None or not await self._delete_confirmed(
-                        allocation
-                    ):
+                    # A successful empty listing after the create/TTL horizon can
+                    # converge even when the original response never contained an ID.
+                    if allocation.sandbox_id is None:
+                        if not await asyncio.to_thread(self.allocations.observe_absent, allocation):
+                            continue
+                    elif not await self._delete_confirmed(allocation):
                         continue
                 # Delete all resources belonging to the phase before releasing its quota.
                 for info in matches.sandbox_infos:

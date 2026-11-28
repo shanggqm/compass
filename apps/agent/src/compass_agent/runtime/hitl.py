@@ -203,8 +203,8 @@ class HumanDecisions:
         step.status, step.finished_at = "canceled", now()
         run.status, run.finished_at, run.execution_epoch = "completed", now(), None
         run.reason_code, run.cleanup_status = reason, "confirmed"
+        from compass_agent.runtime.answer_publication import committed_message
         from compass_agent.runtime.entities import AgentMessage
-        from compass_agent.runtime.store import message_snapshot
 
         assistant = tx.scalar(
             select(AgentMessage).where(
@@ -213,7 +213,7 @@ class HumanDecisions:
                 AgentMessage.role == "assistant",
             )
         )
-        message = message_snapshot(assistant)
+        message, _ = committed_message(tx, run, assistant)
         message["revision"] += 1
         message["status"] = "completed"
         message["content"] = {

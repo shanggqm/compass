@@ -189,8 +189,125 @@ test("composer starts centered, docks on the first send, keeps history scrolling
   await expect(state).toHaveAttribute("data-chat-state", "empty");
   await expect(history).toHaveCount(0);
   await expect(input).toHaveValue("");
+  await expect(select).toHaveValue(providerId);
+});
+
+test("model choice survives first send, follow-ups, new sessions and reloads", async ({
+  page,
+  context,
+}) => {
+  const fixture = await enter(page, context);
+  const select = page.getByLabel("选择 Chat 主模型");
+  const input = page.getByLabel("分析问题");
+  await select.selectOption(providerId);
+  await input.fill("记住指定模型");
+  await input.press("Enter");
+  await expect(select).toBeEnabled();
+  await expect(select).toHaveValue(providerId);
+  const firstUrl = page.url();
+  await input.fill("继续用这个模型");
+  await input.press("Enter");
+  await expect.poll(() => fixture.requests.length).toBe(2);
+  expect(fixture.requests[1].selection).toEqual({ mode: "fixed", provider_id: providerId });
+  await expect(select).toBeEnabled();
+  await page.getByRole("button", { name: "新建对话", exact: true }).click();
+  await expect(select).toBeEnabled();
+  await expect(select).toHaveValue(providerId);
+  await select.selectOption("auto");
+  await input.fill("记住自动选择");
+  await input.press("Enter");
+  await expect.poll(() => fixture.requests.length).toBe(3);
+  await expect(select).toBeEnabled();
+  expect(fixture.requests[2].selection).toEqual({ mode: "auto", provider_id: null });
+  const secondUrl = page.url();
+  await page.goto(firstUrl);
+  await expect(select).toBeEnabled();
+  await expect(select).toHaveValue(providerId);
+  await page.reload();
+  await expect(select).toBeEnabled();
+  await expect(select).toHaveValue(providerId);
+  await page.goto(secondUrl);
+  await expect(select).toBeEnabled();
+  await expect(select).toHaveValue("auto");
+  await page.getByRole("button", { name: "新建对话", exact: true }).click();
+  await expect(select).toBeEnabled();
   await expect(select).toHaveValue("auto");
 });
+
+for (const width of [1440, 390]) {
+  test(`session navigation keeps the conversation page during slow reads and errors at ${width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fixture = await enter(page, context);
+    const input = page.getByLabel("分析问题");
+    const select = page.getByLabel("选择 Chat 主模型");
+    await input.fill("第一段会话");
+    await input.press("Enter");
+    await expect(select).toBeEnabled();
+    const firstUrl = page.url();
+    await page.getByRole("button", { name: "新建对话", exact: true }).click();
+    await expect(page.locator(".analysis-intro")).toBeVisible();
+    await input.fill("第二段会话");
+    await input.press("Enter");
+    await expect(select).toBeEnabled();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let fail = true;
+    await page.route("**/analysis/sessions/*/messages?**", async (route) => {
+      await held;
+      if (fail)
+        return route.fulfill({
+          status: 503,
+          headers: { "X-Compass-View-Revision": fixture.revision },
+          json: { error: { code: "unavailable", message: "会话读取暂时不可用" } },
+        });
+      await route.fallback();
+    });
+    await page.evaluate(() => {
+      document.documentElement.dataset.newAnalysisFlashed = "false";
+      new MutationObserver((records) => {
+        if (
+          records.some((record) =>
+            Array.from(record.addedNodes).some(
+              (node) =>
+                node instanceof Element &&
+                (node.matches(".analysis-intro, .analysis-suggestions") ||
+                  node.querySelector(".analysis-intro, .analysis-suggestions")),
+            ),
+          )
+        )
+          document.documentElement.dataset.newAnalysisFlashed = "true";
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    if (width === 390) await page.getByRole("button", { name: "展开导航" }).click();
+    await page
+      .locator(`a[href="${new URL(firstUrl).pathname + new URL(firstUrl).search}"]:visible`)
+      .first()
+      .click();
+    await expect(page.getByText("正在读取会话…", { exact: true })).toBeVisible();
+    await expect(page.locator("section[data-chat-state]")).toHaveAttribute(
+      "data-chat-state",
+      "started",
+    );
+    await expect(page.locator(".analysis-intro, .analysis-suggestions")).toHaveCount(0);
+    await expectNoOverflow(page);
+    release();
+    const retry = page.getByRole("button", { name: "重新加载会话", exact: true });
+    await expect(retry).toBeVisible();
+    fail = false;
+    await retry.focus();
+    await page.keyboard.press("Enter");
+    await expect(select).toBeEnabled();
+    await expect(page.locator(".model-chat-history")).toContainText("第一段会话");
+    await expect(page.locator("html")).toHaveAttribute("data-new-analysis-flashed", "false");
+    await expectNoOverflow(page);
+    await page.screenshot({ path: `../../work/chat-session-${width}.png`, fullPage: true });
+  });
+}
 
 test("连续的数据库查询分别更新摘要，刷新会话后可查看对应的入参和结果", async ({
   page,
@@ -1084,6 +1201,181 @@ for (const width of [1440, 390]) {
     expect(fixture.requests[0]).not.toHaveProperty("constraints.verification");
     await expect(page.getByRole("region", { name: "最终回答" })).toBeVisible();
     await page.screenshot({ path: `../../work/978-composer-${width}.png`, fullPage: true });
+    await expectNoOverflow(page);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`Goal slash mode and floating management work at ${width}px`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fixture = await enter(page, context);
+    const input = page.getByLabel("分析问题");
+    const commands = page.getByRole("listbox", { name: "输入命令" });
+    await input.fill("/");
+    await expect(commands).toBeVisible();
+    await page.screenshot({
+      path: `../../work/chat-ui-fix/goal-menu-${width}.png`,
+      fullPage: true,
+    });
+    await expect(commands.getByRole("option")).toContainText("Goal");
+    await input.press("Escape");
+    await expect(commands).toBeHidden();
+    expect(fixture.requests).toHaveLength(0);
+    await input.fill("销售/库存");
+    await expect(commands).toBeHidden();
+    await input.fill("/g");
+    await input.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+    await expect(commands).toBeVisible();
+    await input.press("ArrowDown");
+    await input.press("Enter");
+    const draft = page.getByRole("region", { name: "目标模式", exact: true });
+    await expect(draft).toBeVisible();
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue("");
+    await expect(page.getByRole("button", { name: "发送消息", exact: true })).toBeDisabled();
+    await input.fill("完成本月销售与库存复盘");
+    await expect(draft).toContainText("完成本月销售与库存复盘");
+    await expect(draft.locator("svg.lucide-target")).toHaveCount(1);
+    const form = page.locator(".analysis-composer");
+    expect(
+      (await draft.boundingBox())!.y + (await draft.boundingBox())!.height,
+    ).toBeLessThanOrEqual((await form.boundingBox())!.y + 1);
+    await draft.getByRole("button", { name: "退出目标模式" }).click();
+    await expect(draft).toBeHidden();
+    await expect(input).toHaveValue("完成本月销售与库存复盘");
+    await expect(input).toBeFocused();
+    await input.fill("/goal");
+    if (width === 390) await commands.getByRole("option").click();
+    else await input.press("Tab");
+    await input.fill("完成本月销售与库存复盘");
+    await page.route(
+      "**/analysis/sessions/submit",
+      (route) =>
+        route.fulfill({
+          status: 503,
+          headers: { "X-Compass-View-Revision": fixture.revision },
+          json: { error: { code: "unavailable", message: "提交暂时不可用，请重试" } },
+        }),
+      { times: 1 },
+    );
+    await input.press("Enter");
+    await expect(page.locator(".analysis-welcome").getByRole("alert")).toContainText("请重试");
+    await expect(draft).toBeVisible();
+    await expect(input).toHaveValue("完成本月销售与库存复盘");
+
+    type Goal = import("../../src/client/analysis-goal").Goal;
+    let goal: Goal | null = null;
+    let failAction = true;
+    const actions: string[] = [];
+    const headers = { "X-Compass-View-Revision": fixture.revision };
+    await page.route("**/analysis/sessions/*/goal?**", (route) =>
+      route.fulfill({ headers, json: { goal, runId: null } }),
+    );
+    await page.route("**/analysis/sessions/*/goal/actions", (route) => {
+      const action = route.request().postDataJSON().action;
+      if (failAction) {
+        failAction = false;
+        return route.fulfill({
+          status: 503,
+          headers,
+          json: { error: { code: "unavailable", message: "稍后重试" } },
+        });
+      }
+      actions.push(action);
+      goal = {
+        ...goal!,
+        revision: goal!.revision + 1,
+        status: action === "pause" ? "paused" : action === "resume" ? "active" : "canceled",
+      };
+      return route.fulfill({ headers, json: { goal, runId: null } });
+    });
+    fixture.scenario("plan");
+    fixture.holdNext();
+    await input.press("Enter");
+    await expect.poll(() => fixture.requests.length).toBe(1);
+    expect(fixture.requests[0].question).toContain("先拟定目标和验收条件供我确认");
+    expect(fixture.requests[0].question).toContain("完成本月销售与库存复盘");
+    expect(fixture.requests[0].constraints?.toolSelection?.packs).toContain("long_task");
+    await expect(draft).toContainText("准备中");
+    goal = {
+      goalId: "99300000-0000-4000-8000-000000000401",
+      revision: 1,
+      status: "active",
+      reason: null,
+      reasonCode: null,
+      contract: {
+        objective: "完成本月销售与库存复盘",
+        acceptance: [{ id: "a1", text: "核对销售与库存结论" }],
+        constraints: [],
+      },
+      satisfied: [],
+      budget: { maxRounds: 12, tokens: 2000000, costMicrousd: 20000000 },
+      usage: {
+        rounds: 2,
+        tokens: 10000,
+        costMicrousd: 10000,
+        tokensPct: 0.5,
+        costPct: 0.05,
+        overrun: false,
+      },
+      counts: { openTodos: 1, conflicts: 0, stale: 0, reusedCalls: 0 },
+    };
+    const panel = page.getByRole("region", { name: "长任务目标", exact: true });
+    const toggle = panel.locator(".analysis-goal-heading");
+    await expect(toggle).toContainText("进行中");
+    const plan = page.getByRole("region", { name: "分析计划", exact: true });
+    await expect(plan).toBeVisible();
+    expect((await panel.boundingBox())!.y).toBeLessThan((await plan.boundingBox())!.y);
+    fixture.finishPlan();
+    await expect(plan).toBeHidden();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".model-chat-history .analysis-goal-panel")).toHaveCount(0);
+    await expect(panel.locator("svg.lucide-target")).toHaveCount(1);
+    const panelBox = (await panel.boundingBox())!;
+    const formBox = (await form.boundingBox())!;
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(formBox.y + 1);
+    expect(formBox.y - (panelBox.y + panelBox.height)).toBeLessThan(16);
+    if (width === 1440) {
+      await toggle.hover();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await page.getByRole("button", { name: "新建对话", exact: true }).hover();
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    }
+    await toggle.focus();
+    await toggle.press("Enter");
+    await expect(panel.getByLabel("目标详情")).toBeVisible();
+    const details = panel.locator(".analysis-goal-details");
+    expect((await details.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+    await page.screenshot({ path: `../../work/chat-ui-fix/goal-${width}.png`, fullPage: true });
+    await expectNoOverflow(page);
+    await panel.getByRole("button", { name: "暂停目标" }).click();
+    await expect(panel.getByRole("alert")).toContainText("目标操作失败");
+    await panel.getByRole("button", { name: "暂停目标" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toContainText("已暂停");
+    await panel.getByRole("button", { name: "恢复目标" }).click();
+    await expect(toggle).toContainText("进行中");
+    await panel.getByRole("button", { name: "修改目标", exact: true }).click();
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue("修改目标：");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await input.fill("");
+    await toggle.focus();
+    await toggle.press("Enter");
+    await panel.getByRole("button", { name: "取消目标" }).focus();
+    await page.keyboard.press("Escape");
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.press("Enter");
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await panel.getByRole("button", { name: "取消目标" }).click();
+    expect(actions).toEqual(["pause", "resume"]);
+    page.once("dialog", (dialog) => dialog.accept());
+    await panel.getByRole("button", { name: "取消目标" }).click();
+    await expect(toggle).toContainText("已取消");
+    expect(actions).toEqual(["pause", "resume", "cancel"]);
+    await page.reload();
+    await expect(toggle).toContainText("已取消");
     await expectNoOverflow(page);
   });
 }

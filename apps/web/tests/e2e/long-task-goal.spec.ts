@@ -169,6 +169,7 @@ test("目标草案修改、暂停错误恢复、取消可用键盘操作", async
     (route) => route.fulfill({ status: 503, json: { error: { code: "service_unavailable" } } }),
     { times: 1 },
   );
+  await goal.locator(".analysis-goal-heading").click();
   await goal.getByRole("button", { name: "暂停目标" }).click();
   await expect(goal).toContainText("操作失败");
   await goal.getByRole("button", { name: "暂停目标" }).focus();
@@ -176,6 +177,7 @@ test("目标草案修改、暂停错误恢复、取消可用键盘操作", async
   await expect(goal).toContainText("已暂停");
   await goal.getByRole("button", { name: "修改目标", exact: true }).click();
   await expect(page.getByLabel("分析问题")).toHaveValue("修改目标：");
+  await goal.locator(".analysis-goal-heading").click();
   page.once("dialog", (dialog) => dialog.accept());
   await goal.getByRole("button", { name: "取消目标" }).focus();
   await page.keyboard.press("Enter");

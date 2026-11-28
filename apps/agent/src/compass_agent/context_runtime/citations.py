@@ -17,7 +17,10 @@ from compass_agent.models.errors import ModelError
 
 def publish_citations(store, tx, run, assistant, body, revision, citations):
     anchors = citations["anchors"]
-    if any(body[a["start"] : a["end"]] != f"[{a['ordinal']}]" for a in anchors):
+    if any(
+        body[a["start"] : a["end"]] not in {f"[{a['ordinal']}]", f"^[{a['ordinal']}]^"}
+        for a in anchors
+    ):
         raise ModelError("delivery_conflict", 409)
     manifest = {
         "messageId": str(assistant.id),

@@ -1,0 +1,53 @@
+"""Model-facing contract; execution retains the full internal domain model."""
+
+SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "mode": {
+            "type": "string",
+            "enum": ["suggest", "save_draft", "revise"],
+            "description": (
+                "动作模式：suggest 为回答后免弹窗推荐候选；s"
+                "ave_draft 弹窗保存新草稿（默认）；revi"
+                "se 弹窗修订存量指标。"
+            ),
+        },
+        "spec": {
+            "type": "object",
+            "description": ("拟保存或修订的业务口径定义（修订存量指标时仅填变更字段）。"),
+            "additionalProperties": False,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "指标中文业务名称。",
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "统计口径说明（含筛选、时间边界与剔除规则）。",
+                },
+                "formula": {
+                    "type": "string",
+                    "description": ("可读业务计算公式（如 '净退货额 / 签收净销售额'）。"),
+                },
+                "unit": {
+                    "type": "string",
+                    "description": "计量单位（如 元、%、单）。",
+                },
+                "grain": {
+                    "type": "string",
+                    "description": "统计粒度（如 订单、门店×日）。",
+                },
+            },
+        },
+        "resultRef": {
+            "type": "string",
+            "description": ("提报新指标草稿时关联的本轮查询结果 ID；指代刚才的查询可省略。"),
+        },
+        "targetMetric": {
+            "type": "string",
+            "description": ("mode=revise 时填写目标指标名称、编码或 ID；新建草稿或推荐时省略。"),
+        },
+    },
+    "required": ["spec"],
+}

@@ -741,3 +741,37 @@ def session_results(journal, trusted):
         for ref, status, data in results
         if status != "saved" and allows(service.store, trusted, data["refs"], epoch=journal.epoch)
     ]
+
+
+def has_session_draft(journal, tx, run, trusted):
+    """Inspect only this owner's saved session drafts through the Registry owner."""
+    from compass_agent.semantic.client import request
+
+    offers = tx.scalars(
+        select(SemanticMetricOffer)
+        .where(
+            SemanticMetricOffer.session_id == run.session_id,
+            SemanticMetricOffer.owner_id == trusted.actor_user_id,
+            SemanticMetricOffer.kind == "open",
+            SemanticMetricOffer.status == "saved",
+            SemanticMetricOffer.expires_at > datetime.now(UTC),
+        )
+        .order_by(SemanticMetricOffer.expires_at.desc())
+        .limit(12)
+    )
+    for offer in offers:
+        data = journal.store.private.open(offer.run_id, offer.kind, offer.private_payload)
+        version = (data.get("saved") or {}).get("version_id")
+        if not version:
+            continue
+        try:
+            result = request(
+                journal.store.source_settings, trusted, run.id, "validate", {"version_id": version}
+            )
+        except ModelError as error:
+            if error.status in {403, 404}:
+                continue
+            raise
+        if result.get("state") in {"draft", "returned"}:
+            return True
+    return False

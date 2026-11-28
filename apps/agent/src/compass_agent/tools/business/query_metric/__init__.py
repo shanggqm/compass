@@ -6,7 +6,11 @@ from uuid import UUID
 
 from pydantic import Field
 
+from compass_agent.prompt_assets import tool_text
+from compass_agent.schemas import ToolDefinition, ToolFunction
 from compass_agent.semantic.tool import Arguments, Parameters, tool
+from compass_agent.tools.business.query_metric.model_schema import SCHEMA
+from compass_agent.tools.contracts import ToolGovernance
 
 
 class Input(Arguments):
@@ -39,7 +43,57 @@ def registration(catalog):
         }
         return sha256(canonical(value)).hexdigest(), "query"
 
-    return replace(BASE.context_factory(catalog), fingerprint=fingerprint)
+    def normalize(raw, context):
+        from datetime import date, timedelta
+
+        args = dict(raw)
+        comparison = args.pop("compare_to", None)
+        if comparison is not None:
+            params = service.query_identity(args["query_ref"])["parameters"]
+            start, end = date.fromisoformat(params["start"]), date.fromisoformat(params["end"])
+            if comparison == "previous":
+                previous_start, previous_end = start - (end - start), start
+            else:
+                first, last = comparison.split("..", 1)
+                previous_start = date.fromisoformat(first)
+                previous_end = date.fromisoformat(last) + timedelta(days=1)
+            args.update(
+                operation="compare",
+                comparison={
+                    **params,
+                    "start": previous_start.isoformat(),
+                    "end": previous_end.isoformat(),
+                },
+            )
+        if "drilldown_from" in args:
+            if comparison is not None:
+                from compass_agent.tools.contracts import ToolRejected
+
+                raise ToolRejected("invalid_parameters")
+            args.update(operation="drilldown", parent_group=args.pop("drilldown_from") or "total")
+        return args
+
+    return replace(
+        BASE.context_factory(catalog), fingerprint=fingerprint, normalize_input=normalize
+    )
 
 
 SPEC = replace(BASE, context_factory=registration)
+
+
+SPEC = replace(
+    SPEC, governance=ToolGovernance(channel="always_on", pack="data_base", subagent_allowed=True)
+)
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="query_metric",
+            description=tool_text("query_metric"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

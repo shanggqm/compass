@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from hashlib import sha256
 from typing import Annotated, Literal
 from uuid import UUID, uuid5
@@ -25,11 +26,14 @@ from compass_agent.schemas import (
     ToolDefinition,
     ToolFunction,
 )
+from compass_agent.tools.builtin.schedule_write.model_schema import SCHEMA
+from compass_agent.tools.builtin.schedule_write.slim import normalizer
 from compass_agent.tools.catalog_contracts import ToolSpec
 from compass_agent.tools.contracts import (
     InProcessBinding,
     PreparedApproval,
     RegisteredTool,
+    ToolGovernance,
     ToolPolicy,
     ToolRejected,
 )
@@ -60,6 +64,9 @@ ARGUMENTS = TypeAdapter(
     ]
 )
 NAME = "schedule_write"
+
+
+WRITE_POLICY = ToolPolicy(effect="external_write", approval="required")
 
 
 def definition(_context):
@@ -204,12 +211,13 @@ def registration(context):
     return RegisteredTool(
         NAME,
         definition(context),
-        ToolPolicy(effect="external_write", approval="required"),
+        WRITE_POLICY,
         InProcessBinding(execute),
         parse_arguments,
         require_chat,
         bounded_payload,
         prepare_approval=prepare,
+        normalize_input=normalizer(service),
         local_effect=True,
     )
 
@@ -222,3 +230,22 @@ SPEC = ToolSpec(
     lambda context: context.schedules is not None,
     context_factory=registration,
 )
+
+
+SPEC = replace(
+    SPEC,
+    governance=ToolGovernance(channel="always_on", pack="schedule_base", scheduler_allowed=False),
+)
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="schedule_write",
+            description=tool_text("schedule_write"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

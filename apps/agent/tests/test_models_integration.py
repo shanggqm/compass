@@ -19,12 +19,15 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from .provider_fixture import ProviderFixture
+from .test_database_tools_integration import db
+from .test_database_tools_integration import targets as targets
 from .test_models import CHAT, MANAGE, ORIGINS, TEST, create, generate, invoke
 
 
 @pytest.fixture
-def system():
-    url = os.environ.get("AGENT_TEST_DATABASE_URL", "")
+def system(targets):
+    url, _ = targets("models")
+    db.migrate()
     key = os.environ.get("COMPASS_MODEL_ENCRYPTION_KEY", "")
     if not url or not key or not urlsplit(url).path.startswith("/compass_agent_test_"):
         pytest.fail("Explicit dedicated AGENT_TEST_DATABASE_URL and encryption key required")
@@ -186,7 +189,7 @@ def test_routing_uses_real_postgres_for_classification_and_main_call(system):
         input=generate("你好呀，讲个笑话"),
     )
     result = asyncio.run(routing.run(command, CHAT))
-    assert result.status == "completed"
+    assert result.status == "completed", result
     assert result.intent.scene_id == "SC-39"
     assert result.routing.provider_id == flash and result.routing.reason == "off_topic_flash"
     with Session(repo.engine) as session:

@@ -2,22 +2,21 @@
   "type": "function",
   "function": {
     "name": "python_analysis",
-    "description": "**用途与调用规则**\n\n- 在独立 Python 环境中分析本轮已授权的查询结果。\n- data 是输入数据；将 JSON 结果赋给 result，可写 /workspace/chart.png 生成 PNG。",
+    "description": "- 在同用户、租户和工作区复用的 Sandbox 中做分析或绘图。每次独立 Python 进程并行执行，shared_dir 共享文件；空闲回收后文件上下文结束。",
     "parameters": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "source_query_id": {
           "type": "string",
-          "maxLength": 128
+          "description": "上游查询回执结果 ID（数据 <=128KiB）。"
         },
         "code": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 16384
+          "description": "Python：读 data={\"columns\":[],\"rows\":[[]]}，结果赋给 result；图存 chart_path 或相对路径 chart.png。output_dir 为本次目录，shared_dir 为同用户同租户工作区共享目录。并行任务勿覆盖共享同名文件。"
         }
       },
-      "required": ["source_query_id", "code"],
-      "additionalProperties": false
+      "required": ["source_query_id", "code"]
     }
   },
   "examples": []

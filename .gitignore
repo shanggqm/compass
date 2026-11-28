@@ -17,8 +17,9 @@ coverage/
 *.log
 .DS_Store
 
-# Local Agent and editor configuration.
-/.agents/
+# Local Agent and editor configuration (keep shared .agents/rules/AGENTS.md tracked).
+/.agents/*
+!/.agents/rules/
 /.claude/
 /.codex/
 /.vscode/
@@ -262,3 +263,8 @@ out/
 /.codex/hooks.json
 /.cursor/hooks.json
 # <!-- my-ai-infra:end -->
+
+# Allow tracking the shared AGENTS.md source under .agents/rules/ while ignoring other local rules.
+!/.agents/rules/
+/.agents/rules/*
+!/.agents/rules/AGENTS.md

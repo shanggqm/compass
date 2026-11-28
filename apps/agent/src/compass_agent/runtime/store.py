@@ -84,6 +84,8 @@ def message_snapshot(message: AgentMessage) -> dict:
 
 
 def canceled_execution(store, tx, run):
+    from compass_agent.runtime.answer_publication import committed_message
+
     for step in tx.scalars(
         select(AgentStep).where(
             AgentStep.run_id == run.id, AgentStep.status.in_(("pending", "waiting", "running"))
@@ -103,7 +105,7 @@ def canceled_execution(store, tx, run):
             AgentMessage.channel == "conversation",
         )
     ).one()
-    value = message_snapshot(message)
+    value, _ = committed_message(tx, run, message)
     value["revision"] += 1
     value["status"] = "incomplete"
     return [
@@ -489,11 +491,17 @@ class RuntimeStore:
             from compass_agent.context_runtime.pipeline import exact, pin
 
             config["contextRuntime"] = pin(tx, context, self)
-            config["contextRuntime"]["answerProtocol"] = 2
+            config["contextRuntime"]["answerProtocol"] = 3
+            config["contextRuntime"]["completionReview"] = 1
+            config["contextRuntime"]["toolRequirements"] = 1
             exact(
                 tx,
                 config["contextRuntime"],
-                ["tools/final_answer.json", "shared/fragments/answer-protocol.md"],
+                [
+                    "tools/final_answer.json",
+                    "shared/fragments/answer-protocol.md",
+                    "answer/review.md",
+                ],
             )
             if self.source_settings.compass_context_optimization_enabled:
                 exact(
@@ -838,7 +846,7 @@ class RuntimeStore:
             self.require_epoch(run, epoch)
             if (
                 status == "completed"
-                and run.config_snapshot.get("contextRuntime", {}).get("answerProtocol") == 2
+                and run.config_snapshot.get("contextRuntime", {}).get("answerProtocol") in {2, 3}
                 and answer_acceptance is None
             ):
                 raise ModelError("delivery_conflict", 409)
@@ -846,8 +854,12 @@ class RuntimeStore:
                 from compass_agent.context_runtime.source_access import read_private
                 from compass_agent.runtime.private_state import digest
 
+                protocol = run.config_snapshot.get("contextRuntime", {}).get("answerProtocol", 2)
                 accepted = read_private(
-                    self, tx, run_id, f"answer/v2/accepted/{answer_acceptance['candidateId']}"
+                    self,
+                    tx,
+                    run_id,
+                    f"answer/v{protocol}/accepted/{answer_acceptance['candidateId']}",
                 )
                 if (
                     accepted is None
@@ -920,7 +932,9 @@ class RuntimeStore:
                     )
                 else:
                     events = [*events, persist_delivery(tx, session, run, delivery, refs)]
-            value = message_snapshot(assistant)
+            from compass_agent.runtime.answer_publication import committed_message
+
+            value, _ = committed_message(tx, run, assistant)
             value["revision"] += 1
             value["status"] = "completed" if status == "completed" else "incomplete"
             if answer is not None:

@@ -2,26 +2,22 @@
   "type": "function",
   "function": {
     "name": "read_document",
-    "description": "**用途与调用规则**\n\n- 用本 Run 此前检索或阅读取得的 ref 获取原文。\n- offset 为 -1、0 或 1，可读取同一版本的相邻段。\n- 核实适用条款、表头与单位时按需打开邻段。\n- 资料权限和有效期在读取时复核。",
+    "description": "- 读取本轮 search_documents 命中的文档段落全文或展开相邻上下文段落，用于正式引用前核实完整条款、表头与单位。",
     "parameters": {
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "ref": {
-          "format": "uuid",
-          "title": "Ref",
-          "type": "string"
+          "type": "string",
+          "description": "本轮 search_documents 返回的段落引用 ID。"
         },
         "offset": {
-          "default": 0,
-          "maximum": 1,
-          "minimum": -1,
-          "title": "Offset",
-          "type": "integer"
+          "type": "integer",
+          "enum": [-1, 0, 1],
+          "description": "段落偏移：0 当前段（默认），-1 上一段，1 下一段。"
         }
       },
-      "required": ["ref"],
-      "title": "Input",
-      "type": "object"
+      "required": ["ref"]
     }
   },
   "examples": []

@@ -82,7 +82,7 @@ def record_sources_locked(store, tx, run, incoming, epoch):
                     refs.append(guard)
     # Default terms are reauthorized in batches independently of the tool reference budget.
     counted = sum(not (r.get("kind") == "semantic" and r.get("default_term")) for r in refs)
-    modern = run.config_snapshot.get("contextRuntime", {}).get("answerProtocol") == 2
+    modern = run.config_snapshot.get("contextRuntime", {}).get("answerProtocol") in {2, 3}
     if counted > (MAX_SEARCH_REFS if search or modern else 64):
         refs = [{"kind": "source_set_blocked" if search else "transient"}]
     message.source_refs = refs
@@ -373,6 +373,8 @@ def final_text(store, tx, run_id):
 
 
 def project_sources(store, response, context, *, live_since=None):
+    from compass_agent.runtime.answer_publication import draft_text, hydrate_chunk, marker_data
+
     value = response.model_dump(mode="json", by_alias=True)
     decisions = {}
     statuses = {}
@@ -380,11 +382,13 @@ def project_sources(store, response, context, *, live_since=None):
     unavailable = set()
     search_runs = set()
     visible = []
+    runs = {}
     with Session(store.engine) as tx:
         for packet in value["packets"]:
             identifier = UUID(packet["runId"])
             if identifier not in decisions:
                 run = tx.get(AgentRun, identifier)
+                runs[identifier] = run
                 if not run or not run.config_snapshot.get("contextRuntime"):
                     decisions[identifier] = None
                 else:
@@ -416,6 +420,16 @@ def project_sources(store, response, context, *, live_since=None):
             event = packet["event"]
             if allowed is not None:
                 payload = event["payload"]
+                if data := marker_data(event):
+                    if response.mode == "snapshot":
+                        continue
+                    packet["event"] = (
+                        hydrate_chunk(store, tx, identifier, data)
+                        if allowed
+                        else {"type": "run.upsert", "payload": statuses[identifier]}
+                    )
+                    visible.append(packet)
+                    continue
                 if (
                     event["type"] == "run.upsert"
                     and payload["status"] == "failed"
@@ -435,9 +449,15 @@ def project_sources(store, response, context, *, live_since=None):
                             ),
                             "artifactIds": [],
                         }
-                    elif payload["status"] in {"completed", "incomplete"}:
+                    else:
                         payload["content"]["text"] = (
-                            final_text(store, tx, identifier) or payload["content"]["text"]
+                            (
+                                final_text(store, tx, identifier)
+                                if payload["status"] in {"completed", "incomplete"}
+                                else None
+                            )
+                            or draft_text(store, tx, runs[identifier], payload)
+                            or payload["content"]["text"]
                         )
                 elif allowed and event["type"] == "view.upsert" and payload["kind"] != "artifact":
                     hydrated = read_private(store, tx, identifier, view_key(payload)) or event
@@ -455,3 +475,36 @@ def project_sources(store, response, context, *, live_since=None):
             visible.append(packet)
     value["packets"] = visible
     return type(response).model_validate(value)
+
+
+def sandbox_sources(store, context, run_ids, *, epoch=None):
+    from compass_agent.runtime.entities import AgentSession
+
+    scope = context.scope
+    if not isinstance(scope, TenantScope):
+        raise ModelError("source_access_denied", 403)
+    owner = (scope.tenant_id, scope.workspace_id, context.actor_user_id)
+    refs = []
+    with Session(store.engine) as tx:
+        for run_id in run_ids:
+            run = tx.get(AgentRun, run_id)
+            owner_session = tx.get(AgentSession, run.session_id) if run else None
+            message = assistant_message(tx, run_id)
+            if (
+                owner_session is None
+                or message is None
+                or owner_session.deleted_at is not None
+                or (
+                    owner_session.tenant_id,
+                    owner_session.workspace_id,
+                    owner_session.owner_user_id,
+                )
+                != owner
+            ):
+                raise ModelError("source_access_denied", 403)
+            for ref in message.source_refs or []:
+                if ref not in refs:
+                    refs.append(ref)
+    if not allows(store, context, refs, epoch=epoch, raise_unavailable=True):
+        raise source_denial(refs)
+    return refs

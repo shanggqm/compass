@@ -1,11 +1,16 @@
 """One prompt starts an isolated child Agent."""
 
+from dataclasses import replace
+
 from pydantic import Field, model_validator
 
 from compass_agent.goal.contracts import MAX_TASKS, DelegationTask
 from compass_agent.prompt_assets import tool_text
 from compass_agent.schemas import RunContractModel, ToolDefinition, ToolFunction
+from compass_agent.tools.builtin.sub_agent.model_schema import SCHEMA
+from compass_agent.tools.builtin.sub_agent.slim import normalize_input
 from compass_agent.tools.catalog_contracts import ToolSpec
+from compass_agent.tools.contracts import ToolGovernance
 
 NAME = "sub_agent"
 
@@ -56,3 +61,43 @@ SPEC = ToolSpec(
     evidence_adapter=evidence,
     public_projection="status_only",
 )
+
+
+SPEC = replace(
+    SPEC,
+    governance=ToolGovernance(
+        channel="scene_routed",
+        pack="deep_analysis_pack",
+        default_scenes=frozenset(
+            [
+                "SC-03",
+                "SC-04",
+                "SC-14",
+                "SC-20",
+                "SC-25",
+                "SC-26",
+                "SC-27",
+                "SC-28",
+                "SC-31",
+                "SC-32",
+                "SC-35",
+                "SC-40",
+            ]
+        ),
+    ),
+)
+
+SPEC = replace(SPEC, normalize_input=normalize_input)
+
+
+def model_definition(context):
+    return ToolDefinition(
+        function=ToolFunction(
+            name="sub_agent",
+            description=tool_text("sub_agent"),
+            parameters=SCHEMA,
+        )
+    )
+
+
+SPEC = replace(SPEC, legacy_definition=SPEC.definition, definition=model_definition)

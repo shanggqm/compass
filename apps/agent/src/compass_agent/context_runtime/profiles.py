@@ -155,6 +155,9 @@ def enumerate_usages(policy_version=POLICY_VERSION) -> tuple[PathUsage, ...]:
     return (
         PathUsage(BASE),
         PathUsage("shared/fragments/answer-protocol.md"),
+        PathUsage("shared/fragments/answer-work.md"),
+        PathUsage("answer/plain.md"),
+        PathUsage("answer/evidence.md", variables=("ordered_evidences",)),
         PathUsage("shared/fragments/search-protocol.md"),
         *(PathUsage(p["path"]) for p in ASSEMBLY["searchPacks"].values()),
         PathUsage("shared/fragments/semantics.md"),
@@ -195,12 +198,12 @@ def resolve_profile(
         "analyze": None,
         "generate": frozenset(),
     }[phase]
-    if answer_protocol == 2 and phase != "identify":
+    if answer_protocol >= 2 and phase != "identify":
         stage_tools = None
     from compass_agent.tools.catalog import TOOLS
 
     ceiling = ASSEMBLY["scopeProfiles"][scope].get("toolCeiling")
-    if answer_protocol == 2:
+    if answer_protocol >= 2:
         ceiling = None
     scope_tools = set(ceiling["base"]) if ceiling else set()
     plugin_prefixes = ()
@@ -242,7 +245,7 @@ def resolve_profile(
     paths.append(f"shared/stages/{phase}.md")
     skills = []
     for skill in SKILLS:
-        if skill.key == "agentic-search" and answer_protocol == 2:
+        if skill.key == "agentic-search" and answer_protocol >= 2:
             # The default protocol already contains the search method, without legacy gates.
             skills.append(skill.key)
             continue
@@ -255,6 +258,10 @@ def resolve_profile(
             continue
         paths.append(skill.path)
         skills.append(skill.key)
-    if answer_protocol == 2 and phase != "identify" and not intermediate:
-        paths.append("shared/fragments/answer-protocol.md")
+    if answer_protocol >= 2 and phase != "identify" and not intermediate:
+        paths.append(
+            "shared/fragments/answer-work.md"
+            if answer_protocol >= 3
+            else "shared/fragments/answer-protocol.md"
+        )
     return Profile(tuple(paths), tuple(allowed), tuple(skills), tuple(excluded))

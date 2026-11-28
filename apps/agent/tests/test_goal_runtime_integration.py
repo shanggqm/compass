@@ -113,8 +113,11 @@ def claim(store, run_id):
     return ExecutionJournal(store, LocalPublisher(), run_id, grant.epoch)
 
 
-def approved_goal(store, owner=CHAT):
-    receipt = store.submit(command(), owner)
+def approved_goal(store, owner=CHAT, *, constraints=None):
+    request = command()
+    if constraints is not None:
+        request = request.model_copy(update={"constraints": constraints})
+    receipt = store.submit(request, owner)
     run_id = UUID(receipt["runId"])
     first = claim(store, run_id)
     controller = GoalController(store)
@@ -893,7 +896,7 @@ def test_cross_run_query_reuse_imports_citable_evidence_and_preserves_authorizat
             dispatcher = ToolDispatcher(registry, ExecutionSlots(), ArtifactStore())
             ctx = replace(context("database_query"), run_id=journal.run_id)
             query = call("database_query", identifier, json.dumps(args))
-            result = await dispatcher.execute(dispatcher.prepare(query, ctx), ctx)
+            result = await dispatcher.execute(await dispatcher.prepare(query, ctx), ctx)
             assert result.status == "ok", result.reason_code
             assert isinstance(result.payload, dict)
             observed = after_tool_batch(
@@ -1066,7 +1069,7 @@ def test_large_query_reuses_original_manifest_and_rechecks_cross_run_pages(
             dispatcher = StrictDispatcher(registry, ExecutionSlots(), ArtifactStore())
             ctx = replace(context("database_query"), run_id=journal.run_id)
             request = call("database_query", identifier, json.dumps(arguments))
-            result = await dispatcher.execute(dispatcher.prepare(request, ctx), ctx)
+            result = await dispatcher.execute(await dispatcher.prepare(request, ctx), ctx)
             assert result.status == "ok", result.reason_code
             after_tool_batch(
                 journal,

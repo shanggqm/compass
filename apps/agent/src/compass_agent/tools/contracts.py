@@ -202,6 +202,8 @@ class ToolExecutionContext:
         default=None, repr=False
     )
 
+    sandbox_access: Callable[[list[UUID]], Awaitable[None]] | None = field(default=None, repr=False)
+
     @property
     def owner(self) -> tuple[UUID, UUID, UUID]:
         from compass_agent.schemas import TenantScope
@@ -254,6 +256,36 @@ class PreparedApproval:
     private: dict
 
 
+LoadingChannel = Literal["always_on", "scene_routed", "user_selected"]
+CapabilityPack = Literal[
+    "core_base",
+    "subagent_base",
+    "data_base",
+    "doc_base",
+    "schedule_base",
+    "deep_analysis_pack",
+    "long_task",
+    "workflow_pack",
+    "semantic_govern",
+    "user_extension",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class ToolGovernance:
+    """Code-owned loading metadata; user selection never grants execution access."""
+
+    channel: LoadingChannel = "user_selected"
+    pack: CapabilityPack = "user_extension"
+    default_scenes: frozenset[str] = frozenset()
+    default_tasks: frozenset[str] = frozenset()
+    allowed_phases: frozenset[str] = frozenset({"work"})
+    requires_semantic_maintainer: bool = False
+    subagent_allowed: bool = False
+    scheduler_allowed: bool = True
+    summary: str = ""
+
+
 @dataclass(frozen=True, slots=True)
 class RegisteredTool:
     name: str
@@ -278,6 +310,11 @@ class RegisteredTool:
     public_projection: Literal["normal", "status_only"] = "normal"
     evidence_adapter: Callable | None = None
     fingerprint: Callable | None = None
+    governance: ToolGovernance = field(default_factory=ToolGovernance)
+    normalize_input: Callable | None = None
+    legacy_definition: ToolDefinition | None = None
+    workflow_id: UUID | None = None
+    mcp_server_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

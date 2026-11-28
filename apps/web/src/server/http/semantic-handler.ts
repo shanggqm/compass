@@ -187,7 +187,12 @@ export async function internalSemantic(request: Request, op: string) {
           const { version } = await import("../modules/semantic/catalog");
           const v = await version(c, key);
           const view = await inspect(c, v);
-          return { digest: v.digest, findings: view.checks, impact: view.impact };
+          return {
+            digest: v.digest,
+            findings: view.checks,
+            impact: view.impact,
+            state: view.state,
+          };
         }
         return write(c, ["revisions", key, "submit"], args);
       }

@@ -114,6 +114,7 @@ async def test_interrupted_confirmation_does_not_release_unknown_resource(monkey
 async def test_reconcile_keeps_unacknowledged_creates_until_a_resource_is_identified(
     monkeypatch, known_id, matches, released
 ):
+    from dataclasses import replace
     from datetime import UTC, datetime
     from uuid import uuid4
 
@@ -158,7 +159,10 @@ async def test_reconcile_keeps_unacknowledged_creates_until_a_resource_is_identi
         return True
 
     store = SimpleNamespace(
-        claim_due=lambda: [allocation], confirmed=lambda value: confirmed.append(value.id)
+        claim_due=lambda: [allocation],
+        confirmed=lambda value: confirmed.append(value.id),
+        observe_absent=lambda value: False,
+        observe_resource=lambda value, identifier: replace(value, sandbox_id=identifier),
     )
     backend = SandboxBackend(cast(Any, store), domain="unused", api_key="unit", image="unit")
     monkeypatch.setattr(SandboxManager, "create", create)
@@ -224,3 +228,25 @@ async def test_unknown_input_returns_durable_rejection_before_allocating():
     assert receipt.cleanup == "not_started"
     assert receipt.reason_code == "sandbox_source_denied"
     assert asdict(receipt)["cleanup"] == "not_started"
+
+
+@pytest.mark.anyio
+async def test_control_plane_outage_never_counts_as_confirmed_absence(monkeypatch):
+    allocation = SimpleNamespace(state="unknown", metadata={})
+    observed = []
+
+    class Manager:
+        async def list_sandbox_infos(self, filters):
+            raise TimeoutError("control plane unavailable")
+
+        async def close(self):
+            pass
+
+    async def create(_):
+        return Manager()
+
+    monkeypatch.setattr(SandboxManager, "create", create)
+    store = SimpleNamespace(claim_due=lambda: [allocation], observe_absent=observed.append)
+    backend = SandboxBackend(cast(Any, store), domain="unused", api_key="unit", image="unit")
+    assert await backend.reconcile() == []
+    assert observed == []

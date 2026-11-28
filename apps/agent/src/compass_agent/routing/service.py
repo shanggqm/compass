@@ -23,6 +23,7 @@ from compass_agent.routing.intent import (
     flash_input,
     from_flash,
     from_jev,
+    tool_requirements,
 )
 from compass_agent.routing.prompts import route_prompt
 from compass_agent.schemas import (
@@ -50,6 +51,7 @@ class SelectedRoute:
     off_topic: bool
     metrics: RoutingMetrics
     deliverable: str | None = None
+    required_tools: tuple[str, ...] = ()
 
 
 class RoutingService:
@@ -187,6 +189,7 @@ class RoutingService:
             paths = ["support/routing/scenes.json"]
             await asyncio.to_thread(current_execution.get().prefetch_prompts, paths)
         deliverable = None
+        required_tools = ()
         # M2 uses the Flash stage with a declared token and cost bound.
         routing_mode = (
             "flash_only" if attempt_budget is not None else self.settings.compass_routing_mode
@@ -219,6 +222,12 @@ class RoutingService:
                     deliverable = choice(decision, "deliverable")
                     if deliverable not in Delivery.__args__:
                         intent = None
+                    needs = {name: choice(decision, f"tool:{name}") for name in tool_requirements()}
+                    if any(value is None for value in needs.values()):
+                        intent = None
+                    required_tools = tuple(
+                        name for name, value in needs.items() if value == "required"
+                    )
                 if intent is None:
                     metrics.fallback_reason = "jev_unavailable_or_uncertain"
             except ModelError as exc:
@@ -261,6 +270,9 @@ class RoutingService:
 
                     intent = intent_for_scene(parsed.scene_id)
                     deliverable = parsed.deliverable
+                    required_tools = tuple(
+                        name for name in tool_requirements() if name in parsed.required_tools
+                    )
             else:
                 intent = from_flash(prediction)
             metrics.classifier_source = "flash"
@@ -353,17 +365,20 @@ class RoutingService:
             off_topic=off_topic,
             metrics=metrics,
             deliverable=deliverable,
+            required_tools=required_tools,
         )
 
     def _pin_direct_prompts(self):
         from compass_agent.promptops.catalog import bundled
+        from compass_agent.promptops.layout import MEMBERS
         from compass_agent.promptops.reader import current_bodies
 
         paths = [
             path
-            for path in bundled()
+            for path in sorted(set(bundled()) | set(MEMBERS))
             if path.startswith(("support/routing/", "shared/fragments/output-"))
         ]
+        paths.append("shared/stages/identify.md")
         return current_bodies(self.models.repository.engine, paths)
 
     async def run(self, command, context, emit=None) -> Any:

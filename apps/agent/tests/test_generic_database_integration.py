@@ -523,7 +523,7 @@ def test_generic_in_process_write_replays_accepted_receipt_without_repeating_eff
                 token = current_execution.set(journal)
                 try:
                     dispatch = dispatcher(tool)
-                    prepared = dispatch.prepare(call("save_note", "save"), execution)
+                    prepared = await dispatch.prepare(call("save_note", "save"), execution)
                     result = await dispatch.execute(prepared, execution)
                     assert result.status == "ok" and result.payload == {"saved": True}
                 finally:

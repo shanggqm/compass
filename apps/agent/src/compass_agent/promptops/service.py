@@ -144,6 +144,7 @@ def file_detail(tx, path, version=None):
         if path.endswith(".json")
         else "markdown",
         contract_sha256=contract_digest(path),
+        governance=tool_governance(path),
         retired=catalog.retired(path),
     )
 
@@ -718,3 +719,24 @@ def bootstrap(tx, actor_id=None):
         commit_release,
     )
     return receipt["generation"]
+
+
+def tool_governance(path):
+    from compass_agent.tools.catalog import TOOLS
+    from compass_agent.tools.contracts import ToolPolicy
+
+    name = path.removeprefix("tools/").removesuffix(".json")
+    spec = next((s for s in TOOLS if s.name == name), None)
+    if spec is None:
+        return None
+    policy = spec.factory().policy if spec.factory else ToolPolicy()
+    if name == "schedule_write":
+        from compass_agent.tools.builtin.schedule_write import WRITE_POLICY
+
+        policy = WRITE_POLICY
+    return {
+        "channel": spec.governance.channel,
+        "pack": spec.governance.pack,
+        "effect": policy.effect,
+        "approval": policy.approval,
+    }
